@@ -98,19 +98,26 @@ Android app (future):
   - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally. Note: this allocates a copy up to `ring_buffer_max_size` (default 4MB) per call. This is acceptable for the expected viewer count (single-user tool with a handful of concurrent tabs); if many viewers connect simultaneously to a large-buffer pane, the transient memory spike is bounded by `max_pane_streams × ring_buffer_max_size`. Because `subscribe/1` makes a `GenServer.call` that triggers `RingBuffer.read/1`, concurrent subscribes to the same pane serialize through the GenServer — during high-throughput output, each subscribe briefly blocks output processing. This is acceptable for the expected concurrency (a few tabs); the call returns quickly since `read/1` is a memory copy, not I/O.
   - `status` — `:streaming | :dead | :shutting_down`
   - `grace_timer_ref` — reference from `Process.send_after/3` for the grace period timer, or `nil`. Used by `Process.cancel_timer/1` when a new viewer subscribes during the grace period.
+  - `port_recovery` — `%{attempts: non_neg_integer, window_start: integer | nil}` tracking pipeline recovery attempts. Reset when 60 seconds elapse since `window_start` with no further crashes. Max 3 attempts per window.
 - **Interface**:
   - `start_link/1` — starts streaming for a target pane
   - `subscribe/1` — **module function** (not a GenServer call) called by a viewer process. Uses `self()` to identify the caller. The function:
       1. Subscribes the caller to the PubSub topic `"pane:#{target}"` — this happens in the caller's process context (since `Phoenix.PubSub.subscribe/2` always subscribes `self()`), ensuring PubSub messages are delivered directly to the viewer (e.g., the LiveView), not to the GenServer.
       2. Checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. If `start_link/1` returns `{:error, {:already_started, pid}}` (race with another concurrent `subscribe/1` call), uses the existing PID.
-      3. Makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`).
+      3. Makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID and returns `{:ok, history, pane_stream_pid}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`) and `pane_stream_pid` is the PaneStream's PID (so the caller can monitor it for crash recovery).
     The PubSub subscription (step 1) happens before history is returned (step 3), guaranteeing no messages are lost between receiving history and streaming — any messages arriving during step 2-3 queue in the caller's mailbox and are processed after mount completes. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails). On error, the function unsubscribes from the PubSub topic before returning to avoid a leaked subscription.
   - `unsubscribe/1` — called by a viewer process. Uses `self()` to identify the caller. Removes the caller from the viewer set and demonitors the PID. Idempotent — safe to call multiple times or after the monitor has already fired (e.g., `terminate/2` calls `unsubscribe` but the DOWN message may also arrive). If no viewers remain after removal, starts the grace period timer.
   - `send_keys/2` — sends input (as a binary) to the pane via `tmux send-keys -H`. Each byte of the binary is converted to its two-character hex representation. If status is `:dead`, skips the call and returns `{:error, :pane_dead}`. If the `send-keys` command fails (e.g., pane died between checks), logs a warning and returns `:ok` — pane death notification will follow shortly via the Port EOF flow.
 - **Lifecycle**:
   - Monitors all viewer PIDs — auto-unsubscribes on viewer crash/disconnect
   - On last viewer unsubscribe: starts a configurable grace period timer (default 5s) via `Process.send_after(self(), :grace_period_expired, ...)`. If a new viewer subscribes within the grace period, cancel the timer via `Process.cancel_timer/1`. When the `:grace_period_expired` message arrives in `handle_info`, re-check `MapSet.size(viewers) == 0` before proceeding with shutdown — this eliminates the race between a late subscribe and the timer firing. **Why this is safe**: Even if `Process.cancel_timer/1` returns `false` (the `:grace_period_expired` message is already in the mailbox), the GenServer processes messages sequentially. The subscribe call (which adds the viewer to the MapSet) is a `GenServer.call` that will be processed before or after the timer message. If the subscribe is processed first, the viewer is in the MapSet and the re-check prevents shutdown. If the timer fires first, the re-check sees zero viewers and shuts down — but the subscribe call will then start a fresh PaneStream via the get-or-start logic.
-  - On Port exit (any status): cancel any active grace period timer, set status to `:dead`, broadcast `{:pane_dead, target}` to all viewers via PubSub, clean up FIFO, then terminate immediately regardless of viewer count. The grace period is irrelevant once the pane is dead — there is nothing to keep alive. Viewers receive the broadcast independently and do not need to acknowledge. Log at `info` level for exit status 0 (normal pane death); log at `warning` level for non-zero (e.g., permission error, `cat` not found).
+  - On Port exit with status 0 (normal EOF — pane died, pipe-pane closed the FIFO): cancel any active grace period timer, set status to `:dead`, broadcast `{:pane_dead, target}` to all viewers via PubSub, clean up FIFO, then terminate. Log at `info` level.
+  - On Port exit with non-zero status (`cat` crashed — e.g., OOM-killed, signal): the tmux pane may still be alive. The PaneStream attempts pipeline recovery:
+      1. Check if the pane still exists: `tmux has-session -t {target}` (or `tmux display-message -p -t {target} '#{pane_id}'`).
+      2. If the pane is alive, re-run the pipeline setup: remove stale FIFO, create new FIFO, start new `cat` Port, re-attach `pipe-pane`. Do NOT re-capture scrollback — the ring buffer already has history and streaming output, and re-capturing would introduce duplication. Set status back to `:streaming`. Log at `warning` level: "Port exited with status {n}, pane still alive — restarting pipeline".
+      3. If recovery fails (pane gone, FIFO error, pipe-pane fails), fall through to the normal death path: set status to `:dead`, broadcast `{:pane_dead, target}`, clean up, terminate. Log at `error` level.
+      4. Limit recovery attempts to 3 within a 60-second window to prevent infinite restart loops (e.g., if `cat` is repeatedly killed). After exhausting retries, follow the death path. The retry counter resets after 60 seconds of stable streaming.
+    This distinction is safe because exit status 0 from `cat` reliably indicates EOF (the write end of the FIFO was closed, meaning pipe-pane detached because the pane died). Non-zero indicates an abnormal `cat` termination unrelated to pane lifecycle.
 
 #### `RemoteCodeAgents.Tmux.CommandRunner`
 - **Responsibility**: Execute tmux CLI commands and return parsed output
@@ -157,13 +164,10 @@ PaneStream startup (order matters):
        from the escape sequences, not from line boundaries.
      — Done AFTER pipe-pane attach so no output is lost between steps
      — Any output generated between steps 5 and 7 will appear in both
-       the pipe stream and the scrollback capture. This causes visible
-       duplication for line-oriented output (e.g., command results printing
-       at that moment). Full-screen redraws (e.g., vim, top) are invisible
-       since xterm.js overwrites the same cells. This tradeoff is accepted:
-       brief duplication on attach is preferable to missing output entirely
-       (which would happen if capture-pane ran before pipe-pane attach)
-  8. Write scrollback into ring buffer as initial content
+       the pipe stream and the scrollback capture (see Scrollback
+       Deduplication below for how this overlap is handled)
+  8. Deduplicate scrollback against pipe stream (see Scrollback Deduplication)
+  9. Write deduplicated scrollback into ring buffer as initial content
      — From this point on, the ring buffer is the single source of history
      — Streaming output from the pipe appends to the same buffer
      — Old content naturally rolls off as the buffer fills
@@ -171,9 +175,22 @@ PaneStream startup (order matters):
 
 **Startup sequence rationale**: The key insight is that `cat` on a FIFO blocks at the OS level until a writer opens the pipe, but since it's a Port (separate OS process), it doesn't block the Elixir GenServer. The GenServer can proceed to call `pipe-pane` which opens the write end, unblocking `cat`. This avoids the FIFO deadlock without needing `O_NONBLOCK` or `O_RDWR` hacks.
 
-Scrollback is captured *after* pipe-pane is attached. This means there's a brief window where output appears in both the pipe stream and the scrollback capture. For full-screen applications (vim, top, htop), the duplication is invisible since xterm.js overwrites the same screen cells. For line-oriented output (e.g., a command printing results at that exact moment), duplicated lines will be visible. This is an accepted tradeoff — brief duplication on attach is preferable to the alternative (capturing scrollback first and risking missed output between capture and pipe-pane attach). In practice, most attach operations happen against idle or slow-output panes where the window of overlap is negligible.
+Scrollback is captured *after* pipe-pane is attached. This means there's a brief window where output appears in both the pipe stream and the scrollback capture. The Scrollback Deduplication step (step 8) removes this overlap in the common case. See the dedicated section below for details.
 
-The captured scrollback is written into the ring buffer as its initial content, making the ring buffer the single source of history for all viewers. As new output streams in, old scrollback naturally rolls off the end of the buffer. This eliminates the gap/overlap problem for late-joining viewers — every subscriber receives one contiguous block of history from the ring buffer.
+The deduplicated scrollback is written into the ring buffer as its initial content, making the ring buffer the single source of history for all viewers. As new output streams in, old scrollback naturally rolls off the end of the buffer. This eliminates the gap/overlap problem for late-joining viewers — every subscriber receives one contiguous block of history from the ring buffer.
+
+**Scrollback Deduplication**:
+
+Between step 5 (pipe-pane attach) and step 7 (capture-pane), any output the pane produces will appear in both the pipe stream and the scrollback capture. Step 8 removes this overlap:
+
+1. After `capture-pane` returns the scrollback binary, drain any data already buffered from the Port (pipe stream data that arrived between steps 5-7). Collect this into a `pipe_prefix` binary.
+2. If `pipe_prefix` is empty (common case — pane was idle), no deduplication needed. Write scrollback directly into the ring buffer.
+3. If `pipe_prefix` is non-empty, search for it as a suffix of the scrollback capture (byte-level comparison). If found, truncate the scrollback to exclude the overlapping tail before writing into the ring buffer. The pipe stream data that follows will be appended normally, producing a seamless history.
+4. If the `pipe_prefix` is not found as a suffix (e.g., output was too fast and the pipe received more data than the overlap, or the capture-pane format differs enough to prevent a byte match), fall back: write the full scrollback into the ring buffer. This may produce brief visible duplication for line-oriented output. For full-screen applications (vim, top, htop), the duplication is invisible since xterm.js overwrites the same screen cells.
+
+**Why suffix matching works**: `capture-pane` returns the screen state at a point in time. Any output that arrived between pipe-pane attach (step 5) and the capture (step 7) is included in the capture *and* was streamed through the pipe. The pipe data is a suffix of the capture because the pipe only started receiving data at step 5, and capture-pane includes all output up to step 7. So the pipe's accumulated data should match the tail of the scrollback capture.
+
+**Format mismatch caveat**: `capture-pane -p -e` adds trailing newlines per line and may format ANSI escapes slightly differently than the raw pty stream from pipe-pane. The suffix search is a byte-level comparison on the raw data. If the formats diverge (e.g., capture-pane normalizes certain escape sequences), the match fails and we fall back to the duplication-accepted path. In practice, for the short overlap window (typically milliseconds), the data is small enough that format differences are rare.
 
 **Shutdown sequence:**
 
@@ -264,15 +281,18 @@ Example: User types "hi" then Ctrl+C
   - `onResize`: debounced (300ms) → `this.pushEvent("resize", {cols, rows})`
   - Server pushes `"output"` → `term.write(data)`
   - Server pushes `"history"` → `term.write(data)` (before streaming begins)
+  - Server pushes `"reconnected"` → `term.reset()` then `term.write(data)` — seamless refresh after PaneStream crash recovery
   - Server pushes `"pane_dead"` → display overlay message "Session ended", offer link back to session list
   - Clipboard: `onSelectionChange` → auto-copy to clipboard; paste handler intercepts Ctrl+Shift+V / toolbar button
   - `destroyed()`: Clean up xterm.js instance
 - **Server side** (`mount/3`):
   - Constructs target from URL params: `"#{session}:#{window}.#{pane}"` (where session, window, pane are from the route `/sessions/:session/:window/:pane` — window and pane are integer indices)
-  - Calls `PaneStream.subscribe(target)` — gets `{:ok, history}` (PubSub subscription is handled internally by `subscribe/1`, so no messages are lost between receiving history and streaming) or `{:error, :pane_not_found}` (show error UI)
+  - Calls `PaneStream.subscribe(target)` — gets `{:ok, history, pane_stream_pid}` (PubSub subscription is handled internally by `subscribe/1`, so no messages are lost between receiving history and streaming) or `{:error, :pane_not_found}` (show error UI)
+  - Monitors the returned `pane_stream_pid` via `Process.monitor/1` and stores the monitor ref in assigns
   - Pushes history to client via `push_event(socket, "history", %{data: ...})`
   - `handle_info({:pane_output, data})` → `push_event(socket, "output", %{data: data})`
   - `handle_info({:pane_dead, _target})` → `push_event(socket, "pane_dead", %{})`
+  - `handle_info({:DOWN, ref, :process, _pid, _reason})` — PaneStream crashed. The viewer demonitors the old ref, then calls `PaneStream.subscribe(target)` again (which starts or finds the restarted PaneStream). If successful, pushes fresh history to the client (xterm.js `term.reset()` + `term.write(history)` via a `"reconnected"` push event) and monitors the new PID. If the pane no longer exists, transitions to the pane-dead UI. This recovery is transparent to the user — output briefly pauses, then the terminal refreshes with full history.
   - `handle_event("key_input", %{"data" => b64})` → `Base.decode64/1` with error handling (invalid base64 is logged and ignored, not crashed on) → `PaneStream.send_keys(target, bytes)`
   - `handle_event("resize", %{"cols" => c, "rows" => r})` → resize handling (see Resize Conflicts below)
   - `terminate/2`: calls `PaneStream.unsubscribe(target)`. Note: `terminate/2` is best-effort — it does not run on node crash or hard network timeout. The real safety net is PaneStream's monitor on the viewer PID, which fires a `:DOWN` message and triggers auto-unsubscribe regardless of how the viewer process exits.
@@ -312,9 +332,9 @@ Note: Both input and output are base64-encoded for LiveView transport since Live
 2. If PaneStream not running, starts it under DynamicSupervisor:
    a. Port starts `cat` on FIFO (blocks at OS level, not in GenServer)
    b. `pipe-pane` attached (unblocks `cat`)
-   c. `capture-pane` captures scrollback, writes it into the ring buffer
-3. PaneStream returns `{:ok, history}` — the current ring buffer contents
-4. TerminalLive pushes history to client as `"history"` event
+   c. `capture-pane` captures scrollback, deduplicates against pipe stream, writes into ring buffer
+3. PaneStream returns `{:ok, history, pane_stream_pid}` — ring buffer contents + PID for monitoring
+4. TerminalLive monitors `pane_stream_pid` and pushes history to client as `"history"` event
 5. Client writes history to xterm.js, then streaming output follows
 
 All viewers — first or late — follow the same path. The ring buffer always contains contiguous history (initial scrollback plus all subsequent streaming output, with old content rolling off as the buffer fills). No separate scrollback handling is needed.
@@ -337,11 +357,19 @@ All viewers — first or late — follow the same path. The ring buffer always c
 
 1. tmux pane exits (process ends, user runs `exit`, session killed externally)
 2. `pipe-pane` closes the write end of the FIFO
-3. `cat` Port receives EOF, exits
-4. PaneStream receives `{port, {:exit_status, status}}` in `handle_info`
-5. PaneStream handles all exit statuses uniformly: sets status to `:dead`, broadcasts `{:pane_dead, target}` via PubSub, cleans up FIFO. Logs differ by status: `Logger.info` for status 0 (normal pane death), `Logger.warning` for non-zero (port error — e.g., permission denied, `cat` binary missing).
+3. `cat` Port receives EOF, exits with status 0
+4. PaneStream receives `{port, {:exit_status, 0}}` in `handle_info`
+5. PaneStream sets status to `:dead`, broadcasts `{:pane_dead, target}` via PubSub, cleans up FIFO, terminates. Logged at `info` level.
 6. All TerminalLive viewers receive `handle_info({:pane_dead, _})`, push `"pane_dead"` event to client
 7. Client shows "Session ended" overlay with link back to session list
+
+**Port crash (non-zero exit, pane may still be alive)**:
+
+1. `cat` Port is killed externally (OOM, signal) — exits with non-zero status
+2. PaneStream receives `{port, {:exit_status, n}}` where `n > 0`
+3. PaneStream checks if the tmux pane is still alive
+4. If alive: restarts the pipeline (new FIFO, new Port, re-attach pipe-pane), resumes streaming. Viewers are unaware — output briefly pauses then resumes.
+5. If dead (or recovery fails, or retry limit exceeded): follows the normal death path above (steps 5-7)
 8. PaneStream cleans up FIFO and terminates
 
 ### Resize Conflict Resolution
@@ -1072,7 +1100,10 @@ def handle_event("cancel_action", _params, socket) do
 end
 
 defp send_quick_action(socket, action) do
-  # Send the command text followed by Enter (newline) as a binary
+  # Send the command text followed by Enter (newline) as a binary.
+  # Return value intentionally ignored: if the pane is dead, the :pane_dead
+  # PubSub broadcast triggers the "Session ended" overlay within milliseconds,
+  # making a separate error flash redundant.
   command_with_enter = action.command <> "\n"
   PaneStream.send_keys(socket.assigns.target, command_with_enter)
   {:noreply, socket}
