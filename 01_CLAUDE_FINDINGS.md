@@ -25,8 +25,8 @@ Specified full encoding pipeline: client uses `TextEncoder` (JS string → UTF-8
 ### ~~7. `send-keys -H` and multi-byte characters~~ RESOLVED
 Covered by #6 fix — `TextEncoder` handles the JS string → UTF-8 conversion client-side.
 
-### 8. PubSub topic contains multiple colons
-Line 209 uses `"pane:#{target}"` where target is `"session:window.pane"`, producing topics like `"pane:mysession:0.1"`. This works but is worth an explicit note that the format is intentionally `pane:<session>:<window>.<pane>`.
+### ~~8. PubSub topic contains multiple colons~~ RESOLVED
+Added inline note clarifying the multiple colons are intentional.
 
 ## Insufficiencies
 

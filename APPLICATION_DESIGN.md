@@ -238,7 +238,7 @@ Example: User types "hi" then Ctrl+C
 - **Server side** (`handle_params/3`):
   - Calls `PaneStream.subscribe(target)` — gets `{:ok, history}`
   - Pushes history to client via `push_event(socket, "history", %{data: ...})`
-  - Subscribes to PubSub topic `"pane:#{target}"`
+  - Subscribes to PubSub topic `"pane:#{target}"` (where target is e.g. `"mysession:0.1"`, giving a topic like `"pane:mysession:0.1"` — the multiple colons are intentional)
   - `handle_info({:pane_output, data})` → `push_event(socket, "output", %{data: data})`
   - `handle_info({:pane_dead, _target})` → `push_event(socket, "pane_dead", %{})`
   - `handle_event("key_input", %{"data" => b64})` → `Base.decode64!/1` → `PaneStream.send_keys(target, bytes)`
