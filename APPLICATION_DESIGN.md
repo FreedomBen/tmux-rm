@@ -95,8 +95,8 @@ Android app (future):
   - `target` — the `session:window.pane` identifier
   - `pipe_port` — Elixir Port running `cat` on the FIFO
   - `viewers` — `MapSet` of subscriber PIDs (monitored)
-  - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally. Note: this allocates a copy up to `ring_buffer_max_size` (default 4MB) per call. This is acceptable for the expected viewer count (single-user tool with a handful of concurrent tabs); if many viewers connect simultaneously to a large-buffer pane, the transient memory spike is bounded by `max_pane_streams × ring_buffer_max_size`. Because `subscribe/1` makes a `GenServer.call` that triggers `RingBuffer.read/1`, concurrent subscribes to the same pane serialize through the GenServer — during high-throughput output, each subscribe briefly blocks output processing. This is acceptable for the expected concurrency (a few tabs); the call returns quickly since `read/1` is a memory copy, not I/O.
-  - `status` — `:streaming | :dead | :shutting_down`
+  - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`, a fixed-capacity circular binary buffer; API: `new(capacity)`, `append(buffer, binary)` — overwrites oldest data when full, `read(buffer)` — returns a single contiguous binary by concatenating the two halves, `size(buffer)` — current byte count) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally. Note: this allocates a copy up to `ring_buffer_max_size` (default 4MB) per call. This is acceptable for the expected viewer count (single-user tool with a handful of concurrent tabs); if many viewers connect simultaneously to a large-buffer pane, the transient memory spike is bounded by `max_pane_streams × ring_buffer_max_size`. Because `subscribe/1` makes a `GenServer.call` that triggers `RingBuffer.read/1`, concurrent subscribes to the same pane serialize through the GenServer — during high-throughput output, each subscribe briefly blocks output processing. This is acceptable for the expected concurrency (a few tabs); the call returns quickly since `read/1` is a memory copy, not I/O.
+  - `status` — `:starting | :streaming | :dead | :shutting_down`. Transitions: `:starting` (init, before pipe-pane attach) → `:streaming` (after startup sequence completes successfully, and on successful pipeline recovery) → `:dead` (Port EOF with status 0, or recovery failure/exhaustion) or `:shutting_down` (grace period expired, deliberate shutdown). `:starting` prevents `send_keys` calls during the startup window (treated same as `:dead` — returns `{:error, :not_ready}`).
   - `grace_timer_ref` — reference from `Process.send_after/3` for the grace period timer, or `nil`. Used by `Process.cancel_timer/1` when a new viewer subscribes during the grace period.
   - `port_recovery` — `%{attempts: non_neg_integer, window_start: integer | nil}` tracking pipeline recovery attempts. Reset when 60 seconds elapse since `window_start` with no further crashes. Max 3 attempts per window.
 - **Interface**:
@@ -261,7 +261,7 @@ Example: User types "hi" then Ctrl+C
 
 **Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, bytes are chunked into groups of up to 65,536 bytes (well under Linux's default `ARG_MAX` of ~2MB, accounting for hex encoding doubling the size and argument overhead) and sent as sequential `send-keys -H` calls. Note: chunked sends execute synchronously within the GenServer, briefly blocking output processing during large pastes. This is acceptable for a single-user tool — large pastes are rare, each `System.cmd` call completes in milliseconds, and output resumes immediately after. If needed, chunked sends could be offloaded to a Task without changing the public interface.
 
-**Input size limit**: `TerminalLive.handle_event("key_input", ...)` validates that the decoded payload does not exceed 1MB. Payloads exceeding this limit are logged and dropped. This prevents a buggy or malicious client from sending arbitrarily large input in a single event. The 1MB limit is far above any realistic keystroke batch or paste operation (the chunking threshold for paste is 64KB — see above).
+**Input size limit**: `TerminalLive.handle_event("key_input", ...)` validates that the decoded payload does not exceed 128KB. Payloads exceeding this limit are logged and dropped. This prevents a buggy or malicious client from sending arbitrarily large input in a single event. The 128KB limit is above the chunking threshold for paste (64KB — see above) with headroom for base64 overhead (~33%), while keeping the bound tight enough to be meaningful.
 
 **Input rate limiting**: The client-side input batching (every 16ms, described in Bandwidth Optimization) provides natural throttling. On the server side, `PaneStream.send_keys/2` does not rate-limit — each call executes a `tmux send-keys` command immediately. If a misbehaving client floods `send_keys` calls, the tmux process is the bottleneck (each `send-keys` is a short-lived fork). This is acceptable for a single-user tool; if needed, a per-viewer token bucket could be added in `PaneStream`.
 
@@ -286,10 +286,10 @@ Example: User types "hi" then Ctrl+C
   - `mounted()`: Creates xterm.js `Terminal` + `FitAddon`, opens terminal in container div, calls `FitAddon.fit()`, sends initial `resize` event to server
   - `onData`: xterm.js keyboard input → UTF-8 encode via `TextEncoder` → base64 encode → `this.pushEvent("key_input", {data: base64String})`. `onData` emits JavaScript strings which `TextEncoder` converts to UTF-8 bytes. This is sufficient for all terminal input: printable characters, control codes, and escape sequences are all within the BMP (U+0000–U+FFFF). Characters above U+FFFF (e.g., emoji) are not emitted by `onData` — they arrive via paste, which also goes through `TextEncoder` and encodes correctly as multi-byte UTF-8. `onBinary` is not needed.
   - `onResize`: debounced (300ms) → `this.pushEvent("resize", {cols, rows})`
-  - Server pushes `"output"` → `term.write(data)`
-  - Server pushes `"history"` → `term.write(data)` (before streaming begins)
-  - Server pushes `"reconnected"` → `term.reset()` then `term.write(data)` — seamless refresh after PaneStream crash recovery
-  - Server pushes `"pane_dead"` → display overlay message "Session ended", offer link back to session list
+  - `this.handleEvent("output", ({data}) => { const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0)); term.write(bytes); })` — streaming terminal output
+  - `this.handleEvent("history", ({data}) => { const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0)); term.write(bytes); })` — initial scrollback on attach (before streaming begins)
+  - `this.handleEvent("reconnected", ({data}) => { term.reset(); const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0)); term.write(bytes); })` — seamless refresh after PaneStream crash recovery
+  - `this.handleEvent("pane_dead", () => { /* display overlay message "Session ended", offer link back to session list */ })` — pane death notification
   - Clipboard: `onSelectionChange` → auto-copy to clipboard; paste handler intercepts Ctrl+Shift+V / toolbar button
   - `destroyed()`: Clean up xterm.js instance
 - **Server side** (`mount/3`):
@@ -307,11 +307,11 @@ Example: User types "hi" then Ctrl+C
 - Mobile: on-screen virtual keyboard toolbar (see Mobile UI section)
 - Back button / navigation header to return to session list
 
-### Phoenix Channel: `TerminalChannel` (Future)
+### Phoenix Channel: `TerminalChannel` (Future — Do Not Implement in Phase 1)
 
-For native Android client only. Not used by the web UI.
+For native Android client only. Not used by the web UI. The design below is documented for future reference but is explicitly out of scope for the initial implementation.
 
-- Topic: `"terminal:{session}:{window}:{pane}"`
+- Topic: `"terminal:{session}:{window}:{pane}"` — note: the Channel topic uses colons as delimiters (Phoenix Channel convention), while the internal PaneStream target uses tmux's native format `"session:window.pane"`. The join handler converts between formats: `"terminal:foo:0:1"` → target `"foo:0.1"`.
 - **Client → Server events**:
   - `"input"` — `%{"data" => binary}` — keyboard input
   - `"resize"` — `%{"cols" => int, "rows" => int}`
@@ -560,6 +560,10 @@ config :remote_code_agents,
   ring_buffer_min_size: 262_144,    # 256 KB floor
   ring_buffer_max_size: 4_194_304,  # 4 MB ceiling
   ring_buffer_default_size: 1_048_576,  # 1 MB fallback if tmux query fails
+  # Maximum concurrent PaneStream processes (bounds FIFOs, ports, memory)
+  max_pane_streams: 100,
+  # Maximum decoded input payload size (bytes) per key_input event
+  input_size_limit: 131_072,  # 128 KB
   # Default terminal dimensions (used when creating new sessions)
   default_cols: 120,
   default_rows: 40,
@@ -597,8 +601,8 @@ config :remote_code_agents,
 ## Security Considerations
 
 - **Authentication**: This application gives full terminal access. Must be protected:
-  - Phase 1: Bind to `127.0.0.1` only (local access)
-  - Phase 2: Add token-based auth for remote access (required for mobile use)
+  - Localhost mode (default): Bind to `127.0.0.1` only — no auth required
+  - Remote mode: Token-based auth required when binding to `0.0.0.0` (see Authentication & Remote Access in Feature Designs). This is a P1 feature — required for mobile use, the primary motivation.
 - **Input handling**: All input sent via `send-keys -H` (hex mode) — bytes are passed directly to tmux with no shell interpretation. The user is intentionally sending arbitrary commands to a shell — access control is the real security boundary.
 - **Session name validation**: Enforced at `TmuxManager.create_session/1` — only `^[a-zA-Z0-9_-]+$` accepted. Prevents tmux target format injection.
 - **HTTPS**: Required if exposed beyond localhost; configure via Phoenix endpoint or reverse proxy. Also required for Clipboard API access.
