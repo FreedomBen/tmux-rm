@@ -53,8 +53,8 @@ Standardized on `-S -` (capture all available history). The ring buffer's dynami
 
 ## Minor Issues
 
-### 16. xterm.js core package name
-Line 363 says "xterm.js 5.x" but since v5 the npm package is `@xterm/xterm` (scoped). The addon references already use `@xterm/addon-fit` — the core package name should match.
+### ~~16. xterm.js core package name~~ RESOLVED
+Changed to `@xterm/xterm 5.x` in the technology table to match scoped package naming.
 
-### 17. `pipe-pane -o` rationale missing
-Line 136 uses `-o` (output only) without explaining why. Worth a brief note: without `-o`, input echo would also be captured, causing doubled input for viewers when the pane has echo enabled.
+### ~~17. `pipe-pane -o` rationale missing~~ RESOLVED
+Added inline note explaining `-o` captures output only, preventing doubled input from echo.

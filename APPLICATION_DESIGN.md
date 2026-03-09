@@ -133,6 +133,8 @@ PaneStream startup (order matters):
      — `cat` blocks on FIFO open until a writer connects, which is fine
        because it runs in a separate OS process and won't block the GenServer
   4. Attach pipe: tmux pipe-pane -t {target} -o 'cat >> {fifo_path}'
+     — `-o` flag captures output only (not input echo), preventing doubled
+       input when the pane has echo enabled
      — This opens the write end of the FIFO, unblocking the `cat` reader
   5. Query buffer size: determine ring buffer capacity (see Buffer Sizing below)
   6. Capture initial scrollback: tmux capture-pane -p -e -S - -t {target}
@@ -393,7 +395,7 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | Runtime            | OTP 26+             | Required by modern Phoenix/LiveView                    |
 | Web framework      | Phoenix 1.7+        | Standard Elixir web framework                          |
 | Real-time UI       | Phoenix LiveView 0.20+ | WebSocket-based, no separate API needed             |
-| Terminal rendering | xterm.js 5.x        | Battle-tested terminal emulator; handles ANSI, cursor  |
+| Terminal rendering | @xterm/xterm 5.x    | Battle-tested terminal emulator; handles ANSI, cursor  |
 | xterm.js addons    | @xterm/addon-fit    | Required — auto-sizes terminal to container            |
 |                    | @xterm/addon-web-links | Nice-to-have — makes URLs clickable in terminal     |
 | CSS                | Tailwind CSS 3.x    | Ships with Phoenix 1.7+; utility-first, good for responsive |
