@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- On startup, if the config file doesn't already exist, write the default config file to the file location
+
 # Already Run
 
 - Let's note that we want the ability for users to change settings and add quick actions through the UI.  We'll also need an API so that the mobile app can do this as well.
