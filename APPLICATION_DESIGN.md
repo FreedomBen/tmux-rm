@@ -110,10 +110,11 @@ Android app (future):
 #### `RemoteCodeAgents.Tmux.CommandRunner`
 - **Responsibility**: Execute tmux CLI commands and return parsed output
 - **Interface**:
-  - `run/1` — executes a tmux command, returns `{:ok, output}` or `{:error, reason}`
-  - `run!/1` — same but raises on error
+  - `run/1` — takes a list of argument strings (e.g., `["list-sessions", "-F", "#{session_name}"]`), prepends the tmux binary path, executes via `System.cmd/3`. Returns `{:ok, output}` or `{:error, reason}`.
+  - `run!/1` — same but raises on error.
 - **Rationale**: Single point of contact with the tmux CLI. Makes it easy to mock in tests and add logging/rate-limiting later.
 - **Implementation**: Uses `System.cmd/3` with stderr capture. Validates that `tmux` is available on startup.
+- **Minimum tmux version**: 2.6+ required (`send-keys -H` was added in 2.6). `CommandRunner` should check the tmux version on first use (via `tmux -V`) and log an error if below 2.6.
 
 ### tmux pipe-pane Strategy
 

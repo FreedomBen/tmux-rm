@@ -42,11 +42,11 @@ All exit statuses handled uniformly (set `:dead`, broadcast, clean up). Log leve
 ### ~~12. Grace period race condition~~ RESOLVED
 `handle_info(:grace_period_expired)` re-checks `MapSet.size(viewers) == 0` before shutting down. GenServer serialization ensures this check is atomic with respect to subscribe/unsubscribe calls.
 
-### 13. No minimum tmux version stated
-`send-keys -H` was added in tmux 2.6. `pipe-pane -o` has been around since 1.8. The doc should state a minimum tmux version requirement (>= 2.6).
+### ~~13. No minimum tmux version stated~~ RESOLVED
+Added minimum tmux version 2.6+ requirement. `CommandRunner` checks version on first use via `tmux -V`.
 
-### 14. CommandRunner `run/1` argument format unspecified
-Line 115 says `run/1` "executes a tmux command" but doesn't specify the argument type — a string like `"list-sessions -F ..."`, a list of args like `["list-sessions", "-F", "..."]`, or a structured type?
+### ~~14. CommandRunner `run/1` argument format unspecified~~ RESOLVED
+`run/1` takes a list of argument strings, prepends the tmux binary path, executes via `System.cmd/3`.
 
 ### 15. `capture-pane -S` flag inconsistency
 Line 138 uses `-S -{max_lines}` (e.g., `-S -10000`) but line 529 says `-S -` (all history). These are different behaviors. Pick one and be consistent — `-S -{max_lines}` is correct per the configuration section.
