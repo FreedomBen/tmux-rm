@@ -403,6 +403,7 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | Process registry   | Elixir Registry     | Built-in, lightweight process lookup by key            |
 | Process management | DynamicSupervisor   | One child per active pane stream                       |
 | Pub/Sub            | Phoenix.PubSub      | Built-in; connects PaneStreams to viewers               |
+| User config        | yaml_elixir 2.9+    | Human-editable YAML for quick actions + future settings |
 | Mobile terminal    | xterm.js + toolbar  | Works in mobile browsers; virtual key toolbar for special keys |
 | Android (future)   | Phoenix Channel     | Direct WebSocket connection; native terminal renderer   |
 
@@ -418,6 +419,7 @@ remote_code_agents/
         session.ex                  # Session struct
         pane.ex                     # Pane struct
       tmux_manager.ex               # Session/pane discovery + creation (stateless module)
+      config.ex                     # YAML config loader (~/.config/remote_code_agents/config.yaml)
       pane_stream.ex                # Per-pane streaming GenServer (pipe-pane + FIFO)
       pane_stream_supervisor.ex     # DynamicSupervisor for PaneStreams
     remote_code_agents_web/
@@ -609,6 +611,7 @@ This application is **fully stateless from a storage perspective**. No database 
 | Streaming state        | PaneStream GenServer memory (ephemeral)                |
 | Viewer tracking        | PaneStream GenServer memory (ephemeral)                |
 | Auth tokens            | Config file / environment variable (static)            |
+| Quick actions          | YAML config file `~/.config/remote_code_agents/config.yaml` |
 | User preferences       | Browser `localStorage` (client-side)                   |
 | Layout preferences     | Browser `localStorage` (client-side)                   |
 
@@ -799,7 +802,273 @@ Mobile viewers are **passive resizers** by default:
 - On mobile, the session view shows a list of panes — tap one to open full-viewport
 - Alternatively: horizontal swipe between panes in the same window
 
-### Future 6: User Preferences
+### Future 6: Quick Actions (Command Buttons)
+
+**Goal**: Configurable buttons that send pre-defined commands to the terminal with a single tap — especially valuable on mobile where typing long commands is painful.
+
+#### Configuration File
+
+Quick actions are defined in a YAML configuration file at `~/.config/remote_code_agents/config.yaml`. This file is the central place for all server-side user configuration (auth token, quick actions, and any future settings).
+
+```yaml
+# ~/.config/remote_code_agents/config.yaml
+
+# Quick action buttons displayed above the terminal
+quick_actions:
+  - label: "Push"
+    command: "git add . && git commit -m . && git push"
+    confirm: true
+
+  - label: "Status"
+    command: "git status"
+
+  - label: "Tests"
+    command: "mix test"
+    color: "green"
+
+  - label: "Deploy"
+    command: "./deploy.sh"
+    confirm: true
+    icon: "rocket"
+
+  - label: "Logs"
+    command: "tail -100 /var/log/app.log"
+```
+
+#### Configuration Schema
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `label` | string | yes | — | Button text (keep short — 1-2 words) |
+| `command` | string | yes | — | Full command string sent to the terminal |
+| `confirm` | boolean | no | `false` | Show confirmation dialog before executing |
+| `color` | string | no | `"default"` | Button color hint: `"default"`, `"green"`, `"red"`, `"yellow"`, `"blue"` |
+| `icon` | string | no | `null` | Optional icon name (Heroicons subset: `"rocket"`, `"play"`, `"stop"`, `"trash"`, `"arrow-up"`, `"terminal"`) |
+
+#### Config Loading
+
+- **Location resolution**: Check `$RCA_CONFIG_PATH` env var first, then `~/.config/remote_code_agents/config.yaml`, then fall back to defaults (no quick actions).
+- **Parsing**: Use `yaml_elixir` hex package to parse YAML.
+- **Loading**: A `RemoteCodeAgents.Config` module reads and validates the config at application startup.
+- **Reloading**: Config is re-read on each LiveView mount (cheap — it's a small file). This means editing the YAML takes effect on the next page load with no server restart.
+- **Validation**: On load, validate each quick action entry. Log warnings for invalid entries (missing `label`/`command`, unknown `color`) and skip them rather than crashing.
+- **Missing file**: If no config file exists, the app runs with defaults — no quick actions shown, no error.
+
+```elixir
+defmodule RemoteCodeAgents.Config do
+  @default_path "~/.config/remote_code_agents/config.yaml"
+
+  @doc """
+  Reads and validates the user config file.
+  Returns a map with validated settings, falling back to defaults for missing/invalid values.
+  """
+  def load do
+    path = config_path() |> Path.expand()
+
+    case YamlElixir.read_from_file(path) do
+      {:ok, yaml} -> parse(yaml)
+      {:error, _} -> defaults()
+    end
+  end
+
+  defp config_path do
+    System.get_env("RCA_CONFIG_PATH") || @default_path
+  end
+
+  defp defaults do
+    %{quick_actions: []}
+  end
+
+  defp parse(yaml) do
+    actions =
+      yaml
+      |> Map.get("quick_actions", [])
+      |> Enum.filter(&valid_action?/1)
+      |> Enum.map(&normalize_action/1)
+
+    %{quick_actions: actions}
+  end
+
+  defp valid_action?(%{"label" => l, "command" => c}) when is_binary(l) and is_binary(c), do: true
+  defp valid_action?(entry) do
+    require Logger
+    Logger.warning("Skipping invalid quick action entry: #{inspect(entry)}")
+    false
+  end
+
+  defp normalize_action(entry) do
+    %{
+      label: entry["label"],
+      command: entry["command"],
+      confirm: entry["confirm"] == true,
+      color: validate_color(entry["color"]),
+      icon: entry["icon"]
+    }
+  end
+
+  @valid_colors ~w(default green red yellow blue)
+  defp validate_color(c) when c in @valid_colors, do: c
+  defp validate_color(_), do: "default"
+end
+```
+
+#### UI: Quick Action Bar
+
+A horizontally-scrollable toolbar rendered above the terminal, below the session header.
+
+**Desktop (>640px)**:
+```
+┌─────────────────────────────────────────────────────────┐
+│ ← session-name:0.0                              [gear] │  ← header
+├─────────────────────────────────────────────────────────┤
+│ [Status] [Push ⚠] [Tests] [Deploy ⚠] [Logs]           │  ← quick action bar
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  terminal content...                                    │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Mobile (<640px)**:
+```
+┌──────────────────────────┐
+│ ← session:0.0     [gear] │  ← header (auto-hides)
+├──────────────────────────┤
+│ [Status] [Push ⚠] [Te ► │  ← scrollable action bar
+├──────────────────────────┤
+│                          │
+│  terminal content...     │
+│                          │
+├──────────────────────────┤
+│ [Esc][Tab][Ctrl][↑][↓][←]│  ← virtual key toolbar
+└──────────────────────────┘
+```
+
+- Buttons use compact pill-style styling with color-coded borders/backgrounds
+- `⚠` indicator on buttons with `confirm: true`
+- The bar is collapsible (toggle via a small chevron) to reclaim vertical space
+- If no quick actions are configured, the bar is not rendered at all
+- Horizontal scroll with momentum/snap on mobile (CSS `overflow-x: auto; scroll-snap-type: x mandatory;`)
+
+#### LiveView Integration
+
+`TerminalLive` loads quick actions on mount and assigns them to the socket:
+
+```elixir
+# terminal_live.ex
+def mount(params, _session, socket) do
+  config = RemoteCodeAgents.Config.load()
+
+  socket =
+    socket
+    |> assign(:quick_actions, config.quick_actions)
+    # ... existing assigns ...
+
+  {:ok, socket}
+end
+```
+
+The template renders the action bar:
+
+```heex
+<%!-- terminal_live.html.heex --%>
+<div :if={@quick_actions != []} class="quick-action-bar flex gap-2 overflow-x-auto px-2 py-1 bg-gray-900 border-b border-gray-700">
+  <button
+    :for={action <- @quick_actions}
+    phx-click="quick_action"
+    phx-value-index={Enum.find_index(@quick_actions, &(&1 == action))}
+    class={["quick-action-btn px-3 py-1 rounded-full text-sm whitespace-nowrap",
+            action_color_class(action.color)]}
+  >
+    <%= action.label %><%= if action.confirm, do: " ⚠" %>
+  </button>
+</div>
+```
+
+The event handler sends the command as keystrokes:
+
+```elixir
+def handle_event("quick_action", %{"index" => index_str}, socket) do
+  index = String.to_integer(index_str)
+  action = Enum.at(socket.assigns.quick_actions, index)
+
+  if action do
+    if action.confirm do
+      {:noreply, assign(socket, :pending_action, action)}
+    else
+      send_quick_action(socket, action)
+    end
+  else
+    {:noreply, socket}
+  end
+end
+
+def handle_event("confirm_action", _params, socket) do
+  case socket.assigns[:pending_action] do
+    nil -> {:noreply, socket}
+    action ->
+      socket = assign(socket, :pending_action, nil)
+      send_quick_action(socket, action)
+  end
+end
+
+def handle_event("cancel_action", _params, socket) do
+  {:noreply, assign(socket, :pending_action, nil)}
+end
+
+defp send_quick_action(socket, action) do
+  # Send the command text followed by Enter (newline)
+  command_with_enter = action.command <> "\n"
+  bytes = :binary.bin_to_list(command_with_enter)
+  PaneStream.send_keys(socket.assigns.target, bytes)
+  {:noreply, socket}
+end
+```
+
+#### Confirmation Dialog
+
+For actions with `confirm: true`, a modal overlay appears:
+
+```heex
+<div :if={@pending_action} class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-gray-800 rounded-lg p-4 mx-4 max-w-sm w-full">
+    <p class="text-white mb-2">Run this command?</p>
+    <pre class="bg-gray-900 text-green-400 p-2 rounded text-sm mb-4 overflow-x-auto"><%= @pending_action.command %></pre>
+    <div class="flex gap-2 justify-end">
+      <button phx-click="cancel_action" class="px-4 py-2 text-gray-400">Cancel</button>
+      <button phx-click="confirm_action" class="px-4 py-2 bg-blue-600 text-white rounded">Run</button>
+    </div>
+  </div>
+</div>
+```
+
+#### Execution Model
+
+Quick actions use the **exact same input path** as regular typing:
+1. Command string is converted to bytes
+2. Sent via `PaneStream.send_keys/2` → `tmux send-keys -H`
+3. The terminal shows the command being "typed" and executed
+
+This means:
+- The command appears in the terminal's history (visible, auditable)
+- Shell features work normally (aliases, env vars, pipes, `&&`)
+- If the terminal is at a non-shell prompt (e.g., a `vim` session, a REPL), the keys are sent as-is — the user sees what happens, just like typing
+- Ctrl-C can cancel a running command started via quick action
+
+#### Dependencies
+
+Add `yaml_elixir` to `mix.exs`:
+
+```elixir
+defp deps do
+  [
+    # ... existing deps ...
+    {:yaml_elixir, "~> 2.9"},
+  ]
+end
+```
+
+### Future 7: User Preferences
 
 **Goal**: Configurable font size, color theme, and other display settings.
 
@@ -907,7 +1176,8 @@ CMD ["/app/bin/remote_code_agents", "start"]
 | P1 | Auth + remote access | Medium | Required to use from mobile — the primary motivation |
 | P2 | Pane resize sync | Small | Quality-of-life, simple to implement |
 | P3 | Session management (kill, rename) | Small | Basic lifecycle control |
-| P4 | User preferences (font, theme) | Small | Client-side only, no server changes |
-| P5 | Phoenix Channel + Android client | Large | New client platform, significant effort |
-| P6 | Multi-pane split view | Medium | Nice-to-have, complex layout logic |
+| P4 | Quick actions (command buttons) | Small | High-value for mobile; simple config + UI |
+| P5 | User preferences (font, theme) | Small | Client-side only, no server changes |
+| P6 | Phoenix Channel + Android client | Large | New client platform, significant effort |
+| P7 | Multi-pane split view | Medium | Nice-to-have, complex layout logic |
 
