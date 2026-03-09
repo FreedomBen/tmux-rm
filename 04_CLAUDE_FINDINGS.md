@@ -15,51 +15,26 @@ Review performed against the full design document. Issues with clear fixes have 
 
 ## Open Decisions
 
-### D1: Large scrollback capture memory spike
+### D1: Large scrollback capture memory spike — RESOLVED (Option B)
 
-`capture-pane -p -e -S -` could return a huge binary for panes with large `history-limit` (e.g., 500k lines ≈ 50MB). The entire capture is held in memory before being truncated into the ring buffer.
+`capture-pane` now uses `-S -{max_lines}` where `max_lines = ring_buffer_capacity / pane_width`, limiting the capture to what the ring buffer can hold. Applied to APPLICATION_DESIGN.md startup sequence step 7.
 
-**Options:**
-- **A) Accept**: The capture is transient, happens once per PaneStream startup, and frees quickly. Document as a known characteristic.
-- **B) Mitigate**: Pass `-S -{N}` where N is `ring_buffer_capacity / pane_width` (estimated lines), so we only capture what the ring buffer can hold. Reduces peak memory from potentially 50MB to at most 4MB.
+### D2: Output coalescing for high-throughput panes — RESOLVED (Option A)
 
-### D2: Output coalescing for high-throughput panes
+No server-side coalescing. LiveView batches push_events per process turn, xterm.js batches rendering internally. Coalescing can be added later inside PaneStream without interface changes if profiling warrants it. Documented in APPLICATION_DESIGN.md data flow section.
 
-Each `{:data, bytes}` from the Port triggers a separate PubSub broadcast and LiveView `push_event`. High-throughput output (e.g., `cat large_file`) could produce thousands of small pushes per second.
+### D3: Health check endpoint — RESOLVED (Option B)
 
-**Options:**
-- **A) No coalescing**: LiveView's WebSocket batching and browser rendering handle this adequately. Document as a known characteristic.
-- **B) Server-side coalescing**: Buffer output in PaneStream and flush on a timer (e.g., every 16ms), combining multiple Port messages into a single PubSub broadcast. Reduces push count at the cost of up to 16ms added latency.
+Added `GET /healthz` endpoint. Unauthenticated, returns JSON with app and tmux status. Uses `CommandRunner.run(["list-sessions"])` to verify tmux reachability. Added to scope, project structure, and new Health Check Endpoint section in APPLICATION_DESIGN.md.
 
-### D3: Health check endpoint
+### D4: `send_keys` chunking backpressure — RESOLVED (Option A)
 
-No `/healthz` or equivalent is specified. Useful for systemd health checks and reverse proxy configurations.
+Accepted as-is. Documented the synchronous blocking behavior in the Performance section and noted that Task offloading is available as a future optimization. Applied to APPLICATION_DESIGN.md input handling section.
 
-**Options:**
-- **A) Out of scope**: Not needed for Phase 1 localhost use.
-- **B) Add**: Simple `GET /healthz` that returns 200 if the app is running and tmux is reachable (quick `tmux -V` or `tmux list-sessions` call). Minimal effort, useful for deployment.
+### D5: `TERM` environment variable for new sessions — RESOLVED (Option B)
 
-### D4: `send_keys` chunking backpressure
+Documented that xterm.js is compatible with `tmux-256color`, `screen-256color`, and `xterm-256color`. App does not override TERM — left to user's tmux config. Added recommendation to set `default-terminal "tmux-256color"` if rendering issues occur. Applied to Technology Choices table and new TERM note in APPLICATION_DESIGN.md.
 
-For large pastes, multiple sequential `System.cmd` calls for `send-keys -H` chunks block the GenServer, preventing output processing during the paste.
+### D6: tmux server restart / mass pane death — RESOLVED (Option A)
 
-**Options:**
-- **A) Accept**: Large pastes are rare, and blocking briefly is fine for a single-user tool. Document the behavior.
-- **B) Offload to Task**: Spawn a `Task` from the GenServer for chunked sends, so `handle_info` for Port data continues processing. Adds complexity for an edge case.
-
-### D5: `TERM` environment variable for new sessions
-
-When creating sessions via `tmux new-session`, the `TERM` value affects how programs render output. xterm.js expects `xterm-256color` semantics. Tmux normally sets this via its `default-terminal` option.
-
-**Options:**
-- **A) Leave to user's tmux config**: Most tmux installations default to `screen-256color` or `tmux-256color`, both compatible with xterm.js. Don't override.
-- **B) Document the expectation**: Add a note that xterm.js assumes 256-color support and recommend users set `set -g default-terminal "tmux-256color"` in their tmux.conf. Don't force it programmatically.
-- **C) Set explicitly**: Pass `TERM=xterm-256color` as an environment variable when creating sessions. Overrides user config, which may be undesirable.
-
-### D6: tmux server restart / mass pane death
-
-If the tmux server is killed/restarted, all PaneStream Ports EOF simultaneously. Each PaneStream follows its normal death path independently (set `:dead`, broadcast `:pane_dead`, terminate). Since `restart: :transient` doesn't restart normal exits, the supervisor won't restart any of them.
-
-**Options:**
-- **A) Document as handled**: The existing per-PaneStream death flow handles this correctly. Multiple simultaneous terminations are just multiple messages through DynamicSupervisor — no thundering herd since each child terminates independently (no supervisor restart). Add a brief note to the design.
-- **B) Add detection**: Detect mass pane death (e.g., all PaneStreams die within a short window) and show a specific "tmux server unavailable" banner on the session list instead of per-pane "Session ended" messages. More work, better UX.
+Documented as handled. Each PaneStream independently follows the normal death path, no supervisor restart cascade. SessionListLive polling shows the correct empty state. Added note to APPLICATION_DESIGN.md in the PaneStream lifecycle section.

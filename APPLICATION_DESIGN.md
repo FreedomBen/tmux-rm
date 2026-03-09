@@ -155,8 +155,11 @@ PaneStream startup (order matters):
        the input side from being captured and doubled
      — This opens the write end of the FIFO, unblocking the `cat` reader
   6. Query buffer size: determine ring buffer capacity (see Buffer Sizing below)
-  7. Capture initial scrollback: tmux capture-pane -p -e -S - -t {target}
-     — `-S -` captures all available history; the ring buffer's size limit is the real cap
+  7. Capture initial scrollback: tmux capture-pane -p -e -S -{max_lines} -t {target}
+     — `max_lines` is computed as `ring_buffer_capacity / pane_width` (from step 6),
+       limiting the capture to approximately what the ring buffer can hold. This avoids
+       pulling the full tmux history (potentially tens of MB for large history-limit
+       values) only to discard most of it when writing into the capped ring buffer.
      — `-p` outputs to stdout; `-e` preserves ANSI escape sequences. Note:
        this output includes a trailing newline per line, which may differ
        slightly from the raw pty stream delivered by pipe-pane. xterm.js
@@ -208,6 +211,8 @@ The `:shutting_down` status prevents the Port exit (triggered by step 2 closing 
 1. **Port crash (cat dies, GenServer alive)**: Handled *inside* the running GenServer via `handle_info({port, {:exit_status, n}})` — the GenServer checks if the pane is still alive and restarts the pipeline (FIFO + Port + pipe-pane) without restarting the GenServer process itself. See "Port exit with non-zero status" above. Viewers are unaware.
 2. **GenServer crash (unhandled exception)**: The supervisor restarts the GenServer process (PaneStream children use `restart: :transient`, so only abnormal exits trigger restart). The `init/1` callback runs the full startup sequence above — steps 0-9 — which inherently handles cleanup: step 0 detaches any stale pipe-pane, step 1 removes any stale FIFO. Viewers detect the crash via their monitor `:DOWN` message and re-subscribe to the new PaneStream (see TerminalLive `:DOWN` handler). This per-PaneStream cleanup is the primary safety net — it runs on every start, whether after a crash, a restart, or first boot.
 
+**tmux server restart / mass pane death**: If the tmux server is killed or restarted, all PaneStream Ports receive EOF simultaneously. Each PaneStream independently follows its normal death path (set `:dead`, broadcast `:pane_dead`, terminate normally). Since `restart: :transient` does not restart normal exits, the DynamicSupervisor does not restart any of them — there is no thundering herd of restarts. Each TerminalLive viewer receives its own `:pane_dead` message and shows "Session ended." SessionListLive's polling (every 3s) will naturally show an empty session list, reflecting the correct state. No special mass-death detection is needed.
+
 **Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts: (1) detach all stale pipe-pane attachments by iterating `tmux list-panes -a -F '#{pane_id}'` and running `tmux pipe-pane -t {pane_id}` on each (this is a no-op for panes that don't have pipe-pane attached); (2) clear the FIFO directory (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This catches both orphaned pipe-pane attachments and stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. It only takes effect on the *next* application boot.
 
 **FIFO naming and shell safety**: Target strings like `mysession:0.1` are sanitized for filesystem use using percent-encoding: `:` becomes `%3A` and `.` becomes `%2E`, giving FIFO names like `pane-mysession%3A0%2E1.fifo`. This is collision-free because `%` cannot appear in tmux session names (which match `^[a-zA-Z0-9_-]+$`) or in the window/pane numeric indices. **Shell injection safety**: The resulting FIFO paths contain only `[a-zA-Z0-9_%.-/]` characters, making them safe for interpolation into the `open_port({:spawn, "cat {fifo_path}"})` shell string (step 4) and the `pipe-pane` command's single-quoted argument (step 5). This safety is guaranteed by the composition of: (1) session name validation (`^[a-zA-Z0-9_-]+$`), (2) window/pane indices being numeric, and (3) percent-encoding replacing `:` and `.` with `%XX` sequences. No shell metacharacters can appear in the path.
@@ -254,7 +259,7 @@ Example: User types "hi" then Ctrl+C
 
 **Why hex mode for tmux**: Simpler than branching between `-l` for printable chars and raw mode for control chars. No escaping edge cases. Works uniformly for all input including Unicode (UTF-8 bytes as hex). Multi-byte UTF-8 sequences (e.g., emoji like 😀 = 4 bytes `F0 9F 98 80`) are sent as individual hex bytes and tmux reassembles them correctly. This should have an explicit integration test.
 
-**Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, bytes are chunked into groups of up to 65,536 bytes (well under Linux's default `ARG_MAX` of ~2MB, accounting for hex encoding doubling the size and argument overhead) and sent as sequential `send-keys -H` calls.
+**Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, bytes are chunked into groups of up to 65,536 bytes (well under Linux's default `ARG_MAX` of ~2MB, accounting for hex encoding doubling the size and argument overhead) and sent as sequential `send-keys -H` calls. Note: chunked sends execute synchronously within the GenServer, briefly blocking output processing during large pastes. This is acceptable for a single-user tool — large pastes are rare, each `System.cmd` call completes in milliseconds, and output resumes immediately after. If needed, chunked sends could be offloaded to a Task without changing the public interface.
 
 **Input size limit**: `TerminalLive.handle_event("key_input", ...)` validates that the decoded payload does not exceed 1MB. Payloads exceeding this limit are logged and dropped. This prevents a buggy or malicious client from sending arbitrarily large input in a single event. The 1MB limit is far above any realistic keystroke batch or paste operation (the chunking threshold for paste is 64KB — see above).
 
@@ -323,7 +328,7 @@ For native Android client only. Not used by the web UI.
 
 1. tmux writes output → `pipe-pane` writes to FIFO
 2. `cat` Port reads from FIFO → Elixir receives `{port, {:data, bytes}}`
-3. PaneStream appends to ring buffer, broadcasts `{:pane_output, bytes}` via PubSub topic `"pane:#{target}"`. All messages on this topic are tagged tuples — subscribers must pattern-match on the first element: `:pane_output` for streaming data, `:pane_dead` for pane death, `:pane_resized` for dimension changes (future)
+3. PaneStream appends to ring buffer, broadcasts `{:pane_output, bytes}` via PubSub topic `"pane:#{target}"`. Each Port message triggers a separate broadcast — no server-side coalescing. This is acceptable because LiveView batches pending `push_event` calls within the same process turn, and xterm.js internally batches `term.write()` calls for rendering. For extreme throughput (e.g., `cat large_file`), the browser is the bottleneck, not the push rate. Coalescing could be added inside PaneStream later without changing any public interfaces if profiling shows PubSub overhead is significant. All messages on this topic are tagged tuples — subscribers must pattern-match on the first element: `:pane_output` for streaming data, `:pane_dead` for pane death, `:pane_resized` for dimension changes (future)
 4. `TerminalLive` receives via `handle_info`, calls `push_event(socket, "output", %{data: Base.encode64(bytes)})`
 5. `TerminalHook` decodes base64, calls `term.write(bytes)` on xterm.js instance
 
@@ -452,7 +457,7 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | Runtime            | OTP >= 27           | Required by modern Phoenix/LiveView                    |
 | Web framework      | Phoenix 1.7+        | Standard Elixir web framework                          |
 | Real-time UI       | Phoenix LiveView 1.0+  | WebSocket-based, no separate API needed             |
-| Terminal rendering | @xterm/xterm 5.x    | Battle-tested terminal emulator; handles ANSI, cursor  |
+| Terminal rendering | @xterm/xterm 5.x    | Battle-tested terminal emulator; handles ANSI, cursor. Assumes 256-color support — compatible with `tmux-256color`, `screen-256color`, and `xterm-256color` TERM values. See TERM note below. |
 | xterm.js addons    | @xterm/addon-fit    | Required — auto-sizes terminal to container            |
 |                    | @xterm/addon-web-links | Nice-to-have — makes URLs clickable in terminal     |
 | CSS                | Tailwind CSS 3.x    | Ships with Phoenix 1.7+; utility-first, good for responsive |
@@ -463,6 +468,8 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | User config (read) | yaml_elixir 2.11+   | YAML parser for quick actions + future settings (needed for Quick Actions feature, not base scope) |
 | User config (write)| ymlr 5.0+           | YAML encoder for writing config back to file (needed for Quick Actions feature, not base scope) |
 | Mobile terminal    | xterm.js + toolbar  | Works in mobile browsers; virtual key toolbar for special keys |
+
+**TERM environment variable**: xterm.js supports 256-color output and standard ANSI/xterm escape sequences. Tmux sets `TERM` inside its panes based on its `default-terminal` option, which typically defaults to `tmux-256color` or `screen-256color`. Both are compatible with xterm.js. The application does **not** override `TERM` when creating sessions — this is left to the user's tmux configuration. If users experience rendering issues (e.g., missing colors, broken line drawing), they should ensure their tmux config uses a 256-color terminal type: `set -g default-terminal "tmux-256color"`.
 | Android (future)   | Phoenix Channel     | Direct WebSocket connection; native terminal renderer   |
 
 ## Project Structure
@@ -485,6 +492,7 @@ remote_code_agents/
         terminal_channel.ex         # Raw terminal I/O channel (for native clients)
         user_socket.ex              # Socket configuration
       controllers/                  # REST API (for native clients)
+        health_controller.ex        # GET /healthz endpoint
         quick_action_controller.ex  # CRUD API for quick actions
       live/
         session_list_live.ex        # Session listing + creation page
@@ -572,6 +580,19 @@ config :remote_code_agents,
   pane_stream_grace_period: 100,
   fifo_dir: "/tmp/remote-code-agents-test"
 ```
+
+## Health Check Endpoint
+
+`GET /healthz` — unauthenticated, returns a JSON response indicating application and tmux status.
+
+- **Implementation**: `RemoteCodeAgentsWeb.HealthController` — a plain Phoenix controller (not LiveView).
+- **Check**: Calls `CommandRunner.run(["list-sessions"])` to verify tmux is reachable. Does not parse the output — success/failure of the command is sufficient.
+- **Response**:
+  - `200 OK` with `{"status": "ok", "tmux": "ok"}` — app running, tmux reachable
+  - `200 OK` with `{"status": "ok", "tmux": "no_server"}` — app running, tmux reachable but no sessions (tmux returns exit 1 with "no server running" — this is not an error, the server starts on demand)
+  - `503 Service Unavailable` with `{"status": "error", "tmux": "not_found"}` — tmux binary not installed
+- **No auth required**: The endpoint reveals no sensitive information (no session names, no pane content). Safe to expose for reverse proxy and systemd health checks.
+- **Route**: Outside the authenticated scope — no token/session needed.
 
 ## Security Considerations
 
@@ -671,6 +692,7 @@ config :remote_code_agents,
 10. Pane death detection and user notification
 11. Error handling (tmux not installed, pane died, FIFO errors)
 12. Resize disabled — viewers adapt to existing pane dimensions
+13. Health check endpoint (`GET /healthz`)
 
 ## Storage Decision: No Database
 
