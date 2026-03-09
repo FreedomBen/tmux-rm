@@ -95,13 +95,13 @@ Android app (future):
   - `target` — the `session:window.pane` identifier
   - `pipe_port` — Elixir Port running `cat` on the FIFO
   - `viewers` — `MapSet` of subscriber PIDs (monitored)
-  - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally.
-  - `status` — `:streaming | :dead`
+  - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally. Note: this allocates a copy up to `ring_buffer_max_size` (default 4MB) per call. This is acceptable for the expected viewer count (single-user tool with a handful of concurrent tabs); if many viewers connect simultaneously to a large-buffer pane, the transient memory spike is bounded by `max_pane_streams × ring_buffer_max_size`.
+  - `status` — `:streaming | :dead | :shutting_down`
   - `grace_timer_ref` — reference from `Process.send_after/3` for the grace period timer, or `nil`. Used by `Process.cancel_timer/1` when a new viewer subscribes during the grace period.
 - **Interface**:
   - `start_link/1` — starts streaming for a target pane
-  - `subscribe/1` — **module function** (not a GenServer call) called by a viewer process. Uses `self()` to identify the caller. The function first checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. Then makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID, subscribes the caller to the PubSub topic `"pane:#{target}"`, and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`). PubSub subscription happens inside the GenServer call before history is returned, guaranteeing no messages are lost between receiving history and streaming. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails).
-  - `unsubscribe/1` — called by a viewer process. Uses `self()` to identify the caller. Removes the caller from the viewer set. If no viewers remain, starts the grace period timer.
+  - `subscribe/1` — **module function** (not a GenServer call) called by a viewer process. Uses `self()` to identify the caller. The function first checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. If `start_link/1` returns `{:error, {:already_started, pid}}` (race with another concurrent `subscribe/1` call), uses the existing PID. Then makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID, subscribes the caller to the PubSub topic `"pane:#{target}"`, and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`). The GenServer call handler subscribes the *caller's PID* (received via the `from` argument in `handle_call`) to the PubSub topic — not `self()` (which would be the GenServer). This means PubSub messages are delivered directly to the viewer process (e.g., the LiveView), not forwarded through the GenServer. The subscription happens before history is returned, guaranteeing no messages are lost between receiving history and streaming. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails).
+  - `unsubscribe/1` — called by a viewer process. Uses `self()` to identify the caller. Removes the caller from the viewer set and demonitors the PID. Idempotent — safe to call multiple times or after the monitor has already fired (e.g., `terminate/2` calls `unsubscribe` but the DOWN message may also arrive). If no viewers remain after removal, starts the grace period timer.
   - `send_keys/2` — sends input (as a binary) to the pane via `tmux send-keys -H`. Each byte of the binary is converted to its two-character hex representation. If status is `:dead`, skips the call and returns `{:error, :pane_dead}`. If the `send-keys` command fails (e.g., pane died between checks), logs a warning and returns `:ok` — pane death notification will follow shortly via the Port EOF flow.
 - **Lifecycle**:
   - Monitors all viewer PIDs — auto-unsubscribes on viewer crash/disconnect
@@ -164,10 +164,13 @@ The captured scrollback is written into the ring buffer as its initial content, 
 
 ```
 PaneStream shutdown:
-  1. Detach pipe: tmux pipe-pane -t {target}   (no command argument = detach)
-  2. Close the Port (sends SIGTERM to cat, which closes the FIFO read end)
-  3. Remove the FIFO: File.rm({fifo_path})
+  1. Set status to :shutting_down (so handle_info ignores the Port exit that follows)
+  2. Detach pipe: tmux pipe-pane -t {target}   (no command argument = detach)
+  3. Close the Port (sends SIGTERM to cat, which closes the FIFO read end)
+  4. Remove the FIFO: File.rm({fifo_path})
 ```
+
+The `:shutting_down` status prevents the Port exit (triggered by step 2 closing the FIFO write end) from being misinterpreted as pane death. The `handle_info` for `{port, {:exit_status, _}}` checks status and ignores the event if already `:shutting_down`.
 
 **PaneStream crash recovery (primary cleanup mechanism)**: If a single PaneStream crashes, the supervisor restarts it. The `init/1` callback must:
   1. Check for and remove stale FIFO from previous instance
@@ -176,9 +179,9 @@ PaneStream shutdown:
 
 This per-PaneStream cleanup is the primary safety net — it runs on every start, whether after a crash, a restart, or first boot.
 
-**Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts, the FIFO directory is cleared (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This is a belt-and-suspenders measure that catches stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. It only takes effect on the *next* application boot.
+**Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts: (1) detach all stale pipe-pane attachments by iterating `tmux list-panes -a -F '#{pane_id}'` and running `tmux pipe-pane -t {pane_id}` on each (this is a no-op for panes that don't have pipe-pane attached); (2) clear the FIFO directory (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This catches both orphaned pipe-pane attachments and stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. It only takes effect on the *next* application boot.
 
-**FIFO naming**: Target strings like `mysession:0.1` are sanitized for filesystem use by replacing `:` and `.` with `-`, giving FIFO names like `pane-mysession-0-1.fifo`.
+**FIFO naming**: Target strings like `mysession:0.1` are sanitized for filesystem use by replacing `:` with `--` and `.` with `-`, giving FIFO names like `pane-mysession--0-1.fifo`. The double-dash separator is unambiguous because session names cannot contain hyphens in sequence (they match `^[a-zA-Z0-9_-]+$` but `--` cannot appear in the `session:window.pane` target format since `:` and `.` are single characters).
 
 ### Buffer Sizing
 
@@ -222,7 +225,7 @@ Example: User types "hi" then Ctrl+C
 
 **Why hex mode for tmux**: Simpler than branching between `-l` for printable chars and raw mode for control chars. No escaping edge cases. Works uniformly for all input including Unicode (UTF-8 bytes as hex). Multi-byte UTF-8 sequences (e.g., emoji like 😀 = 4 bytes `F0 9F 98 80`) are sent as individual hex bytes and tmux reassembles them correctly. This should have an explicit integration test.
 
-**Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, we batch into a single `send-keys -H` call with all bytes.
+**Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, bytes are chunked into groups of up to 65,536 bytes (well under Linux's default `ARG_MAX` of ~2MB, accounting for hex encoding doubling the size and argument overhead) and sent as sequential `send-keys -H` calls.
 
 **Input rate limiting**: The client-side input batching (every 16ms, described in Bandwidth Optimization) provides natural throttling. On the server side, `PaneStream.send_keys/2` does not rate-limit — each call executes a `tmux send-keys` command immediately. If a misbehaving client floods `send_keys` calls, the tmux process is the bottleneck (each `send-keys` is a short-lived fork). This is acceptable for a single-user tool; if needed, a per-viewer token bucket could be added in `PaneStream`.
 
@@ -245,7 +248,7 @@ Example: User types "hi" then Ctrl+C
 - Full-viewport xterm.js terminal
 - **LiveView Hook (`TerminalHook`)**:
   - `mounted()`: Creates xterm.js `Terminal` + `FitAddon`, opens terminal in container div, calls `FitAddon.fit()`, sends initial `resize` event to server
-  - `onData`: xterm.js keyboard input → UTF-8 encode via `TextEncoder` → base64 encode → `this.pushEvent("key_input", {data: base64String})`
+  - `onData`: xterm.js keyboard input → UTF-8 encode via `TextEncoder` → base64 encode → `this.pushEvent("key_input", {data: base64String})`. `onData` emits JavaScript strings which `TextEncoder` converts to UTF-8 bytes. This is sufficient for all terminal input: printable characters, control codes, and escape sequences are all within the BMP (U+0000–U+FFFF). Characters above U+FFFF (e.g., emoji) are not emitted by `onData` — they arrive via paste, which also goes through `TextEncoder` and encodes correctly as multi-byte UTF-8. `onBinary` is not needed.
   - `onResize`: debounced (300ms) → `this.pushEvent("resize", {cols, rows})`
   - Server pushes `"output"` → `term.write(data)`
   - Server pushes `"history"` → `term.write(data)` (before streaming begins)
@@ -402,8 +405,8 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 
 | Component          | Choice              | Rationale                                              |
 |--------------------|---------------------|--------------------------------------------------------|
-| Language           | Elixir 1.17+        | User preference; excellent for concurrent I/O          |
-| Runtime            | OTP 27+             | Required by modern Phoenix/LiveView                    |
+| Language           | Elixir 1.17         | User preference; excellent for concurrent I/O          |
+| Runtime            | OTP 27              | Required by modern Phoenix/LiveView                    |
 | Web framework      | Phoenix 1.7+        | Standard Elixir web framework                          |
 | Real-time UI       | Phoenix LiveView 1.0+  | WebSocket-based, no separate API needed             |
 | Terminal rendering | @xterm/xterm 5.x    | Battle-tested terminal emulator; handles ANSI, cursor  |
@@ -489,7 +492,7 @@ Application
 ```
 
 - `PaneRegistry` starts first — PaneStreams need it for registration
-- `PaneStreamSupervisor` starts next — ready to accept PaneStream children
+- `PaneStreamSupervisor` starts next — ready to accept PaneStream children. Configured with `max_children: 100` to bound resource usage (FIFOs, ports, memory). If the limit is hit, `subscribe/1` returns `{:error, :max_pane_streams}`. This is configurable via `config :remote_code_agents, max_pane_streams: 100`.
 - PubSub and Endpoint follow standard Phoenix ordering
 - No TmuxManager in the tree — it's a stateless module, not a process
 
@@ -498,6 +501,8 @@ Application
 ```elixir
 # config/config.exs
 config :remote_code_agents,
+  # Polling interval (ms) for detecting external session changes in SessionListLive
+  session_poll_interval: 3_000,
   # Grace period (ms) before shutting down a PaneStream with zero viewers
   pane_stream_grace_period: 5_000,
   # Ring buffer size bounds (bytes) — actual size is computed dynamically per pane
@@ -785,7 +790,7 @@ Mobile viewers are **passive resizers** by default:
 
 | Action | UI | tmux command |
 |--------|-----|-------------|
-| Create session | Form with name + optional command | `tmux new-session -d -s {name} [-x cols -y rows] [command]` |
+| Create session | Form with name + optional command | `tmux new-session -d -s {name} [-x cols -y rows] [command]` — command is passed as a single argument to `System.cmd` (list form, no shell interpolation), so no escaping is needed. tmux passes it to the shell via `exec`. |
 | Kill session | Confirmation dialog per session | `tmux kill-session -t {name}` |
 | Rename session | Inline edit on session name | `tmux rename-session -t {old} {new}` (with name validation) |
 | Create window | "+" button within a session | `tmux new-window -t {session}` |
@@ -868,7 +873,7 @@ quick_actions:
 | `command` | string | yes | — | Full command string sent to the terminal |
 | `confirm` | boolean | no | `false` | Show confirmation dialog before executing |
 | `color` | string | no | `"default"` | Button color hint: `"default"`, `"green"`, `"red"`, `"yellow"`, `"blue"` |
-| `icon` | string | no | `null` | Optional icon name (Heroicons subset: `"rocket"`, `"play"`, `"stop"`, `"trash"`, `"arrow-up"`, `"terminal"`) |
+| `icon` | string | no | `null` | Optional icon name (Heroicons subset: `"rocket"`, `"play"`, `"stop"`, `"trash"`, `"arrow-up"`, `"terminal"`). Unrecognized icon names are ignored (no icon rendered). |
 
 #### Config Loading
 
