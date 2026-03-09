@@ -28,8 +28,6 @@ Fully specified the Channel protocol in both the Architecture section (TerminalC
 
 Expanded the Bandwidth Optimization section from a brief list to 7 detailed strategies with implementation specifics: (1) streaming not polling, (2) WebSocket `permessage-deflate` with Phoenix config, (3) server-side output coalescing with configurable 3ms window + 32KB flush threshold + IO list accumulator, (4) binary Channel frames for native app, (5) client-side input batching via `requestAnimationFrame`, (6) debounced resize, (7) ring buffer cap. Each strategy includes rationale for why it's safe on fast connections. Added `output_coalesce_ms` and `output_coalesce_max_bytes` to the Configuration section. Strategies that would hurt fast connections (aggressive throttling, delta encoding) are explicitly noted as avoided.
 
-### 6. Mixed Requirement Language
+### ~~6. Mixed Requirement Language~~ — No Action Needed
 
-The doc uses "should" (3×), "must" (9×), and "will" (11×) without a defined convention, creating ambiguity about what is mandatory vs. aspirational.
-
-- Normalize to a single convention, or leave as-is?
+On closer inspection, the language is used consistently: "must" = mandatory constraints (validation, security, startup ordering), "should" = recommended client behavior / implementation guidance, "will" = describes designed system behavior. No normalization needed.
