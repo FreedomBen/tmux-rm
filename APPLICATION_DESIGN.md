@@ -100,12 +100,12 @@ Android app (future):
   - `grace_timer_ref` — reference from `Process.send_after/3` for the grace period timer, or `nil`. Used by `Process.cancel_timer/1` when a new viewer subscribes during the grace period.
 - **Interface**:
   - `start_link/1` — starts streaming for a target pane
-  - `subscribe/1` — called by a viewer process. Uses `self()` to identify the caller. Checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor. Monitors the caller PID, subscribes the caller to the PubSub topic `"pane:#{target}"`, and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`). PubSub subscription happens inside the GenServer call before history is returned, guaranteeing no messages are lost between receiving history and streaming. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails).
+  - `subscribe/1` — **module function** (not a GenServer call) called by a viewer process. Uses `self()` to identify the caller. The function first checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. Then makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID, subscribes the caller to the PubSub topic `"pane:#{target}"`, and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`). PubSub subscription happens inside the GenServer call before history is returned, guaranteeing no messages are lost between receiving history and streaming. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails).
   - `unsubscribe/1` — called by a viewer process. Uses `self()` to identify the caller. Removes the caller from the viewer set. If no viewers remain, starts the grace period timer.
   - `send_keys/2` — sends input (as a binary) to the pane via `tmux send-keys -H`. Each byte of the binary is converted to its two-character hex representation. If status is `:dead`, skips the call and returns `{:error, :pane_dead}`. If the `send-keys` command fails (e.g., pane died between checks), logs a warning and returns `:ok` — pane death notification will follow shortly via the Port EOF flow.
 - **Lifecycle**:
   - Monitors all viewer PIDs — auto-unsubscribes on viewer crash/disconnect
-  - On last viewer unsubscribe: starts a configurable grace period timer (default 5s) via `Process.send_after(self(), :grace_period_expired, ...)`. If a new viewer subscribes within the grace period, cancel the timer via `Process.cancel_timer/1`. When the `:grace_period_expired` message arrives in `handle_info`, re-check `MapSet.size(viewers) == 0` before proceeding with shutdown — this eliminates the race between a late subscribe and the timer firing.
+  - On last viewer unsubscribe: starts a configurable grace period timer (default 5s) via `Process.send_after(self(), :grace_period_expired, ...)`. If a new viewer subscribes within the grace period, cancel the timer via `Process.cancel_timer/1`. When the `:grace_period_expired` message arrives in `handle_info`, re-check `MapSet.size(viewers) == 0` before proceeding with shutdown — this eliminates the race between a late subscribe and the timer firing. **Why this is safe**: Even if `Process.cancel_timer/1` returns `false` (the `:grace_period_expired` message is already in the mailbox), the GenServer processes messages sequentially. The subscribe call (which adds the viewer to the MapSet) is a `GenServer.call` that will be processed before or after the timer message. If the subscribe is processed first, the viewer is in the MapSet and the re-check prevents shutdown. If the timer fires first, the re-check sees zero viewers and shuts down — but the subscribe call will then start a fresh PaneStream via the get-or-start logic.
   - On Port exit (any status): set status to `:dead`, broadcast `{:pane_dead, target}` to all viewers, clean up FIFO, shut down after viewers acknowledge/disconnect. Log at `info` level for exit status 0 (normal pane death); log at `warning` level for non-zero (e.g., permission error, `cat` not found).
 
 #### `RemoteCodeAgents.Tmux.CommandRunner`
@@ -115,7 +115,7 @@ Android app (future):
   - `run!/1` — same but raises on error.
 - **Rationale**: Single point of contact with the tmux CLI. Makes it easy to mock in tests and add logging/rate-limiting later.
 - **Implementation**: Uses `System.cmd/3` with stderr capture. Validates that `tmux` is available on startup.
-- **Minimum tmux version**: 2.6+ required (`send-keys -H` was added in 2.6). `CommandRunner` should check the tmux version on first use (via `tmux -V`) and log an error if below 2.6.
+- **Minimum tmux version**: 2.6+ required (`send-keys -H` was added in 2.6). `CommandRunner` checks the tmux version once on application startup (via `tmux -V`), caches the result in a persistent term (`:persistent_term.put({__MODULE__, :version_checked}, true)`), and logs an error if below 2.6. Subsequent calls skip the check.
 
 ### tmux pipe-pane Strategy
 
@@ -142,8 +142,12 @@ PaneStream startup (order matters):
      — `-S -` captures all available history; the ring buffer's size limit is the real cap
      — Done AFTER pipe-pane attach so no output is lost between steps
      — Any output generated between steps 4 and 6 will appear in both
-       the pipe stream and the scrollback capture (minor duplication, but
-       xterm.js handles redrawn content gracefully)
+       the pipe stream and the scrollback capture. This causes visible
+       duplication for line-oriented output (e.g., command results printing
+       at that moment). Full-screen redraws (e.g., vim, top) are invisible
+       since xterm.js overwrites the same cells. This tradeoff is accepted:
+       brief duplication on attach is preferable to missing output entirely
+       (which would happen if capture-pane ran before pipe-pane attach)
   7. Write scrollback into ring buffer as initial content
      — From this point on, the ring buffer is the single source of history
      — Streaming output from the pipe appends to the same buffer
@@ -152,7 +156,7 @@ PaneStream startup (order matters):
 
 **Startup sequence rationale**: The key insight is that `cat` on a FIFO blocks at the OS level until a writer opens the pipe, but since it's a Port (separate OS process), it doesn't block the Elixir GenServer. The GenServer can proceed to call `pipe-pane` which opens the write end, unblocking `cat`. This avoids the FIFO deadlock without needing `O_NONBLOCK` or `O_RDWR` hacks.
 
-Scrollback is captured *after* pipe-pane is attached. This means there's a brief window where output appears in both the pipe stream and the scrollback capture. This is acceptable — xterm.js re-rendering overlapping content is invisible to the user, and it's far better than the alternative (capturing scrollback first and missing output between capture and pipe-pane attach).
+Scrollback is captured *after* pipe-pane is attached. This means there's a brief window where output appears in both the pipe stream and the scrollback capture. For full-screen applications (vim, top, htop), the duplication is invisible since xterm.js overwrites the same screen cells. For line-oriented output (e.g., a command printing results at that exact moment), duplicated lines will be visible. This is an accepted tradeoff — brief duplication on attach is preferable to the alternative (capturing scrollback first and risking missed output between capture and pipe-pane attach). In practice, most attach operations happen against idle or slow-output panes where the window of overlap is negligible.
 
 The captured scrollback is written into the ring buffer as its initial content, making the ring buffer the single source of history for all viewers. As new output streams in, old scrollback naturally rolls off the end of the buffer. This eliminates the gap/overlap problem for late-joining viewers — every subscriber receives one contiguous block of history from the ring buffer.
 
@@ -160,17 +164,19 @@ The captured scrollback is written into the ring buffer as its initial content, 
 
 ```
 PaneStream shutdown:
-  1. Detach pipe: tmux pipe-pane -t {target}   (no -o flag = detach)
+  1. Detach pipe: tmux pipe-pane -t {target}   (no command argument = detach)
   2. Close the Port (sends SIGTERM to cat, which closes the FIFO read end)
   3. Remove the FIFO: File.rm({fifo_path})
 ```
 
-**Application startup cleanup**: In `Application.start/2`, before the supervision tree starts, the FIFO directory is cleared (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This removes any stale FIFOs left behind by a previous crash or hard kill of the entire application.
-
-**PaneStream crash recovery**: If a single PaneStream crashes, the supervisor restarts it. The `init/1` callback must:
+**PaneStream crash recovery (primary cleanup mechanism)**: If a single PaneStream crashes, the supervisor restarts it. The `init/1` callback must:
   1. Check for and remove stale FIFO from previous instance
   2. Detach any existing pipe-pane on the target (`tmux pipe-pane -t {target}`)
   3. Re-run the normal startup sequence
+
+This per-PaneStream cleanup is the primary safety net — it runs on every start, whether after a crash, a restart, or first boot.
+
+**Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts, the FIFO directory is cleared (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This is a belt-and-suspenders measure that catches stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. It only takes effect on the *next* application boot.
 
 **FIFO naming**: Target strings like `mysession:0.1` are sanitized for filesystem use by replacing `:` and `.` with `-`, giving FIFO names like `pane-mysession-0-1.fifo`.
 
@@ -180,7 +186,7 @@ The ring buffer is the single source of history for all viewers. Its size is com
 
 1. Query the pane's effective `history-limit`: `tmux show-option -wv -t {target} history-limit` (falls back to `tmux show-option -gv history-limit` for the global default)
 2. Query the pane width: `tmux list-panes -t {target} -F '#{pane_width}'`
-3. Compute: `history_limit × pane_width` bytes (one byte per cell is a conservative estimate — ANSI escape sequences add overhead but most lines aren't full-width)
+3. Compute: `history_limit × pane_width` bytes (one byte per cell is a rough estimate; ANSI escape sequences from `capture-pane -e` and multi-byte UTF-8 characters add overhead that can exceed this, but most lines aren't full-width, so it roughly balances out)
 4. Clamp the result between `ring_buffer_min_size` (default 256KB) and `ring_buffer_max_size` (default 4MB)
 5. If either tmux query fails, use `ring_buffer_default_size` (default 1MB)
 
@@ -218,6 +224,8 @@ Example: User types "hi" then Ctrl+C
 
 **Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, we batch into a single `send-keys -H` call with all bytes.
 
+**Input rate limiting**: The client-side input batching (every 16ms, described in Bandwidth Optimization) provides natural throttling. On the server side, `PaneStream.send_keys/2` does not rate-limit — each call executes a `tmux send-keys` command immediately. If a misbehaving client floods `send_keys` calls, the tmux process is the bottleneck (each `send-keys` is a short-lived fork). This is acceptable for a single-user tool; if needed, a per-viewer token bucket could be added in `PaneStream`.
+
 ### LiveView Pages
 
 #### `RemoteCodeAgentsWeb.SessionListLive`
@@ -226,7 +234,7 @@ Example: User types "hi" then Ctrl+C
 - "New Session" button/form — creates a new tmux session (name input with validation, optional starting command)
 - **Session list updates** use a hybrid approach:
   - **Instant**: Subscribes to PubSub topic `"sessions"` on mount. `TmuxManager.create_session/1` and `kill_session/1` broadcast `{:sessions_changed}` on this topic after mutating state, so the session list updates immediately for app-driven changes.
-  - **Polling fallback**: `Process.send_after(self(), :refresh_sessions, 3_000)` in `handle_info` catches external changes (sessions created/killed from the terminal). This is a lightweight local call (`tmux list-sessions` reads in-memory state).
+  - **Polling fallback**: `Process.send_after(self(), :refresh_sessions, interval)` in `handle_info` catches external changes (sessions created/killed from the terminal). Default interval is 5 seconds. This is a lightweight **server-local** call (`tmux list-sessions` reads tmux's in-memory state) — it does not generate network traffic unless the session list actually changed (LiveView only pushes diffs). The interval is configurable via `config :remote_code_agents, session_poll_interval: 5_000`.
 - Click a pane to navigate to the terminal view via `push_navigate`
 - Shows pane dimensions and running command (from `tmux list-panes -F` format)
 - Mobile layout: full-width card list, large touch targets
@@ -277,7 +285,7 @@ For native Android client only. Not used by the web UI.
 
 1. tmux writes output → `pipe-pane` writes to FIFO
 2. `cat` Port reads from FIFO → Elixir receives `{port, {:data, bytes}}`
-3. PaneStream appends to ring buffer, broadcasts `{:pane_output, bytes}` via PubSub topic `"pane:#{target}"`
+3. PaneStream appends to ring buffer, broadcasts `{:pane_output, bytes}` via PubSub topic `"pane:#{target}"`. All messages on this topic are tagged tuples — subscribers must pattern-match on the first element: `:pane_output` for streaming data, `:pane_dead` for pane death, `:pane_resized` for dimension changes (future)
 4. `TerminalLive` receives via `handle_info`, calls `push_event(socket, "output", %{data: Base.encode64(bytes)})`
 5. `TerminalHook` decodes base64, calls `term.write(bytes)` on xterm.js instance
 
@@ -333,7 +341,7 @@ Multiple viewers sharing a pane creates a conflict: resizing the tmux pane affec
 - Other viewers' xterm.js instances are resized to match via `FitAddon.fit()` or `term.resize(cols, rows)`
 - On mobile, the terminal adapts to whatever size the pane currently is rather than requesting a resize. Mobile viewers are "passive resizers" — they read the current pane dimensions on connect and fit to them.
 
-**Simplification**: Resizing is disabled — the pane keeps whatever dimensions it had when created. Viewers fit xterm.js to the existing pane size.
+**Phase 1 (current scope)**: Resizing is disabled — the pane keeps whatever dimensions it had when created. Viewers fit xterm.js to the existing pane size. The last-writer-wins strategy described above is a future enhancement (see Feature Designs: Pane Resize Sync).
 
 ## Bandwidth Optimization
 
@@ -397,7 +405,7 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | Language           | Elixir 1.17+        | User preference; excellent for concurrent I/O          |
 | Runtime            | OTP 27+             | Required by modern Phoenix/LiveView                    |
 | Web framework      | Phoenix 1.7+        | Standard Elixir web framework                          |
-| Real-time UI       | Phoenix LiveView 0.20+ | WebSocket-based, no separate API needed             |
+| Real-time UI       | Phoenix LiveView 1.0+  | WebSocket-based, no separate API needed             |
 | Terminal rendering | @xterm/xterm 5.x    | Battle-tested terminal emulator; handles ANSI, cursor  |
 | xterm.js addons    | @xterm/addon-fit    | Required — auto-sizes terminal to container            |
 |                    | @xterm/addon-web-links | Nice-to-have — makes URLs clickable in terminal     |
@@ -566,6 +574,13 @@ config :remote_code_agents,
 - See "Pane Death" data flow section above
 - Client shows non-intrusive "Session ended" overlay with options: "Back to Sessions" or "Reconnect" (if the session was recreated)
 
+### Session/Window Renamed Externally
+- If a user renames a session or window via tmux directly (e.g., `tmux rename-session`), any running PaneStream still holds the old `target` string (e.g., `"old-name:0.1"`). Subsequent `send-keys -t {target}` calls will fail because tmux no longer recognizes the old target.
+- **Detection**: `send-keys` failure is logged (see PaneStream interface). However, the pane itself is still alive — the Port/FIFO stream continues working since `pipe-pane` is attached to the pane by tmux's internal ID, not by the target string.
+- **Impact**: Input stops working but output continues streaming. The PaneStream does not die.
+- **Mitigation**: The polling fallback in `SessionListLive` (every 3s) will show the updated session name. The user can navigate to the renamed pane via the new target. The stale PaneStream will eventually shut down via the grace period when the viewer disconnects.
+- **Future improvement**: Use tmux's `pane_id` (e.g., `%0`) instead of `session:window.pane` as the internal target for `send-keys`. Pane IDs are stable across renames. The human-readable target is only used for display and URL routing.
+
 ### FIFO Errors
 - FIFO directory doesn't exist → create it in PaneStream init
 - FIFO already exists (stale from crash) → remove and recreate
@@ -589,7 +604,7 @@ config :remote_code_agents,
 
 8. **FIFO blocking → cat Port**: The `cat` command runs as a Port (separate OS process), blocking on FIFO open without blocking the GenServer. `pipe-pane` opens the write end, unblocking `cat`. Simple and reliable.
 
-9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `subscribe/1` checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor. This "get or start" logic lives inside `subscribe/1` — there is no separate public `get_or_start` function.
+9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `subscribe/1` is a module function (not a GenServer call) that checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. It then makes a `GenServer.call` to register the viewer. This "get or start" logic lives inside `subscribe/1` — there is no separate public `get_or_start` function.
 
 10. **Resize conflicts → disabled**: Panes keep their existing dimensions and viewers adapt. Future: last-writer-wins with dimension broadcast to all viewers; mobile viewers are passive (read-only resize).
 
@@ -848,6 +863,7 @@ quick_actions:
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| `id` | string | auto | — | Stable identifier (UUID v4). Auto-generated when omitted (e.g., hand-edited YAML). Used by the API for update/delete. |
 | `label` | string | yes | — | Button text (keep short — 1-2 words) |
 | `command` | string | yes | — | Full command string sent to the terminal |
 | `confirm` | boolean | no | `false` | Show confirmation dialog before executing |
@@ -862,6 +878,7 @@ quick_actions:
 - **Reloading**: Config is re-read on each LiveView mount (cheap — it's a small file). This means editing the YAML takes effect on the next page load with no server restart.
 - **Validation**: On load, validate each quick action entry. Log warnings for invalid entries (missing `label`/`command`, unknown `color`) and skip them rather than crashing.
 - **Missing file**: If no config file exists, the app runs with defaults — no quick actions shown, no error.
+- **Auto-creation on save**: `Config.save/1` calls `File.mkdir_p!/1` on the parent directory before writing. If a user creates their first quick action via the Settings UI and no config file exists yet, it will be created automatically (including the `~/.config/remote_code_agents/` directory).
 
 ```elixir
 defmodule RemoteCodeAgents.Config do
@@ -907,6 +924,7 @@ defmodule RemoteCodeAgents.Config do
 
   defp normalize_action(entry) do
     %{
+      id: entry["id"] || generate_id(),
       label: entry["label"],
       command: entry["command"],
       confirm: entry["confirm"] == true,
@@ -914,6 +932,8 @@ defmodule RemoteCodeAgents.Config do
       icon: entry["icon"]
     }
   end
+
+  defp generate_id, do: :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
 
   @valid_colors ~w(default green red yellow blue)
   defp validate_color(c) when c in @valid_colors, do: c
@@ -985,7 +1005,7 @@ The template renders the action bar:
   <button
     :for={action <- @quick_actions}
     phx-click="quick_action"
-    phx-value-index={Enum.find_index(@quick_actions, &(&1 == action))}
+    phx-value-id={action.id}
     class={["quick-action-btn px-3 py-1 rounded-full text-sm whitespace-nowrap",
             action_color_class(action.color)]}
   >
@@ -994,12 +1014,21 @@ The template renders the action bar:
 </div>
 ```
 
+The `action_color_class/1` helper maps color names to Tailwind classes:
+
+```elixir
+defp action_color_class("green"), do: "bg-green-700 text-green-100 border border-green-600"
+defp action_color_class("red"), do: "bg-red-700 text-red-100 border border-red-600"
+defp action_color_class("yellow"), do: "bg-yellow-700 text-yellow-100 border border-yellow-600"
+defp action_color_class("blue"), do: "bg-blue-700 text-blue-100 border border-blue-600"
+defp action_color_class(_), do: "bg-gray-700 text-gray-100 border border-gray-600"
+```
+
 The event handler sends the command as keystrokes:
 
 ```elixir
-def handle_event("quick_action", %{"index" => index_str}, socket) do
-  index = String.to_integer(index_str)
-  action = Enum.at(socket.assigns.quick_actions, index)
+def handle_event("quick_action", %{"id" => id}, socket) do
+  action = Enum.find(socket.assigns.quick_actions, &(&1.id == id))
 
   if action do
     if action.confirm do
@@ -1138,16 +1167,16 @@ defmodule RemoteCodeAgentsWeb.SettingsLive do
     {:noreply, assign(socket, :config, updated)}
   end
 
-  def handle_event("delete_action", %{"index" => index}, socket) do
+  def handle_event("delete_action", %{"id" => id}, socket) do
     config = socket.assigns.config
-    updated = RemoteCodeAgents.Config.delete_action(config, String.to_integer(index))
+    updated = RemoteCodeAgents.Config.delete_action(config, id)
     RemoteCodeAgents.Config.save(updated)
     {:noreply, assign(socket, :config, updated)}
   end
 
-  def handle_event("reorder_actions", %{"order" => order}, socket) do
+  def handle_event("reorder_actions", %{"ids" => ids}, socket) do
     config = socket.assigns.config
-    updated = RemoteCodeAgents.Config.reorder_actions(config, order)
+    updated = RemoteCodeAgents.Config.reorder_actions(config, ids)
     RemoteCodeAgents.Config.save(updated)
     {:noreply, assign(socket, :config, updated)}
   end
@@ -1191,13 +1220,14 @@ defmodule RemoteCodeAgents.Config do
     # ... validate and insert/update action in config.quick_actions
   end
 
-  def delete_action(config, index) do
-    %{config | quick_actions: List.delete_at(config.quick_actions, index)}
+  def delete_action(config, id) do
+    %{config | quick_actions: Enum.reject(config.quick_actions, &(&1.id == id))}
   end
 
-  def reorder_actions(config, new_order) do
-    # new_order is a list of indices representing the desired order
-    reordered = Enum.map(new_order, &Enum.at(config.quick_actions, &1))
+  def reorder_actions(config, ids) do
+    # ids is a list of action IDs representing the desired order
+    by_id = Map.new(config.quick_actions, &{&1.id, &1})
+    reordered = Enum.map(ids, &Map.fetch!(by_id, &1))
     %{config | quick_actions: reordered}
   end
 end
@@ -1210,11 +1240,13 @@ Extends the future REST API (described in Future 2) with config endpoints:
 ```
 GET    /api/config              — returns full config as JSON
 GET    /api/quick-actions       — returns quick actions list
-POST   /api/quick-actions       — add a new quick action
-PUT    /api/quick-actions/:index — update a quick action
-DELETE /api/quick-actions/:index — delete a quick action
-PUT    /api/quick-actions/order — reorder quick actions (body: {"order": [2,0,1]})
+POST   /api/quick-actions       — add a new quick action (returns the created action with its generated id)
+PUT    /api/quick-actions/:id   — update a quick action by stable id
+DELETE /api/quick-actions/:id   — delete a quick action by stable id
+PUT    /api/quick-actions/order — reorder quick actions (body: {"ids": ["id1","id2","id3"]})
 ```
+
+**Why IDs, not list indices**: Index-based addressing is fragile — if two clients read the list and one deletes an item, the other client's indices become stale and would target the wrong action. Stable IDs (auto-generated UUIDs) prevent this.
 
 All endpoints require the same bearer token auth as other API routes.
 
@@ -1222,8 +1254,8 @@ All endpoints require the same bearer token auth as other API routes.
 ```json
 {
   "quick_actions": [
-    {"label": "Status", "command": "git status", "confirm": false, "color": "default", "icon": null},
-    {"label": "Push", "command": "git add . && git commit -m . && git push", "confirm": true, "color": "default", "icon": null}
+    {"id": "abc123", "label": "Status", "command": "git status", "confirm": false, "color": "default", "icon": null},
+    {"id": "def456", "label": "Push", "command": "git add . && git commit -m . && git push", "confirm": true, "color": "default", "icon": null}
   ]
 }
 ```
@@ -1246,23 +1278,23 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
     json(conn, %{quick_actions: updated.quick_actions})
   end
 
-  def update(conn, %{"index" => index, "action" => action_params}) do
+  def update(conn, %{"id" => id, "action" => action_params}) do
     config = RemoteCodeAgents.Config.load()
-    updated = RemoteCodeAgents.Config.update_action(config, String.to_integer(index), action_params)
+    updated = RemoteCodeAgents.Config.update_action(config, id, action_params)
     RemoteCodeAgents.Config.save(updated)
     json(conn, %{quick_actions: updated.quick_actions})
   end
 
-  def delete(conn, %{"index" => index}) do
+  def delete(conn, %{"id" => id}) do
     config = RemoteCodeAgents.Config.load()
-    updated = RemoteCodeAgents.Config.delete_action(config, String.to_integer(index))
+    updated = RemoteCodeAgents.Config.delete_action(config, id)
     RemoteCodeAgents.Config.save(updated)
     json(conn, %{quick_actions: updated.quick_actions})
   end
 
-  def reorder(conn, %{"order" => order}) do
+  def reorder(conn, %{"ids" => ids}) do
     config = RemoteCodeAgents.Config.load()
-    updated = RemoteCodeAgents.Config.reorder_actions(config, order)
+    updated = RemoteCodeAgents.Config.reorder_actions(config, ids)
     RemoteCodeAgents.Config.save(updated)
     json(conn, %{quick_actions: updated.quick_actions})
   end
@@ -1372,7 +1404,7 @@ WantedBy=multi-user.target
 ### Docker (alternative)
 
 ```dockerfile
-FROM elixir:1.16-slim AS build
+FROM elixir:1.17-slim AS build
 # ... standard Phoenix Dockerfile ...
 
 FROM debian:bookworm-slim
