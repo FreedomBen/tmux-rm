@@ -2,11 +2,11 @@
 
 ## Inconsistencies
 
-### 1. Duplicated MVP Scope
-Lines 551-566 and 880-896 contain identical MVP scope content. Remove one.
+### ~~1. Duplicated MVP Scope~~ RESOLVED
+Removed duplicate section, renamed "MVP Scope" → "Scope", replaced all "MVP"/"Post-MVP" language with "Future".
 
-### 2. TmuxManager "Not a GenServer for MVP"
-Line 89 says "Not a GenServer for MVP" implying it may become one, but no post-MVP item covers this transition. Either drop "for MVP" or add a note about when/why it would change.
+### ~~2. TmuxManager "Not a GenServer for MVP"~~ RESOLVED
+Removed "for MVP" qualifier — now just "Not a GenServer".
 
 ### 3. PaneStream subscribe/unsubscribe arity unclear
 Line 103: `subscribe/1` "adds a viewer, monitors the viewer PID" but doesn't take a PID argument. Presumably uses `self()`. Similarly `unsubscribe/1` (line 104) — does it take `target` or caller PID? Clarify the interface.

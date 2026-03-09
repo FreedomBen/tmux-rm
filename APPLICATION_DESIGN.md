@@ -62,7 +62,7 @@ The web and native clients use different transport mechanisms but share the same
 
 1. **Web (LiveView)**: Terminal I/O flows through the existing LiveView WebSocket via `push_event` (server→client) and `handle_event` (client→server). The `TerminalHook` on the client translates between LiveView events and xterm.js. This avoids opening a second WebSocket connection from the browser.
 
-2. **Native Android (Phoenix Channel)**: Connects directly to a `TerminalChannel` via a dedicated WebSocket. Speaks a simple binary/JSON protocol. This is **post-MVP** — the Channel is not needed for the web client.
+2. **Native Android (Phoenix Channel)**: Connects directly to a `TerminalChannel` via a dedicated WebSocket. Speaks a simple binary/JSON protocol. This is **future** — the Channel is not needed for the web client.
 
 3. **Shared backend**: Both LiveView processes and Channel processes subscribe to the same PubSub topics and call the same PaneStream API. No terminal logic is duplicated.
 
@@ -70,7 +70,7 @@ The web and native clients use different transport mechanisms but share the same
 Web browser:
   xterm.js ↔ TerminalHook ↔ LiveView push_event/handle_event ↔ PaneStream
 
-Android app (post-MVP):
+Android app (future):
   TerminalView ↔ TerminalChannel ↔ PaneStream
 ```
 
@@ -86,7 +86,7 @@ Android app (post-MVP):
   - `session_exists?/1` — check if a session is still alive
 - **Implementation**: Shells out to `tmux list-sessions`, `tmux list-windows`, `tmux list-panes`, `tmux new-session` with format strings; parses output
 - **Session name validation**: Names must match `^[a-zA-Z0-9_-]+$` (alphanumeric, hyphens, underscores). Reject anything else at creation time. This prevents conflicts with the tmux target format `session:window.pane` where colons and periods are delimiters.
-- **Not a GenServer for MVP**: Stateless module with functions that shell out. No need to cache session state since the source of truth is tmux itself. Can be promoted to a GenServer later if we need to rate-limit tmux CLI calls.
+- **Not a GenServer**: Stateless module with functions that shell out. No need to cache session state since the source of truth is tmux itself. Can be promoted to a GenServer later if we need to rate-limit tmux CLI calls.
 
 #### `RemoteCodeAgents.PaneStream`
 - **Responsibility**: Bidirectional bridge between a tmux pane and one or more viewers
@@ -215,7 +215,7 @@ Example: User types "hi" then Ctrl+C
 - Mobile: on-screen virtual keyboard toolbar (see Mobile UI section)
 - Back button / navigation header to return to session list
 
-### Phoenix Channel: `TerminalChannel` (Post-MVP)
+### Phoenix Channel: `TerminalChannel` (Future)
 
 For native Android client only. Not used by the web UI.
 
@@ -228,7 +228,7 @@ For native Android client only. Not used by the web UI.
   - `"scrollback"` — `%{"data" => binary}` — initial scrollback history on join
   - `"pane_dead"` — pane/session no longer exists
 - **Join handler**: Calls `PaneStream.subscribe/1`, subscribes to PubSub, same as TerminalLive
-- **Auth**: Token-based authentication on join (post-MVP)
+- **Auth**: Token-based authentication on join (future)
 
 ## Data Flow
 
@@ -240,7 +240,7 @@ For native Android client only. Not used by the web UI.
 4. `TerminalLive` receives via `handle_info`, calls `push_event(socket, "output", %{data: Base.encode64(bytes)})`
 5. `TerminalHook` decodes base64, calls `term.write(bytes)` on xterm.js instance
 
-Note: Binary data is base64-encoded for LiveView push_event since LiveView events are JSON-serialized. For the post-MVP Channel implementation, raw binary frames can be used instead.
+Note: Binary data is base64-encoded for LiveView push_event since LiveView events are JSON-serialized. For the future Channel implementation, raw binary frames can be used instead.
 
 ### Initial Attach (scrollback)
 
@@ -294,14 +294,14 @@ Multiple viewers sharing a pane creates a conflict: resizing the tmux pane affec
 - Other viewers' xterm.js instances are resized to match via `FitAddon.fit()` or `term.resize(cols, rows)`
 - On mobile, the terminal adapts to whatever size the pane currently is rather than requesting a resize. Mobile viewers are "passive resizers" — they read the current pane dimensions on connect and fit to them.
 
-**MVP simplification**: For MVP, resizing is disabled entirely — the pane keeps whatever dimensions it had when created. Viewers fit xterm.js to the existing pane size. This is noted in the MVP scope.
+**Simplification**: Resizing is disabled — the pane keeps whatever dimensions it had when created. Viewers fit xterm.js to the existing pane size.
 
 ## Bandwidth Optimization
 
 For low-bandwidth / high-latency connections:
 
 1. **Streaming, not polling**: pipe-pane delivers only actual output — no wasted bandwidth on unchanged frames
-2. **Base64 encoding overhead**: LiveView requires JSON-safe event payloads, so binary terminal data is base64-encoded (~33% overhead). Acceptable for terminal text. For the post-MVP Channel, raw binary frames eliminate this overhead.
+2. **Base64 encoding overhead**: LiveView requires JSON-safe event payloads, so binary terminal data is base64-encoded (~33% overhead). Acceptable for terminal text. For the future Channel, raw binary frames eliminate this overhead.
 3. **Compression**: Enable WebSocket per-message deflate compression in Phoenix endpoint config — terminal output (mostly text + ANSI codes) compresses very well
 4. **Debounced resize**: Client debounces resize events (300ms) to avoid flooding during orientation changes
 5. **Input batching**: Buffer rapid keystrokes client-side and send in batches (configurable, e.g. every 16ms) to reduce round-trip count
@@ -386,7 +386,7 @@ remote_code_agents/
       pane_stream.ex                # Per-pane streaming GenServer (pipe-pane + FIFO)
       pane_stream_supervisor.ex     # DynamicSupervisor for PaneStreams
     remote_code_agents_web/
-      channels/                     # Post-MVP
+      channels/                     # Future
         terminal_channel.ex         # Raw terminal I/O channel (for native clients)
         user_socket.ex              # Socket configuration
       live/
@@ -479,7 +479,7 @@ config :remote_code_agents,
 - **Input handling**: All input sent via `send-keys -H` (hex mode) — bytes are passed directly to tmux with no shell interpretation. The user is intentionally sending arbitrary commands to a shell — access control is the real security boundary.
 - **Session name validation**: Enforced at `TmuxManager.create_session/1` — only `^[a-zA-Z0-9_-]+$` accepted. Prevents tmux target format injection.
 - **HTTPS**: Required if exposed beyond localhost; configure via Phoenix endpoint or reverse proxy. Also required for Clipboard API access.
-- **Channel auth**: `TerminalChannel` (post-MVP) must verify auth token on join to prevent unauthorized WebSocket connections from native apps
+- **Channel auth**: `TerminalChannel` (future) must verify auth token on join to prevent unauthorized WebSocket connections from native apps
 - **FIFO permissions**: Created with mode `0600` (owner read/write only) to prevent other users on the host from reading terminal output
 
 ## Testing Strategy
@@ -536,7 +536,7 @@ config :remote_code_agents,
 
 5. **Clipboard → Yes**: Copy via xterm.js selection + Clipboard API. Paste via toolbar button (mobile) or Ctrl+Shift+V (desktop). Requires secure context (localhost or HTTPS). Fallback to execCommand for older browsers.
 
-6. **Web transport → LiveView push_event**: Terminal I/O on web flows through the existing LiveView WebSocket. No second WebSocket connection. Phoenix Channel is post-MVP, only for native Android client.
+6. **Web transport → LiveView push_event**: Terminal I/O on web flows through the existing LiveView WebSocket. No second WebSocket connection. Phoenix Channel is future, only for native Android client.
 
 7. **Input encoding → send-keys -H (hex)**: All input bytes converted to hex and sent via `tmux send-keys -H`. Handles printable text, control characters, and escape sequences uniformly. No branching between literal and raw modes.
 
@@ -544,13 +544,11 @@ config :remote_code_agents,
 
 9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `get_or_start/1` checks Registry, starts under DynamicSupervisor if not found.
 
-10. **Resize conflicts → MVP: disabled**: For MVP, panes keep their existing dimensions and viewers adapt. Post-MVP: last-writer-wins with dimension broadcast to all viewers; mobile viewers are passive (read-only resize).
+10. **Resize conflicts → disabled**: Panes keep their existing dimensions and viewers adapt. Future: last-writer-wins with dimension broadcast to all viewers; mobile viewers are passive (read-only resize).
 
 11. **Session name validation → strict**: Only `^[a-zA-Z0-9_-]+$` allowed. Prevents tmux target format breakage from colons/periods in names.
 
-## MVP Scope
-
-For the first working version:
+## Scope
 
 1. List tmux sessions and panes on the index page
 2. Create new tmux sessions from the UI (with name validation)
@@ -588,9 +586,9 @@ This application is **fully stateless from a storage perspective**. No database 
 
 ---
 
-## Post-MVP Features
+## Future Features
 
-### Post-MVP 1: Authentication & Remote Access
+### Future 1: Authentication & Remote Access
 
 **Goal**: Access terminal sessions from a phone or remote machine over the internet, securely.
 
@@ -648,7 +646,7 @@ if auth_token = System.get_env("RCA_AUTH_TOKEN") do
 end
 ```
 
-### Post-MVP 2: Phoenix Channel + Native Android Client
+### Future 2: Phoenix Channel + Native Android Client
 
 **Goal**: Android app connects directly to the server via WebSocket, renders terminal natively.
 
@@ -690,7 +688,7 @@ DELETE /api/sessions/:name — kill session
 - **Input**: Android's native keyboard input → convert to terminal bytes → send via Channel `input` event.
 - **Offline/reconnect**: Channel automatically reconnects on network drop. On reconnect, re-join the topic — server sends fresh scrollback + ring buffer. xterm.js/native terminal clears and re-renders.
 
-### Post-MVP 3: Pane Resize Sync
+### Future 3: Pane Resize Sync
 
 **Goal**: Viewers can resize the tmux pane, and all viewers stay in sync.
 
@@ -716,7 +714,7 @@ Mobile viewers are **passive resizers** by default:
 - **Throttle**: Server ignores resize events arriving within 500ms of the last resize for the same pane
 - **Display feedback**: When another viewer resizes, show a brief toast: "Terminal resized to {cols}x{rows} by another viewer"
 
-### Post-MVP 4: Session Management
+### Future 4: Session Management
 
 **Goal**: Full session lifecycle management from the UI.
 
@@ -743,7 +741,7 @@ Mobile viewers are **passive resizers** by default:
 - Rename validation uses the same `^[a-zA-Z0-9_-]+$` regex
 - If a viewer is watching a pane that gets killed, they receive the standard `pane_dead` flow
 
-### Post-MVP 5: Multi-Pane Split View
+### Future 5: Multi-Pane Split View
 
 **Goal**: View multiple tmux panes side-by-side in the browser, mirroring tmux's split-pane layout.
 
@@ -765,7 +763,7 @@ Mobile viewers are **passive resizers** by default:
 - On mobile, the session view shows a list of panes — tap one to open full-viewport
 - Alternatively: horizontal swipe between panes in the same window
 
-### Post-MVP 6: User Preferences
+### Future 6: User Preferences
 
 **Goal**: Configurable font size, color theme, and other display settings.
 
@@ -866,7 +864,7 @@ CMD ["/app/bin/remote_code_agents", "start"]
 
 ---
 
-## Post-MVP Prioritization
+## Future Prioritization
 
 | Priority | Feature | Effort | Rationale |
 |----------|---------|--------|-----------|
@@ -877,19 +875,3 @@ CMD ["/app/bin/remote_code_agents", "start"]
 | P5 | Phoenix Channel + Android client | Large | New client platform, significant effort |
 | P6 | Multi-pane split view | Medium | Nice-to-have, complex layout logic |
 
-## MVP Scope
-
-For the first working version:
-
-1. List tmux sessions and panes on the index page
-2. Create new tmux sessions from the UI (with name validation)
-3. Click a pane to open a full-viewport terminal view with xterm.js
-4. Stream output from the pane using pipe-pane (with scrollback on attach)
-5. Send keyboard input from the browser to the pane (via send-keys -H)
-6. Shared PaneStream with viewer ref counting and grace period
-7. Clipboard copy/paste
-8. Mobile-responsive layout with virtual key toolbar
-9. Bind to localhost only (no auth needed)
-10. Pane death detection and user notification
-11. Error handling (tmux not installed, pane died, FIFO errors)
-12. Resize disabled — viewers adapt to existing pane dimensions
