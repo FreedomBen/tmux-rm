@@ -104,7 +104,7 @@ Android app (future):
   - `send_keys/2` — sends input to the pane via `tmux send-keys`. If status is `:dead`, skips the call and returns `{:error, :pane_dead}`. If the `send-keys` command fails (e.g., pane died between checks), logs a warning and returns `:ok` — pane death notification will follow shortly via the Port EOF flow.
 - **Lifecycle**:
   - Monitors all viewer PIDs — auto-unsubscribes on viewer crash/disconnect
-  - On last viewer unsubscribe: starts a configurable grace period timer (default 5s). If a new viewer subscribes within the grace period, cancel the timer. Otherwise, shut down (detach pipe-pane, clean up FIFO, terminate).
+  - On last viewer unsubscribe: starts a configurable grace period timer (default 5s) via `Process.send_after(self(), :grace_period_expired, ...)`. If a new viewer subscribes within the grace period, cancel the timer via `Process.cancel_timer/1`. When the `:grace_period_expired` message arrives in `handle_info`, re-check `MapSet.size(viewers) == 0` before proceeding with shutdown — this eliminates the race between a late subscribe and the timer firing.
   - On Port exit (any status): set status to `:dead`, broadcast `{:pane_dead, target}` to all viewers, clean up FIFO, shut down after viewers acknowledge/disconnect. Log at `info` level for exit status 0 (normal pane death); log at `warning` level for non-zero (e.g., permission error, `cat` not found).
 
 #### `RemoteCodeAgents.Tmux.CommandRunner`

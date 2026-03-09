@@ -39,8 +39,8 @@ Added application startup cleanup step: `File.rm_rf` then `File.mkdir_p` on the 
 ### ~~11. Port `cat` non-zero exit unhandled~~ RESOLVED
 All exit statuses handled uniformly (set `:dead`, broadcast, clean up). Log level differs: `info` for status 0, `warning` for non-zero.
 
-### 12. Grace period race condition
-Lines 106-109: If the last viewer disconnects and the grace period timer fires, but a new viewer subscribes concurrently — is there a race between shutdown and the new subscription? The doc should note that shutdown must check viewer count atomically within the GenServer `handle_info` before proceeding.
+### ~~12. Grace period race condition~~ RESOLVED
+`handle_info(:grace_period_expired)` re-checks `MapSet.size(viewers) == 0` before shutting down. GenServer serialization ensures this check is atomic with respect to subscribe/unsubscribe calls.
 
 ### 13. No minimum tmux version stated
 `send-keys -H` was added in tmux 2.6. `pipe-pane -o` has been around since 1.8. The doc should state a minimum tmux version requirement (>= 2.6).
