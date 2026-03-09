@@ -565,10 +565,331 @@ For the first working version:
 11. Error handling (tmux not installed, pane died, FIFO errors)
 12. Resize disabled — viewers adapt to existing pane dimensions
 
-Post-MVP:
-- Token-based authentication for remote access over HTTPS
-- Phoenix Channel + native Android client
-- Pane resize sync (last-writer-wins with broadcast)
-- Session management (rename, kill from UI)
-- Multi-pane split view in browser
-- Configurable font size / theme
+## Storage Decision: No Database
+
+This application is **fully stateless from a storage perspective**. No database is needed.
+
+| Concern                | Where state lives                                      |
+|------------------------|--------------------------------------------------------|
+| Session/pane state     | tmux itself (source of truth)                          |
+| Streaming state        | PaneStream GenServer memory (ephemeral)                |
+| Viewer tracking        | PaneStream GenServer memory (ephemeral)                |
+| Auth tokens            | Config file / environment variable (static)            |
+| User preferences       | Browser `localStorage` (client-side)                   |
+| Layout preferences     | Browser `localStorage` (client-side)                   |
+
+**Rationale**: tmux is the source of truth for all terminal state. Runtime coordination lives in GenServer memory and PubSub. Auth is single-user, handled by a static token. User preferences (font size, theme, layout) are per-device and belong in the browser. There is no data that requires durable server-side storage.
+
+**Implications**:
+- No Ecto dependency, no migrations, no database process to manage
+- Application restarts are clean — PaneStreams re-attach to existing tmux sessions on demand
+- Deployment is a single binary (Mix release) with zero infrastructure dependencies beyond tmux
+- If multi-user support is ever needed (unlikely for this tool's use case), a database could be introduced then
+
+---
+
+## Post-MVP Features
+
+### Post-MVP 1: Authentication & Remote Access
+
+**Goal**: Access terminal sessions from a phone or remote machine over the internet, securely.
+
+#### Token-Based Authentication
+
+- **Single static token**: Generated once, stored in config or environment variable. Suitable for a personal/single-user tool.
+- **Token generation**: `mix rca.gen.token` Mix task generates a cryptographically random token, prints it, and writes to `~/.config/remote_code_agents/token`. Alternatively, set `RCA_AUTH_TOKEN` environment variable.
+- **Token storage**: Read from `Application.get_env(:remote_code_agents, :auth_token)` at runtime. Loaded from env var in `runtime.exs`:
+  ```elixir
+  # config/runtime.exs
+  config :remote_code_agents,
+    auth_token: System.get_env("RCA_AUTH_TOKEN")
+  ```
+- **No token configured**: If `auth_token` is `nil`, auth is disabled (localhost-only mode). If the endpoint is bound to `0.0.0.0` and no token is set, log a warning on startup.
+
+#### Auth Flow — Web
+
+1. User navigates to the app. If no valid session cookie, redirect to `/login`.
+2. `/login` page shows a single "Token" input field.
+3. On submit, server verifies token via `Plug.Crypto.secure_compare/2` (constant-time comparison).
+4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie expiry configurable (default 30 days).
+5. All LiveView mounts check `on_mount` hook for valid session. Redirect to `/login` if missing.
+
+#### Auth Flow — Phoenix Channel (Android)
+
+1. Android app sends token as a param on socket connect: `socket("/socket", UserSocket, params: {"token" => "..."})`
+2. `UserSocket.connect/3` verifies the token. Returns `{:ok, socket}` or `:error`.
+3. On `:error`, the client receives a connection rejection and prompts for a new token.
+
+#### Implementation Modules
+
+- `RemoteCodeAgentsWeb.Plugs.RequireAuth` — Plug that checks session cookie, redirects to `/login`
+- `RemoteCodeAgentsWeb.AuthLive` — LiveView for the login page
+- `RemoteCodeAgentsWeb.AuthHook` — `on_mount` hook for LiveView auth checks
+
+#### HTTPS
+
+For remote access, HTTPS is required (both for security and Clipboard API).
+
+**Options** (choose one at deployment time):
+1. **Reverse proxy**: nginx/Caddy in front, handles TLS termination. App stays on HTTP internally. Simplest if the host already runs a reverse proxy.
+2. **Phoenix direct TLS**: Configure `:https` in endpoint config with cert/key paths. Works with Let's Encrypt certs (certbot) or self-signed certs.
+3. **Tailscale/WireGuard**: VPN-based access. No public exposure, no certs needed. App stays HTTP on the Tailscale interface. Easiest for personal use.
+
+**Recommendation for personal use**: Tailscale. Zero configuration TLS (MagicDNS provides HTTPS via `tailscale cert`), no port forwarding, no public exposure. The app binds to the Tailscale interface IP instead of `127.0.0.1`.
+
+```elixir
+# config/runtime.exs — remote access example
+if auth_token = System.get_env("RCA_AUTH_TOKEN") do
+  config :remote_code_agents,
+    auth_token: auth_token
+
+  config :remote_code_agents, RemoteCodeAgentsWeb.Endpoint,
+    http: [ip: {0, 0, 0, 0}, port: 4000]
+end
+```
+
+### Post-MVP 2: Phoenix Channel + Native Android Client
+
+**Goal**: Android app connects directly to the server via WebSocket, renders terminal natively.
+
+#### Channel Protocol
+
+The `TerminalChannel` speaks a simple protocol over the Phoenix Channel WebSocket:
+
+**Connection**: Client connects to `wss://host:port/socket/websocket` with token param.
+
+**Join**: `"terminal:{session}:{window}:{pane}"` — server calls `PaneStream.subscribe/1`, returns scrollback.
+
+**Events**:
+
+| Direction | Event | Payload | Notes |
+|-----------|-------|---------|-------|
+| S→C | `scrollback` | `%{"data" => base64_binary}` | Sent once on join |
+| S→C | `output` | `%{"data" => base64_binary}` | Streaming terminal output |
+| S→C | `pane_dead` | `%{}` | Pane/session ended |
+| S→C | `resized` | `%{"cols" => int, "rows" => int}` | Pane was resized by another viewer |
+| C→S | `input` | `%{"data" => base64_binary}` | Keyboard/touch input |
+| C→S | `resize` | `%{"cols" => int, "rows" => int}` | Client requests pane resize |
+
+**Session management**: The Android app also needs to list/create sessions. Options:
+1. **REST API**: Add a simple JSON API (`/api/sessions`, `POST /api/sessions`) protected by bearer token auth. Lightweight — just wraps TmuxManager calls.
+2. **Channel-based**: A `SessionChannel` that pushes session list updates. More complex but real-time.
+
+**Recommendation**: REST API for session management (simple, stateless), Channel for terminal I/O (streaming).
+
+```
+POST /api/sessions        — create session (body: {"name": "...", "command": "..."})
+GET  /api/sessions        — list sessions with panes
+DELETE /api/sessions/:name — kill session
+```
+
+#### Android App Architecture (high-level)
+
+- **Terminal rendering**: Use [Termux's terminal-emulator](https://github.com/termux/termux-app/tree/master/terminal-emulator) library or a similar Android terminal widget. Receives raw bytes from the Channel, renders natively.
+- **WebSocket client**: Use Phoenix's official JavaScript client via a WebView bridge, or a native Kotlin WebSocket client implementing the Phoenix Channel protocol (libraries exist, e.g., `JavaPhoenixClient`).
+- **Input**: Android's native keyboard input → convert to terminal bytes → send via Channel `input` event.
+- **Offline/reconnect**: Channel automatically reconnects on network drop. On reconnect, re-join the topic — server sends fresh scrollback + ring buffer. xterm.js/native terminal clears and re-renders.
+
+### Post-MVP 3: Pane Resize Sync
+
+**Goal**: Viewers can resize the tmux pane, and all viewers stay in sync.
+
+#### Strategy: Last-Writer-Wins with Broadcast
+
+1. Any viewer sends `"resize"` event with `{cols, rows}`.
+2. Server calls `tmux resize-pane -t {target} -x {cols} -y {rows}`.
+3. PaneStream broadcasts `{:pane_resized, cols, rows}` via PubSub.
+4. All *other* viewers receive the broadcast, call `term.resize(cols, rows)` on their xterm.js instance.
+5. The viewer that initiated the resize already has the right size — skip the update.
+
+#### Mobile Viewer Behavior
+
+Mobile viewers are **passive resizers** by default:
+- On connect, read the pane's current dimensions from `tmux display-message -p -t {target} '#{pane_width} #{pane_height}'`
+- Set xterm.js to those dimensions (may require scaling/scrolling on small screens)
+- Do NOT send resize events when the mobile viewport changes — instead, scale the terminal via CSS transform or font-size adjustment
+- Optional: "Fit to screen" button that sends a resize matching the mobile viewport (with a confirmation since it affects other viewers)
+
+#### Conflict Mitigation
+
+- **Debounce**: All resize events debounced 300ms client-side
+- **Throttle**: Server ignores resize events arriving within 500ms of the last resize for the same pane
+- **Display feedback**: When another viewer resizes, show a brief toast: "Terminal resized to {cols}x{rows} by another viewer"
+
+### Post-MVP 4: Session Management
+
+**Goal**: Full session lifecycle management from the UI.
+
+#### Features
+
+| Action | UI | tmux command |
+|--------|-----|-------------|
+| Create session | Form with name + optional command | `tmux new-session -d -s {name} [-x cols -y rows] [command]` |
+| Kill session | Confirmation dialog per session | `tmux kill-session -t {name}` |
+| Rename session | Inline edit on session name | `tmux rename-session -t {old} {new}` (with name validation) |
+| Create window | "+" button within a session | `tmux new-window -t {session}` |
+| Kill pane | "x" button on pane in session list | `tmux kill-pane -t {target}` |
+
+#### UI Updates
+
+- Session list cards get action menus (kebab menu / long-press on mobile)
+- Confirmation dialogs for destructive actions (kill session/pane)
+- Rename uses an inline edit component with Enter to confirm, Esc to cancel
+- Actions trigger an immediate session list refresh
+
+#### Safety
+
+- Cannot kill the last pane in a session from the UI (tmux would kill the session — show a "kill session instead?" prompt)
+- Rename validation uses the same `^[a-zA-Z0-9_-]+$` regex
+- If a viewer is watching a pane that gets killed, they receive the standard `pane_dead` flow
+
+### Post-MVP 5: Multi-Pane Split View
+
+**Goal**: View multiple tmux panes side-by-side in the browser, mirroring tmux's split-pane layout.
+
+#### Approach
+
+- **Session view**: A route `/sessions/:session` shows all panes in that session's current window, laid out to match tmux's actual pane layout
+- **Layout discovery**: `tmux list-panes -t {session} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'` returns pane positions and sizes
+- **Rendering**: CSS Grid layout with each pane mapped to a grid area based on its tmux coordinates. Each pane gets its own xterm.js instance and PaneStream subscription.
+- **Layout refresh**: Poll `list-panes` periodically (every 2-3s) to detect layout changes (user splits/closes panes via tmux commands)
+
+#### Single-Pane Fallback
+
+- Clicking a specific pane from the session list still opens the full-viewport single-pane view (existing `TerminalLive`)
+- The multi-pane view is a new route/LiveView that manages multiple `TerminalHook` instances
+
+#### Mobile Behavior
+
+- Multi-pane view is desktop/tablet only (>640px)
+- On mobile, the session view shows a list of panes — tap one to open full-viewport
+- Alternatively: horizontal swipe between panes in the same window
+
+### Post-MVP 6: User Preferences
+
+**Goal**: Configurable font size, color theme, and other display settings.
+
+#### Settings
+
+| Setting | Options | Default | Storage |
+|---------|---------|---------|---------|
+| Font size | 8-24px, or "fit to screen" | 14px | `localStorage` |
+| Font family | Monospace font selection | System monospace | `localStorage` |
+| Color theme | Dark, light, solarized, custom | Dark (xterm.js default) | `localStorage` |
+| Cursor style | Block, underline, bar | Block | `localStorage` |
+| Cursor blink | On/off | On | `localStorage` |
+| Scrollback limit | 1k-100k lines | 10k | `localStorage` |
+| Virtual toolbar | Show/hide, key selection | Show | `localStorage` |
+
+#### Implementation
+
+- **Settings panel**: Slide-out panel or modal, accessible from a gear icon in the header/toolbar
+- **xterm.js options**: All settings map directly to xterm.js `Terminal` constructor options — apply on change, no server round-trip needed
+- **Persistence**: `localStorage` keyed by `rca-preferences`. Read on hook mount, applied before terminal is displayed.
+- **Per-device**: Stored client-side, so mobile and desktop can have different settings naturally
+- **No server involvement**: This is purely a client-side feature. No API, no config, no storage needed server-side.
+
+```javascript
+// terminal_hook.js — preference loading
+const prefs = JSON.parse(localStorage.getItem('rca-preferences') || '{}');
+const term = new Terminal({
+  fontSize: prefs.fontSize || 14,
+  fontFamily: prefs.fontFamily || 'monospace',
+  theme: prefs.theme || {},
+  cursorStyle: prefs.cursorStyle || 'block',
+  cursorBlink: prefs.cursorBlink !== false,
+  scrollback: prefs.scrollback || 10000,
+});
+```
+
+---
+
+## Deployment
+
+### Mix Release
+
+The primary deployment target is a Mix release — a self-contained package with the Erlang runtime.
+
+```bash
+# Build
+MIX_ENV=prod mix deps.get
+MIX_ENV=prod mix assets.deploy
+MIX_ENV=prod mix release
+
+# Run
+RCA_AUTH_TOKEN="my-secret-token" _build/prod/rel/remote_code_agents/bin/remote_code_agents start
+```
+
+### Requirements
+
+- tmux installed on the host (not bundled in the release)
+- No database, no Redis, no external services
+- Erlang/OTP runtime is bundled in the release (no system Erlang needed if `include_erts: true`)
+
+### Systemd Service (optional)
+
+```ini
+[Unit]
+Description=Remote Code Agents
+After=network.target
+
+[Service]
+Type=exec
+User=ben
+Environment=RCA_AUTH_TOKEN=<token>
+Environment=HOME=/home/ben
+ExecStart=/opt/remote_code_agents/bin/remote_code_agents start
+ExecStop=/opt/remote_code_agents/bin/remote_code_agents stop
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Docker (alternative)
+
+```dockerfile
+FROM elixir:1.16-slim AS build
+# ... standard Phoenix Dockerfile ...
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y tmux && rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/_build/prod/rel/remote_code_agents /app
+CMD ["/app/bin/remote_code_agents", "start"]
+```
+
+**Docker caveat**: The app needs access to the host's tmux server. Options:
+1. Run tmux inside the container (limits usefulness — can't attach to host sessions)
+2. Mount the host's tmux socket: `-v /tmp/tmux-$(id -u):/tmp/tmux-$(id -u)` — allows the container to talk to the host's tmux server
+3. **Recommendation**: Native deployment (Mix release) is simpler for this use case since the app is inherently tied to the host's tmux
+
+---
+
+## Post-MVP Prioritization
+
+| Priority | Feature | Effort | Rationale |
+|----------|---------|--------|-----------|
+| P1 | Auth + remote access | Medium | Required to use from mobile — the primary motivation |
+| P2 | Pane resize sync | Small | Quality-of-life, simple to implement |
+| P3 | Session management (kill, rename) | Small | Basic lifecycle control |
+| P4 | User preferences (font, theme) | Small | Client-side only, no server changes |
+| P5 | Phoenix Channel + Android client | Large | New client platform, significant effort |
+| P6 | Multi-pane split view | Medium | Nice-to-have, complex layout logic |
+
+## MVP Scope
+
+For the first working version:
+
+1. List tmux sessions and panes on the index page
+2. Create new tmux sessions from the UI (with name validation)
+3. Click a pane to open a full-viewport terminal view with xterm.js
+4. Stream output from the pane using pipe-pane (with scrollback on attach)
+5. Send keyboard input from the browser to the pane (via send-keys -H)
+6. Shared PaneStream with viewer ref counting and grace period
+7. Clipboard copy/paste
+8. Mobile-responsive layout with virtual key toolbar
+9. Bind to localhost only (no auth needed)
+10. Pane death detection and user notification
+11. Error handling (tmux not installed, pane died, FIFO errors)
+12. Resize disabled — viewers adapt to existing pane dimensions
