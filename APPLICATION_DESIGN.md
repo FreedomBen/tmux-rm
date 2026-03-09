@@ -337,16 +337,25 @@ Example: User types "hi" then Ctrl+C
 
 For native Android client only. Not used by the web UI. The design below is documented for future reference but is explicitly out of scope for the initial implementation.
 
-- Topic: `"terminal:{session}:{window}:{pane}"` — note: this is the client-facing Channel join topic, not a PubSub topic. The join handler converts it to the internal PaneStream target format (`"terminal:foo:0:1"` → `"foo:0.1"`) and then calls `PaneStream.subscribe/1`, which subscribes to the canonical PubSub topic `"pane:foo:0.1"` — the same topic LiveView uses. The Channel join topic uses colons as delimiters (Phoenix Channel convention), while the internal target uses tmux's native `"session:window.pane"` format.
+- **Topic**: `"terminal:{session}:{window}:{pane}"` — this is the client-facing Channel join topic, not a PubSub topic. The join handler converts it to the internal PaneStream target format (`"terminal:foo:0:1"` → `"foo:0.1"`) and then calls `PaneStream.subscribe/1`, which subscribes to the canonical PubSub topic `"pane:foo:0.1"` — the same topic LiveView uses. The Channel join topic uses colons as delimiters (Phoenix Channel convention), while the internal target uses tmux's native `"session:window.pane"` format.
+- **Auth**: Token-based authentication verified in `UserSocket.connect/3` (see Auth Flow — Phoenix Channel below). Channel `join/3` does not re-verify — a valid socket implies a valid user.
+- **Join handler**:
+  1. Parse topic into target: `"terminal:foo:0:1"` → `"foo:0.1"`.
+  2. Call `PaneStream.subscribe/1` — same path as TerminalLive.
+  3. Monitor the returned `pane_stream_pid`.
+  4. On success, reply `{:ok, %{"history" => base64_binary, "cols" => int, "rows" => int}}` — history is the ring buffer contents, cols/rows are the pane's current dimensions.
+  5. On `{:error, :pane_not_found}`, reply `{:error, %{"reason" => "pane_not_found"}}`.
+  6. On `{:error, :max_pane_streams}`, reply `{:error, %{"reason" => "max_pane_streams"}}`.
 - **Client → Server events**:
-  - `"input"` — `%{"data" => binary}` — keyboard input
-  - `"resize"` — `%{"cols" => int, "rows" => int}`
+  - `"input"` — `%{"data" => base64_binary}` — keyboard input. Decoded, validated (max 128KB, same as LiveView), passed to `PaneStream.send_keys/2`.
+  - `"resize"` — `%{"cols" => int, "rows" => int}` — client requests pane resize. Forwarded to `tmux resize-pane`. Validated: cols 1–500, rows 1–200.
 - **Server → Client events**:
-  - `"output"` — `%{"data" => binary}` — terminal output bytes
-  - `"history"` — `%{"data" => binary}` — ring buffer contents on join
-  - `"pane_dead"` — pane/session no longer exists
-- **Join handler**: Calls `PaneStream.subscribe/1`, subscribes to PubSub, same as TerminalLive
-- **Auth**: Token-based authentication on join (future)
+  - `"output"` — `%{"data" => base64_binary}` — streaming terminal output bytes.
+  - `"reconnected"` — `%{"data" => base64_binary}` — full ring buffer after PaneStream crash recovery. Client should clear its terminal and re-render.
+  - `"pane_dead"` — `%{}` — pane/session no longer exists. Client should show a disconnected state.
+  - `"pane_superseded"` — `%{"new_target" => "new-name:0.1"}` — PaneStream was replaced due to session/window rename. Client can rejoin under the new topic.
+  - `"resized"` — `%{"cols" => int, "rows" => int}` — pane was resized by another viewer. Client should resize its terminal view.
+- **Leave/disconnect**: `terminate/2` calls `PaneStream.unsubscribe/1`. Same as LiveView, this is best-effort — the real safety net is PaneStream's monitor on the Channel PID, which triggers auto-unsubscribe on crash or network drop. Phoenix Channels reconnect automatically; on reconnect, the client re-joins the topic and receives fresh history.
 
 ## Data Flow
 
@@ -394,11 +403,15 @@ For native Android client only. Not used by the web UI. The design below is docu
 
 | Direction | Event | Payload | Description |
 |-----------|-------|---------|-------------|
-| Client → Server | `"input"` | `%{"data" => binary}` | Keyboard input. |
-| Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Terminal dimensions. |
-| Server → Client | `"output"` | `%{"data" => binary}` | Terminal output bytes. |
-| Server → Client | `"history"` | `%{"data" => binary}` | Ring buffer contents on join. |
-| Server → Client | `"pane_dead"` | `%{}` | Pane no longer exists. |
+| Client → Server | `"input"` | `%{"data" => base64_binary}` | Keyboard/touch input. Max 128KB decoded. |
+| Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. |
+| Server → Client | `"output"` | `%{"data" => base64_binary}` | Streaming terminal output. |
+| Server → Client | `"reconnected"` | `%{"data" => base64_binary}` | Full buffer after PaneStream crash recovery. Client clears and re-renders. |
+| Server → Client | `"pane_dead"` | `%{}` | Pane/session ended. |
+| Server → Client | `"pane_superseded"` | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
+| Server → Client | `"resized"` | `%{"cols" => int, "rows" => int}` | Pane resized by another viewer. |
+
+**Join reply**: `{:ok, %{"history" => base64_binary, "cols" => int, "rows" => int}}` or `{:error, %{"reason" => string}}`.
 
 ### Terminal Output (tmux → browser)
 
@@ -472,14 +485,82 @@ Multiple viewers sharing a pane creates a conflict: resizing the tmux pane affec
 
 ## Bandwidth Optimization
 
-For low-bandwidth / high-latency connections:
+The strategies below are chosen to help on slow/high-latency connections without degrading performance on fast ones. Strategies that would add latency on good connections (aggressive frame-rate throttling, large batch windows, delta/diff encoding on top of the already-incremental pipe-pane stream) are intentionally avoided.
 
-1. **Streaming, not polling**: pipe-pane delivers only actual output — no wasted bandwidth on unchanged frames
-2. **Base64 encoding overhead**: LiveView requires JSON-safe event payloads, so binary terminal data is base64-encoded (~33% overhead). Acceptable for terminal text. For the future Channel, raw binary frames eliminate this overhead.
-3. **Compression**: Enable WebSocket per-message deflate compression in Phoenix endpoint config — terminal output (mostly text + ANSI codes) compresses very well
-4. **Debounced resize**: Client debounces resize events (300ms) to avoid flooding during orientation changes
-5. **Input batching**: Buffer rapid keystrokes client-side and send in batches (configurable, e.g. every 16ms) to reduce round-trip count
-6. **Ring buffer cap**: History buffer sized dynamically per pane (see Buffer Sizing), clamped between 512KB and 8MB. Provides full scrollback context for all viewers without excessive memory or transfer. New panes fall back to minimum buffer size under memory pressure.
+### 1. Streaming, Not Polling
+
+`pipe-pane` delivers only actual output — no wasted bandwidth on unchanged frames. This is the single biggest optimization: zero overhead when the pane is idle, and output arrives as soon as tmux processes it.
+
+### 2. WebSocket `permessage-deflate` Compression
+
+Terminal output (text + ANSI escape codes) compresses very well — typical compression ratios of 3–5× for text-heavy output, 2× for ANSI-colored output.
+
+**Implementation**: Enable in the Phoenix Endpoint config:
+
+```elixir
+# config/config.exs
+config :remote_code_agents, RemoteCodeAgentsWeb.Endpoint,
+  http: [
+    websocket_options: [
+      compress: true  # enables permessage-deflate
+    ]
+  ]
+```
+
+**Why this is safe on fast connections**: `permessage-deflate` is negotiated per-connection at the WebSocket handshake. The compression library (zlib) adds negligible CPU overhead per message. For very small messages (< ~20 bytes), the compressed output may be larger — cowboy handles this gracefully by sending uncompressed when compression doesn't help. No configuration needed per-connection; the transport handles it.
+
+### 3. Server-Side Output Coalescing
+
+During high-throughput output (e.g., `cat large_file`, build logs), the `cat` Port can fire dozens of `{port, {:data, bytes}}` messages per millisecond. Without coalescing, each triggers a separate PubSub broadcast and WebSocket push, creating overhead in message framing, PubSub dispatch, and WebSocket frames.
+
+**Implementation**: PaneStream uses a short coalescing window in `handle_info`:
+
+1. On first `{port, {:data, bytes}}` when no coalesce timer is active: append bytes to an IO list accumulator, start a timer via `Process.send_after(self(), :flush_output, @coalesce_ms)`.
+2. On subsequent Port data while the timer is active: append to the accumulator (IO list cons, no copying).
+3. On `:flush_output`: convert the IO list to a binary via `IO.iodata_to_binary/1`, append to ring buffer, broadcast `{:pane_output, coalesced_bytes}` via PubSub, clear the accumulator.
+4. If the accumulator exceeds a size threshold (e.g., 32KB) before the timer fires, flush immediately — this prevents unbounded memory growth during extreme throughput.
+
+**Configuration**:
+
+```elixir
+# config/config.exs
+config :remote_code_agents,
+  # Coalescing window (ms) for PaneStream output. 0 = disabled (every Port
+  # message triggers an immediate broadcast). Low values (2-5ms) help on
+  # slow connections without perceptible delay on fast ones.
+  output_coalesce_ms: 3,
+  # Flush immediately if accumulated output exceeds this size (bytes)
+  output_coalesce_max_bytes: 32_768  # 32 KB
+```
+
+**Why this is safe on fast connections**: A 3ms window is below human perception (~13ms visual frame at 75Hz). On a LAN, it means at most 3ms additional latency on the first byte of a burst. During interactive typing (single characters), the Port typically fires one message at a time — the timer fires 3ms later with just that one message, so overhead is one timer per keystroke echo. During high-throughput output, the coalescing is purely beneficial: fewer, larger WebSocket frames are more efficient even on fast connections due to reduced framing overhead.
+
+### 4. Binary Frames on Phoenix Channel (Future)
+
+LiveView requires JSON-serializable payloads, so terminal data is base64-encoded (~33% overhead). The Phoenix Channel for native Android clients can use raw binary payloads instead, eliminating this overhead entirely.
+
+**Implementation**: The Channel `handle_info({:pane_output, bytes})` pushes bytes directly without base64 encoding. The Android client receives raw bytes and passes them to the terminal renderer. This is a pure win — less CPU (no encode/decode) and 33% less bandwidth.
+
+### 5. Client-Side Input Batching
+
+Rapid keystrokes are buffered client-side and sent in batches to reduce round-trip count.
+
+**Implementation in TerminalHook**:
+
+- Buffer keystrokes in a local array.
+- Flush every 16ms (one animation frame via `requestAnimationFrame`) or when the buffer exceeds 64 bytes, whichever comes first.
+- Concatenate buffered bytes into a single base64 payload and send as one `"key_input"` event.
+- During normal interactive typing (~5 chars/sec), most flushes contain a single character — no added latency. During fast paste (handled separately via chunking), this batching is bypassed.
+
+**Why this is safe on fast connections**: 16ms is one frame at 60fps. Interactive typing produces characters far slower than this, so each keystroke is sent individually with at most 16ms delay. The batching only activates during rapid input (e.g., holding a key down), where reducing 30 events to 2 per frame is a pure win.
+
+### 6. Debounced Resize
+
+Client debounces resize events (300ms) to avoid flooding during window resize drag or mobile orientation changes. Only the final dimensions are sent.
+
+### 7. Ring Buffer Cap
+
+History buffer sized dynamically per pane (see Buffer Sizing), clamped between 512KB and 8MB. Provides full scrollback context without excessive transfer on initial attach. Under memory pressure, new panes use the minimum buffer size.
 
 ## Clipboard Integration
 
@@ -654,7 +735,13 @@ config :remote_code_agents,
   # FIFO directory for pipe-pane output
   fifo_dir: "/tmp/remote-code-agents",
   # Path to tmux binary (auto-detected if nil)
-  tmux_path: nil
+  tmux_path: nil,
+  # Output coalescing window (ms). Collects rapid Port messages into a single
+  # broadcast. 0 = disabled. Low values (2-5ms) reduce overhead on slow
+  # connections without perceptible delay on fast ones.
+  output_coalesce_ms: 3,
+  # Flush coalesced output immediately if accumulated bytes exceed this threshold
+  output_coalesce_max_bytes: 32_768  # 32 KB
 
 # config/dev.exs
 config :remote_code_agents, RemoteCodeAgentsWeb.Endpoint,
@@ -879,20 +966,25 @@ end
 
 The `TerminalChannel` speaks a simple protocol over the Phoenix Channel WebSocket:
 
-**Connection**: Client connects to `wss://host:port/socket/websocket` with token param.
+**Connection**: Client connects to `wss://host:port/socket/websocket` with `%{"token" => "..."}` param. `UserSocket.connect/3` verifies the token. Rejected connections receive a socket error — the client should prompt for a new token.
 
-**Join**: `"terminal:{session}:{window}:{pane}"` — server calls `PaneStream.subscribe/1`, returns history.
+**Join**: `"terminal:{session}:{window}:{pane}"` — server converts to target format, calls `PaneStream.subscribe/1`.
+- **Success reply**: `{:ok, %{"history" => base64_binary, "cols" => int, "rows" => int}}` — ring buffer contents and current pane dimensions.
+- **Error reply**: `{:error, %{"reason" => "pane_not_found" | "max_pane_streams"}}`.
 
 **Events**:
 
 | Direction | Event | Payload | Notes |
 |-----------|-------|---------|-------|
-| S→C | `history` | `%{"data" => base64_binary}` | Ring buffer contents, sent once on join |
+| C→S | `input` | `%{"data" => base64_binary}` | Keyboard/touch input. Max 128KB decoded. |
+| C→S | `resize` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. |
 | S→C | `output` | `%{"data" => base64_binary}` | Streaming terminal output |
+| S→C | `reconnected` | `%{"data" => base64_binary}` | Full buffer after PaneStream crash recovery. Client should clear and re-render. |
 | S→C | `pane_dead` | `%{}` | Pane/session ended |
+| S→C | `pane_superseded` | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
 | S→C | `resized` | `%{"cols" => int, "rows" => int}` | Pane was resized by another viewer |
-| C→S | `input` | `%{"data" => base64_binary}` | Keyboard/touch input |
-| C→S | `resize` | `%{"cols" => int, "rows" => int}` | Client requests pane resize |
+
+**Leave/disconnect**: On network drop, Phoenix Channel auto-reconnects. Client re-joins the topic and receives fresh history in the join reply. No special reconnect event needed — the join flow handles it.
 
 **Session management**: The Android app also needs to list/create sessions. Options:
 1. **REST API**: Add a simple JSON API (`/api/sessions`, `POST /api/sessions`) protected by bearer token auth. Lightweight — just wraps TmuxManager calls.
