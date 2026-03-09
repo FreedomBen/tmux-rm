@@ -95,12 +95,16 @@ Android app (future):
   - `target` — the `session:window.pane` identifier
   - `pipe_port` — Elixir Port running `cat` on the FIFO
   - `viewers` — `MapSet` of subscriber PIDs (monitored)
-  - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally. Note: this allocates a copy up to `ring_buffer_max_size` (default 4MB) per call. This is acceptable for the expected viewer count (single-user tool with a handful of concurrent tabs); if many viewers connect simultaneously to a large-buffer pane, the transient memory spike is bounded by `max_pane_streams × ring_buffer_max_size`.
+  - `buffer` — ring buffer (`RemoteCodeAgents.RingBuffer`) of all output (scrollback + streaming). Sized dynamically based on the pane's tmux `history-limit` and width (see Buffer Sizing below). All viewers — first or late — receive the same history from this buffer. `RingBuffer.read/1` returns a single contiguous binary by concatenating the two halves of the circular buffer internally. Note: this allocates a copy up to `ring_buffer_max_size` (default 4MB) per call. This is acceptable for the expected viewer count (single-user tool with a handful of concurrent tabs); if many viewers connect simultaneously to a large-buffer pane, the transient memory spike is bounded by `max_pane_streams × ring_buffer_max_size`. Because `subscribe/1` makes a `GenServer.call` that triggers `RingBuffer.read/1`, concurrent subscribes to the same pane serialize through the GenServer — during high-throughput output, each subscribe briefly blocks output processing. This is acceptable for the expected concurrency (a few tabs); the call returns quickly since `read/1` is a memory copy, not I/O.
   - `status` — `:streaming | :dead | :shutting_down`
   - `grace_timer_ref` — reference from `Process.send_after/3` for the grace period timer, or `nil`. Used by `Process.cancel_timer/1` when a new viewer subscribes during the grace period.
 - **Interface**:
   - `start_link/1` — starts streaming for a target pane
-  - `subscribe/1` — **module function** (not a GenServer call) called by a viewer process. Uses `self()` to identify the caller. The function first checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. If `start_link/1` returns `{:error, {:already_started, pid}}` (race with another concurrent `subscribe/1` call), uses the existing PID. Then makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID, subscribes the caller to the PubSub topic `"pane:#{target}"`, and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`). The GenServer call handler subscribes the *caller's PID* (received via the `from` argument in `handle_call`) to the PubSub topic — not `self()` (which would be the GenServer). This means PubSub messages are delivered directly to the viewer process (e.g., the LiveView), not forwarded through the GenServer. The subscription happens before history is returned, guaranteeing no messages are lost between receiving history and streaming. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails).
+  - `subscribe/1` — **module function** (not a GenServer call) called by a viewer process. Uses `self()` to identify the caller. The function:
+      1. Subscribes the caller to the PubSub topic `"pane:#{target}"` — this happens in the caller's process context (since `Phoenix.PubSub.subscribe/2` always subscribes `self()`), ensuring PubSub messages are delivered directly to the viewer (e.g., the LiveView), not to the GenServer.
+      2. Checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. If `start_link/1` returns `{:error, {:already_started, pid}}` (race with another concurrent `subscribe/1` call), uses the existing PID.
+      3. Makes a `GenServer.call` to the (now-running) PaneStream to register the viewer: monitors the caller PID and returns `{:ok, history}` where `history` is the current ring buffer contents (a single contiguous binary from `RingBuffer.read/1`).
+    The PubSub subscription (step 1) happens before history is returned (step 3), guaranteeing no messages are lost between receiving history and streaming — any messages arriving during step 2-3 queue in the caller's mailbox and are processed after mount completes. Returns `{:error, :pane_not_found}` if the tmux pane does not exist (detected during startup when `pipe-pane` fails). On error, the function unsubscribes from the PubSub topic before returning to avoid a leaked subscription.
   - `unsubscribe/1` — called by a viewer process. Uses `self()` to identify the caller. Removes the caller from the viewer set and demonitors the PID. Idempotent — safe to call multiple times or after the monitor has already fired (e.g., `terminate/2` calls `unsubscribe` but the DOWN message may also arrive). If no viewers remain after removal, starts the grace period timer.
   - `send_keys/2` — sends input (as a binary) to the pane via `tmux send-keys -H`. Each byte of the binary is converted to its two-character hex representation. If status is `:dead`, skips the call and returns `{:error, :pane_dead}`. If the `send-keys` command fails (e.g., pane died between checks), logs a warning and returns `:ok` — pane death notification will follow shortly via the Port EOF flow.
 - **Lifecycle**:
@@ -128,27 +132,38 @@ Android app (future):
 
 ```
 PaneStream startup (order matters):
-  1. Create FIFO directory if needed: mkdir -p {fifo_dir}
-  2. Create named pipe: mkfifo {fifo_dir}/pane-{sanitized_target}.fifo
-  3. Start Elixir Port: open_port({:spawn, "cat {fifo_path}"}, [:binary, :stream, :exit_status])
+  0. Detach any existing pipe-pane on the target: tmux pipe-pane -t {target}
+     — No-op if nothing is attached. Prevents conflict with a stale pipe-pane
+       left by a previous crash, or an externally-attached pipe.
+  1. Remove stale FIFO if present: File.rm({fifo_path}) (ignore errors)
+  2. Create FIFO directory if needed: mkdir -p {fifo_dir}
+  3. Create named pipe: mkfifo -m 0600 {fifo_dir}/pane-{percent_encoded_target}.fifo
+     — The `-m 0600` flag sets owner-only read/write at creation time,
+       before any other process can open the FIFO
+  4. Start Elixir Port: open_port({:spawn, "cat {fifo_path}"}, [:binary, :stream, :exit_status])
      — `cat` blocks on FIFO open until a writer connects, which is fine
        because it runs in a separate OS process and won't block the GenServer
-  4. Attach pipe: tmux pipe-pane -t {target} -o 'cat >> {fifo_path}'
+  5. Attach pipe: tmux pipe-pane -t {target} -o 'cat >> {fifo_path}'
      — `-o` flag captures output only (the stdout side of the pty), preventing
        the input side from being captured and doubled
      — This opens the write end of the FIFO, unblocking the `cat` reader
-  5. Query buffer size: determine ring buffer capacity (see Buffer Sizing below)
-  6. Capture initial scrollback: tmux capture-pane -p -e -S - -t {target}
+  6. Query buffer size: determine ring buffer capacity (see Buffer Sizing below)
+  7. Capture initial scrollback: tmux capture-pane -p -e -S - -t {target}
      — `-S -` captures all available history; the ring buffer's size limit is the real cap
+     — `-p` outputs to stdout; `-e` preserves ANSI escape sequences. Note:
+       this output includes a trailing newline per line, which may differ
+       slightly from the raw pty stream delivered by pipe-pane. xterm.js
+       handles both formats correctly — cursor positioning is re-derived
+       from the escape sequences, not from line boundaries.
      — Done AFTER pipe-pane attach so no output is lost between steps
-     — Any output generated between steps 4 and 6 will appear in both
+     — Any output generated between steps 5 and 7 will appear in both
        the pipe stream and the scrollback capture. This causes visible
        duplication for line-oriented output (e.g., command results printing
        at that moment). Full-screen redraws (e.g., vim, top) are invisible
        since xterm.js overwrites the same cells. This tradeoff is accepted:
        brief duplication on attach is preferable to missing output entirely
        (which would happen if capture-pane ran before pipe-pane attach)
-  7. Write scrollback into ring buffer as initial content
+  8. Write scrollback into ring buffer as initial content
      — From this point on, the ring buffer is the single source of history
      — Streaming output from the pipe appends to the same buffer
      — Old content naturally rolls off as the buffer fills
@@ -172,16 +187,11 @@ PaneStream shutdown:
 
 The `:shutting_down` status prevents the Port exit (triggered by step 2 closing the FIFO write end) from being misinterpreted as pane death. The `handle_info` for `{port, {:exit_status, _}}` checks status and ignores the event if already `:shutting_down`.
 
-**PaneStream crash recovery (primary cleanup mechanism)**: If a single PaneStream crashes, the supervisor restarts it. The `init/1` callback must:
-  1. Check for and remove stale FIFO from previous instance
-  2. Detach any existing pipe-pane on the target (`tmux pipe-pane -t {target}`)
-  3. Re-run the normal startup sequence
-
-This per-PaneStream cleanup is the primary safety net — it runs on every start, whether after a crash, a restart, or first boot.
+**PaneStream crash recovery (primary cleanup mechanism)**: If a single PaneStream crashes, the supervisor restarts it (PaneStream children use `restart: :transient`, so only abnormal exits trigger restart). The `init/1` callback runs the full startup sequence above — steps 0-8 — which inherently handles cleanup: step 0 detaches any stale pipe-pane, step 1 removes any stale FIFO. This per-PaneStream cleanup is the primary safety net — it runs on every start, whether after a crash, a restart, or first boot.
 
 **Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts: (1) detach all stale pipe-pane attachments by iterating `tmux list-panes -a -F '#{pane_id}'` and running `tmux pipe-pane -t {pane_id}` on each (this is a no-op for panes that don't have pipe-pane attached); (2) clear the FIFO directory (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This catches both orphaned pipe-pane attachments and stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. It only takes effect on the *next* application boot.
 
-**FIFO naming**: Target strings like `mysession:0.1` are sanitized for filesystem use by replacing `:` with `--` and `.` with `-`, giving FIFO names like `pane-mysession--0-1.fifo`. The double-dash separator is unambiguous because session names cannot contain hyphens in sequence (they match `^[a-zA-Z0-9_-]+$` but `--` cannot appear in the `session:window.pane` target format since `:` and `.` are single characters).
+**FIFO naming**: Target strings like `mysession:0.1` are sanitized for filesystem use using percent-encoding: `:` becomes `%3A` and `.` becomes `%2E`, giving FIFO names like `pane-mysession%3A0%2E1.fifo`. This is collision-free because `%` cannot appear in tmux session names (which match `^[a-zA-Z0-9_-]+$`) or in the window/pane numeric indices.
 
 ### Buffer Sizing
 
@@ -227,6 +237,8 @@ Example: User types "hi" then Ctrl+C
 
 **Performance**: For typical interactive use, `send-keys -H` with a handful of hex bytes per keystroke is negligible overhead. For bulk paste operations, bytes are chunked into groups of up to 65,536 bytes (well under Linux's default `ARG_MAX` of ~2MB, accounting for hex encoding doubling the size and argument overhead) and sent as sequential `send-keys -H` calls.
 
+**Input size limit**: `TerminalLive.handle_event("key_input", ...)` validates that the decoded payload does not exceed 1MB. Payloads exceeding this limit are logged and dropped. This prevents a buggy or malicious client from sending arbitrarily large input in a single event. The 1MB limit is far above any realistic keystroke batch or paste operation (the chunking threshold for paste is 64KB — see above).
+
 **Input rate limiting**: The client-side input batching (every 16ms, described in Bandwidth Optimization) provides natural throttling. On the server side, `PaneStream.send_keys/2` does not rate-limit — each call executes a `tmux send-keys` command immediately. If a misbehaving client floods `send_keys` calls, the tmux process is the bottleneck (each `send-keys` is a short-lived fork). This is acceptable for a single-user tool; if needed, a per-viewer token bucket could be added in `PaneStream`.
 
 ### LiveView Pages
@@ -263,7 +275,7 @@ Example: User types "hi" then Ctrl+C
   - `handle_info({:pane_dead, _target})` → `push_event(socket, "pane_dead", %{})`
   - `handle_event("key_input", %{"data" => b64})` → `Base.decode64/1` with error handling (invalid base64 is logged and ignored, not crashed on) → `PaneStream.send_keys(target, bytes)`
   - `handle_event("resize", %{"cols" => c, "rows" => r})` → resize handling (see Resize Conflicts below)
-  - `terminate/2`: calls `PaneStream.unsubscribe(target)`
+  - `terminate/2`: calls `PaneStream.unsubscribe(target)`. Note: `terminate/2` is best-effort — it does not run on node crash or hard network timeout. The real safety net is PaneStream's monitor on the viewer PID, which fires a `:DOWN` message and triggers auto-unsubscribe regardless of how the viewer process exits.
 - Mobile: on-screen virtual keyboard toolbar (see Mobile UI section)
 - Back button / navigation header to return to session list
 
@@ -405,8 +417,8 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 
 | Component          | Choice              | Rationale                                              |
 |--------------------|---------------------|--------------------------------------------------------|
-| Language           | Elixir 1.17         | User preference; excellent for concurrent I/O          |
-| Runtime            | OTP 27              | Required by modern Phoenix/LiveView                    |
+| Language           | Elixir >= 1.17      | User preference; excellent for concurrent I/O          |
+| Runtime            | OTP >= 27           | Required by modern Phoenix/LiveView                    |
 | Web framework      | Phoenix 1.7+        | Standard Elixir web framework                          |
 | Real-time UI       | Phoenix LiveView 1.0+  | WebSocket-based, no separate API needed             |
 | Terminal rendering | @xterm/xterm 5.x    | Battle-tested terminal emulator; handles ANSI, cursor  |
@@ -417,8 +429,8 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | Process registry   | Elixir Registry     | Built-in, lightweight process lookup by key            |
 | Process management | DynamicSupervisor   | One child per active pane stream                       |
 | Pub/Sub            | Phoenix.PubSub      | Built-in; connects PaneStreams to viewers               |
-| User config (read) | yaml_elixir 2.11+   | YAML parser for quick actions + future settings        |
-| User config (write)| ymlr 5.0+           | YAML encoder for writing config back to file           |
+| User config (read) | yaml_elixir 2.11+   | YAML parser for quick actions + future settings (needed for Quick Actions feature, not base scope) |
+| User config (write)| ymlr 5.0+           | YAML encoder for writing config back to file (needed for Quick Actions feature, not base scope) |
 | Mobile terminal    | xterm.js + toolbar  | Works in mobile browsers; virtual key toolbar for special keys |
 | Android (future)   | Phoenix Channel     | Direct WebSocket connection; native terminal renderer   |
 
@@ -492,7 +504,7 @@ Application
 ```
 
 - `PaneRegistry` starts first — PaneStreams need it for registration
-- `PaneStreamSupervisor` starts next — ready to accept PaneStream children. Configured with `max_children: 100` to bound resource usage (FIFOs, ports, memory). If the limit is hit, `subscribe/1` returns `{:error, :max_pane_streams}`. This is configurable via `config :remote_code_agents, max_pane_streams: 100`.
+- `PaneStreamSupervisor` starts next — ready to accept PaneStream children. Configured with `max_children: 100` to bound resource usage (FIFOs, ports, memory). If the limit is hit, `subscribe/1` returns `{:error, :max_pane_streams}`. This is configurable via `config :remote_code_agents, max_pane_streams: 100`. PaneStream children use `restart: :transient` — they are restarted on abnormal exit (crash) but not on normal exit (graceful shutdown via grace period or pane death).
 - PubSub and Endpoint follow standard Phoenix ordering
 - No TmuxManager in the tree — it's a stateless module, not a process
 
@@ -540,7 +552,7 @@ config :remote_code_agents,
 - **Session name validation**: Enforced at `TmuxManager.create_session/1` — only `^[a-zA-Z0-9_-]+$` accepted. Prevents tmux target format injection.
 - **HTTPS**: Required if exposed beyond localhost; configure via Phoenix endpoint or reverse proxy. Also required for Clipboard API access.
 - **Channel auth**: `TerminalChannel` (future) must verify auth token on join to prevent unauthorized WebSocket connections from native apps
-- **FIFO permissions**: Created with mode `0600` (owner read/write only) to prevent other users on the host from reading terminal output
+- **FIFO permissions**: Created via `mkfifo -m 0600` (owner read/write only, set at creation time) to prevent other users on the host from reading terminal output
 
 ## Testing Strategy
 
@@ -880,7 +892,7 @@ quick_actions:
 - **Location resolution**: Check `$RCA_CONFIG_PATH` env var first, then `~/.config/remote_code_agents/config.yaml`, then fall back to defaults (no quick actions).
 - **Parsing**: Use `yaml_elixir` hex package to parse YAML.
 - **Loading**: A `RemoteCodeAgents.Config` module reads and validates the config at application startup.
-- **Reloading**: Config is re-read on each LiveView mount (cheap — it's a small file). This means editing the YAML takes effect on the next page load with no server restart.
+- **Reloading**: Config is re-read on each LiveView mount (cheap — it's a small file, and LiveView mounts twice — static render + WebSocket connect — so two reads per page load, which is negligible). This means editing the YAML takes effect on the next page load with no server restart. If the YAML is malformed, `load/0` falls back to defaults (no quick actions) and logs a warning — there is no last-good-config cache, which keeps the implementation simple. The user sees their actions disappear and can check logs / fix the file.
 - **Validation**: On load, validate each quick action entry. Log warnings for invalid entries (missing `label`/`command`, unknown `color`) and skip them rather than crashing.
 - **Missing file**: If no config file exists, the app runs with defaults — no quick actions shown, no error.
 - **Auto-creation on save**: `Config.save/1` calls `File.mkdir_p!/1` on the parent directory before writing. If a user creates their first quick action via the Settings UI and no config file exists yet, it will be created automatically (including the `~/.config/remote_code_agents/` directory).
