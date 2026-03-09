@@ -33,7 +33,7 @@ Browser / Android App
     |
 Phoenix Application
     |
-    |-- TmuxManager (GenServer)
+    |-- TmuxManager (stateless module)
     |       Discovers sessions, creates new sessions
     |
     |-- PaneStream (GenServer, one per pane — shared across viewers)
@@ -48,6 +48,9 @@ Phoenix Application
     |
     |-- Registry (RemoteCodeAgents.PaneRegistry)
     |       Process lookup for PaneStreams by target key
+    |
+    |-- Config (GenServer)
+    |       Reads/watches YAML config file, serves config to LiveViews
     |
 tmux server (host)
     |
