@@ -81,8 +81,8 @@ Android app (future):
 - **Interface**:
   - `list_sessions/0` — returns `[%Session{name, windows, created, attached?}]`
   - `list_panes/1` — returns panes for a given session/window
-  - `create_session/1` — creates a new tmux session with given name, returns session info
-  - `kill_session/1` — terminates a session
+  - `create_session/1` — creates a new tmux session with given name, returns session info. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions"` on success.
+  - `kill_session/1` — terminates a session. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions"` on success.
   - `session_exists?/1` — check if a session is still alive
 - **Implementation**: Shells out to `tmux list-sessions`, `tmux list-windows`, `tmux list-panes`, `tmux new-session` with format strings; parses output
 - **Session name validation**: Names must match `^[a-zA-Z0-9_-]+$` (alphanumeric, hyphens, underscores). Reject anything else at creation time. This prevents conflicts with the tmux target format `session:window.pane` where colons and periods are delimiters.
@@ -224,7 +224,9 @@ Example: User types "hi" then Ctrl+C
 - Route: `/`
 - Lists all active tmux sessions with their windows and panes
 - "New Session" button/form — creates a new tmux session (name input with validation, optional starting command)
-- Auto-refreshes session list via `Process.send_after(self(), :refresh_sessions, 3_000)` in `handle_info`
+- **Session list updates** use a hybrid approach:
+  - **Instant**: Subscribes to PubSub topic `"sessions"` on mount. `TmuxManager.create_session/1` and `kill_session/1` broadcast `{:sessions_changed}` on this topic after mutating state, so the session list updates immediately for app-driven changes.
+  - **Polling fallback**: `Process.send_after(self(), :refresh_sessions, 3_000)` in `handle_info` catches external changes (sessions created/killed from the terminal). This is a lightweight local call (`tmux list-sessions` reads in-memory state).
 - Click a pane to navigate to the terminal view via `push_navigate`
 - Shows pane dimensions and running command (from `tmux list-panes -F` format)
 - Mobile layout: full-width card list, large touch targets

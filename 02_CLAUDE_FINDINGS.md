@@ -55,9 +55,8 @@ Fixed: `subscribe/1` returns `{:error, :pane_not_found}` and `mount/3` shows err
 ### 13. ~~URL param format for window and pane~~ RESOLVED
 Fixed: `mount/3` documents target construction as `"#{session}:#{window}.#{pane}"` with window and pane as integer indices.
 
-### 14. Session list polling vs streaming philosophy
-**Location**: Line 226
-Session list uses `Process.send_after` polling at 3s intervals. This works but is inconsistent with the "streaming not polling" philosophy stated elsewhere. Fine for MVP — tmux has no built-in session change notification mechanism — but worth a note acknowledging the tradeoff.
+### 14. ~~Session list polling vs streaming philosophy~~ RESOLVED
+Fixed: Hybrid approach — instant PubSub updates for app-driven changes (`TmuxManager` broadcasts `{:sessions_changed}` on create/kill), 3s polling fallback for external changes only.
 
 ### 15. `send-keys -H` and multi-byte UTF-8
 **Location**: Line 211
