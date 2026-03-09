@@ -160,7 +160,9 @@ PaneStream shutdown:
   3. Remove the FIFO: File.rm({fifo_path})
 ```
 
-**Crash recovery**: If PaneStream crashes, the supervisor restarts it. The `init/1` callback must:
+**Application startup cleanup**: On application boot, the FIFO directory is cleared (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This removes any stale FIFOs left behind by a previous crash or hard kill of the entire application.
+
+**PaneStream crash recovery**: If a single PaneStream crashes, the supervisor restarts it. The `init/1` callback must:
   1. Check for and remove stale FIFO from previous instance
   2. Detach any existing pipe-pane on the target (`tmux pipe-pane -t {target}`)
   3. Re-run the normal startup sequence

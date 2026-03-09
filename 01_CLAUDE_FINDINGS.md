@@ -33,8 +33,8 @@ Added inline note clarifying the multiple colons are intentional.
 ### ~~9. No error handling for `tmux send-keys` failures~~ RESOLVED
 `send_keys/2` returns `{:error, :pane_dead}` if status is already `:dead`; logs warning and returns `:ok` on command failure (pane death notification follows via Port EOF).
 
-### 10. No FIFO cleanup on application crash
-Line 158 covers PaneStream crash recovery, but not full application crash/kill. Stale FIFOs accumulate in `/tmp/remote-code-agents/`. Application startup should clean the FIFO directory.
+### ~~10. No FIFO cleanup on application crash~~ RESOLVED
+Added application startup cleanup step: `File.rm_rf` then `File.mkdir_p` on the FIFO directory at boot.
 
 ### 11. Port `cat` non-zero exit unhandled
 Line 279 only covers `cat` exiting with status 0 (normal EOF / pane death). What happens on non-zero exit (permission error, missing binary, etc.)? PaneStream should handle both cases.
