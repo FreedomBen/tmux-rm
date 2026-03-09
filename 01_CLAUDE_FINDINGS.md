@@ -30,8 +30,8 @@ Added inline note clarifying the multiple colons are intentional.
 
 ## Insufficiencies
 
-### 9. No error handling for `tmux send-keys` failures
-The input path (lines 265-266) doesn't cover what happens if `send-keys` fails (e.g., pane died between last output and next input). Does PaneStream silently drop it? Return an error? Log?
+### ~~9. No error handling for `tmux send-keys` failures~~ RESOLVED
+`send_keys/2` returns `{:error, :pane_dead}` if status is already `:dead`; logs warning and returns `:ok` on command failure (pane death notification follows via Port EOF).
 
 ### 10. No FIFO cleanup on application crash
 Line 158 covers PaneStream crash recovery, but not full application crash/kill. Stale FIFOs accumulate in `/tmp/remote-code-agents/`. Application startup should clean the FIFO directory.
