@@ -8,13 +8,9 @@ Resolved: Option (c) — each `SessionChannel` subscribes to PubSub `"sessions"`
 
 Resolved: Per-IP rate limiting added to Security Considerations section. Three endpoints rate limited: `POST /api/login` (5/min), WebSocket upgrade (10/min), `POST /api/sessions` (10/min). Implementation via `RateLimit` Plug using ETS. Configurable limits, lazy cleanup, only active in remote mode. Added `rate_limit.ex` to project structure, rate limit pipeline to routes.
 
-## #12 — Certificate Pinning for Android
+## ~~#12 — Certificate Pinning for Android~~ RESOLVED
 
-For a tool that gives full terminal access, should the Android app verify server identity beyond standard TLS?
-
-- **(a)** Trust-on-first-use (TOFU): remember the server's cert fingerprint on first connect, warn if it changes. Good for self-hosted.
-- **(b)** Skip it — rely on standard TLS + the Tailscale recommendation. Keep it simple.
-- **(c)** User-configurable cert pinning in Settings (for advanced users).
+Resolved: Option (b) — standard TLS only, no pinning or TOFU. TOFU is complex (cert rotation false alarms), pinning is brittle, and the recommended deployment is Tailscale/VPN anyway. Added TLS rationale section under Android Token Management.
 
 ## #17 — Retrofit vs Ktor
 

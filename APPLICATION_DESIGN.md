@@ -2248,6 +2248,17 @@ Network drops are common on mobile. The app must handle them gracefully:
 - On 401/token rejection: clear stored token, navigate to Login Screen
 - Token refresh: no explicit refresh mechanism — the user re-authenticates when the token expires (same as web session expiry). For a 30-day TTL, this is infrequent.
 
+#### TLS and Certificate Verification
+
+The Android app uses standard TLS certificate verification (Android's default trust store) — no certificate pinning or trust-on-first-use (TOFU). Rationale:
+
+- **Tailscale/VPN is the recommended deployment** for personal use, which eliminates public TLS entirely.
+- **TOFU is deceptively complex**: legitimate cert rotations (Let's Encrypt renews every 90 days) would trigger false alarms, requiring a cert store, user prompts, and override UI.
+- **Certificate pinning is brittle**: pins break on renewal unless pinning the CA or public key, adding configuration burden for a minimal-setup tool.
+- **Standard TLS is sufficient** for the threat model. Users exposing the server to the internet use HTTPS with a real cert (Let's Encrypt, Caddy auto-TLS). Compromised CAs are a catastrophic scenario that per-app pinning won't meaningfully mitigate.
+
+For maximum security on untrusted networks, users should deploy behind Tailscale or a WireGuard VPN rather than relying on public TLS alone.
+
 ### Resize Behavior
 
 The Android app follows the **passive resizer** pattern described in the web mobile UI section:
