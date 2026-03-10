@@ -16,13 +16,9 @@
 
 **Decision**: Accept both `0` and `nil` as "never expire". Updated doc to say `0` or `nil`.
 
-## Q5: Android session list — polling vs Channel push?
+## ~~Q5: Android session list — polling vs Channel push?~~ — RESOLVED
 
-The Android app polls `GET /api/sessions` every 5 seconds. Since the WebSocket is already open, a `SessionChannel` topic could push session list changes in real-time (lower overhead, consistent with web UI's PubSub approach).
-
-Options:
-- **(a)** Keep HTTP polling (simpler, good enough for the use case)
-- **(b)** Switch to a `SessionChannel` topic for real-time push (lower overhead, consistent with web PubSub)
+**Decision**: Option (b) — `SessionChannel` for real-time push. Added `session_channel.ex` to server project structure. Android joins `"sessions"` topic for live updates, REST API retained for mutations and pull-to-refresh fallback. Removed 5-second HTTP polling.
 
 ## Q6: Foreground service lifecycle precision
 

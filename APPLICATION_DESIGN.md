@@ -662,6 +662,7 @@ remote_code_agents/
     remote_code_agents_web/
       channels/
         terminal_channel.ex         # Raw terminal I/O channel (for native clients)
+        session_channel.ex          # Real-time session list updates (for native clients)
         user_socket.ex              # Socket configuration
       controllers/                  # REST API (for native clients)
         auth_controller.ex          # POST /api/login — returns bearer token
@@ -1024,17 +1025,24 @@ Events carrying terminal data (`output`, `reconnected`, `input`) are sent as **b
 
 **Leave/disconnect**: On network drop, Phoenix Channel auto-reconnects. Client re-joins the topic and receives fresh history in the join reply. No special reconnect event needed — the join flow handles it.
 
-**Session management**: The Android app also needs to list/create sessions. Options:
-1. **REST API**: Add a simple JSON API (`/api/sessions`, `POST /api/sessions`) protected by bearer token auth. Lightweight — just wraps TmuxManager calls.
-2. **Channel-based**: A `SessionChannel` that pushes session list updates. More complex but real-time.
+**Session management**: The Android app needs to list/create/delete sessions. Two transports are used:
 
-**Recommendation**: REST API for session management (simple, stateless), Channel for terminal I/O (streaming).
+1. **REST API** (`/api/sessions`): For mutations (create, delete) and initial fetch. Simple, stateless, protected by bearer token auth.
+2. **`SessionChannel`**: For real-time session list updates. The Android app joins the `"sessions"` topic on connect. The server polls tmux session state (same `session_poll_interval` as the web UI, default 3s) and pushes `"sessions_updated"` events with the full session list whenever changes are detected. This avoids redundant HTTP polling and is consistent with the web UI's PubSub-driven approach.
 
 ```
 POST /api/sessions        — create session (body: {"name": "...", "command": "..."})
-GET  /api/sessions        — list sessions with panes
+GET  /api/sessions        — list sessions with panes (initial fetch, pull-to-refresh)
 DELETE /api/sessions/:name — kill session
 ```
+
+**SessionChannel events**:
+
+| Direction | Event | Payload | Notes |
+|-----------|-------|---------|-------|
+| S→C | `sessions_updated` | `%{"sessions" => [...]}` | Full session list with panes. Pushed on change detection. |
+
+The `SessionChannel` join reply includes the current session list, so the client gets data immediately without a separate REST call. REST endpoints remain for mutations and as a fallback (e.g., pull-to-refresh).
 
 #### Android App Architecture (high-level)
 
@@ -2000,13 +2008,14 @@ A native Android app (also named "tmux-rm") that connects to the tmux-rm server,
 
 #### Session List Screen
 
-- Fetches sessions via `GET /api/sessions` on screen entry and pull-to-refresh
+- Joins the `"sessions"` Channel topic on screen entry — receives the current session list in the join reply and real-time `"sessions_updated"` pushes thereafter
 - Each session is a card showing: session name, window count, created time, attached status
 - Expanding a session card shows its panes (pane index, dimensions, running command)
 - Tap a pane → navigate to Terminal Screen with `session:window.pane` target
 - "New Session" FAB → bottom sheet with name input and optional command
 - Swipe-to-delete on sessions (with confirmation dialog) → `DELETE /api/sessions/:name`
-- **Auto-refresh**: Poll `GET /api/sessions` every 5 seconds while the screen is visible. This is slightly less aggressive than the web UI's 3-second PubSub-driven refresh, since polling over HTTP is heavier than PubSub. The interval is configurable.
+- **Pull-to-refresh**: Calls `GET /api/sessions` as a fallback (e.g., if the Channel is momentarily disconnected). Under normal operation, the Channel push keeps the list current without polling.
+- Leaves the `"sessions"` topic when navigating away from the screen
 
 #### Terminal Screen
 
@@ -2210,7 +2219,7 @@ android/
             ApiService.kt            # Retrofit/OkHttp REST API interface
             AuthInterceptor.kt       # Adds bearer token to API requests
           repository/
-            SessionRepository.kt     # Session CRUD via REST API
+            SessionRepository.kt     # Session list via SessionChannel + CRUD via REST API
             TerminalRepository.kt    # Channel join/leave, input/output
             ConfigRepository.kt      # Quick actions CRUD via REST API
             AuthRepository.kt        # Login, token storage
