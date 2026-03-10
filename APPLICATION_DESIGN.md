@@ -6,6 +6,8 @@ A web application built with Elixir, Phoenix, and LiveView that runs on a host c
 
 The application must work well over high-latency and low-bandwidth connections, and be fully usable on mobile browsers. A native Android app is also a target, so the architecture cleanly separates the transport/API layer from the web UI.
 
+**Naming**: The product is called **tmux-rm**. The Elixir project uses `remote_code_agents` / `RemoteCodeAgents` as its module namespace and Mix project name (a legacy of the original project scope). The Android app uses package ID `org.tamx.tmuxrm`. All user-facing references (UI, systemd unit, config file headers) use "tmux-rm".
+
 ## Goals
 
 - Attach to existing tmux sessions from a web browser
@@ -504,6 +506,9 @@ Terminal output (text + ANSI escape codes) compresses very well — typical comp
 # lib/remote_code_agents_web/endpoint.ex
 socket "/live", Phoenix.LiveView.Socket,
   websocket: [compress: true]  # enables permessage-deflate
+
+socket "/socket", RemoteCodeAgentsWeb.UserSocket,
+  websocket: [compress: true]  # Phoenix Channel socket for native clients
 ```
 
 This is configured on the socket, not on the HTTP listener — `permessage-deflate` is a WebSocket extension negotiated during the HTTP→WebSocket upgrade handshake.
@@ -653,7 +658,9 @@ remote_code_agents/
         terminal_channel.ex         # Raw terminal I/O channel (for native clients)
         user_socket.ex              # Socket configuration
       controllers/                  # REST API (for native clients)
+        auth_controller.ex          # POST /api/login — returns bearer token
         health_controller.ex        # GET /healthz endpoint
+        session_controller.ex       # Session CRUD API (list, create, delete)
         quick_action_controller.ex  # CRUD API for quick actions
       live/
         session_list_live.ex        # Session listing + creation page
@@ -885,8 +892,9 @@ config :remote_code_agents,
 14. Session management (kill, rename, create window, kill pane)
 15. Quick actions (configurable command buttons, YAML config, Settings UI, REST API)
 16. User preferences (font, theme, cursor — client-side `localStorage`)
-17. Phoenix Channel + native Android client support
-18. Multi-pane split view
+17. REST API for native clients (login, sessions, quick actions)
+18. Phoenix Channel + native Android client support
+19. Multi-pane split view
 
 ## Storage Decision: No Database
 
@@ -1206,7 +1214,9 @@ defmodule RemoteCodeAgents.Config do
     {config, mtime} =
       case load_from_disk(path) do
         {:ok, config, mtime} -> {config, mtime}
-        {:error, :malformed, mtime} -> {defaults(), mtime}
+        {:error, :malformed, mtime} ->
+          Logger.warning("Config file at #{path} is malformed on startup — using defaults")
+          {defaults(), mtime}
         {:error, :not_found} ->
           config = defaults()
           write_default_config(path, config)
@@ -1758,8 +1768,15 @@ end
 scope "/api", RemoteCodeAgentsWeb do
   pipe_through [:api, :require_auth_token]
 
-  resources "/quick-actions", QuickActionController, only: [:index, :create, :update, :delete]
+  post "/login", AuthController, :login
+
+  get "/sessions", SessionController, :index
+  post "/sessions", SessionController, :create
+  delete "/sessions/:name", SessionController, :delete
+
+  # Custom route before resources to avoid :id shadowing "order"
   put "/quick-actions/order", QuickActionController, :reorder
+  resources "/quick-actions", QuickActionController, only: [:index, :create, :update, :delete]
 end
 
 scope "/", RemoteCodeAgentsWeb do
@@ -2139,7 +2156,7 @@ The Android app follows the **passive resizer** pattern described in the web mob
 The app is online-only by nature (it's a remote terminal client). Offline handling:
 
 - **Session list**: Cache the last-fetched session list in memory. Display it immediately on screen entry, then refresh from the server. If the server is unreachable, show the cached list with a "Server unreachable" banner.
-- **Quick actions**: Cache in SharedPreferences after each fetch. Available immediately on app start, synced when the server is reachable.
+- **Quick actions**: Cache in plain `SharedPreferences` after each fetch (not sensitive data — commands are user-configured, not secrets). Available immediately on app start, synced when the server is reachable. Auth tokens use `EncryptedSharedPreferences` — see Token Management.
 - **Terminal**: No offline mode. If the WebSocket is disconnected, show "Reconnecting..." with the reconnection strategy described above.
 
 ### Project Structure
