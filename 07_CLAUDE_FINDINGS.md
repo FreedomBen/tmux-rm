@@ -35,13 +35,13 @@ No rate limiting needed. Single-user personal tool — the only sender is the au
 
 Added `tmux_socket` config option. `CommandRunner` prepends `-S <path>` or `-L <name>` to all tmux commands when set. Added to CommandRunner description and config block.
 
-### 7. Testing strategy
+### ~~7. Testing strategy~~ RESOLVED
 
-The section is quite thin for a doc this detailed. Should it be expanded with specific approaches (mock `CommandRunner` for unit tests, real tmux for integration tests, LiveView test helpers, etc.), or left lean?
+On closer inspection, the section already covers unit tests (mocked CommandRunner), integration tests (real tmux), LiveView tests, and test helpers. Sufficient as-is. No changes.
 
-### 8. Logging strategy
+### ~~8. Logging strategy~~ RESOLVED
 
-Should a section on structured logging / log format be added, or is the current inline approach (log levels mentioned per-event) sufficient?
+Inline log levels per event are sufficient. Elixir's built-in Logger defaults handle the rest. No centralized logging section needed.
 
 ### ~~9. HTTPS for remote access~~ RESOLVED
 
