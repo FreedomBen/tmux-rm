@@ -19,14 +19,9 @@ Replaced token-based auth with username+password authentication. Credentials (us
 
 Changed default from 5s to 30s. Updated in both the PaneStream lifecycle description and config.exs (`pane_stream_grace_period: 30_000`).
 
-### 3. `max_pane_streams` — where configured, what default?
+### ~~3. `max_pane_streams` — where configured, what default?~~ RESOLVED
 
-Where should this be configured and what should the default be?
-- (a) DynamicSupervisor's `max_children` option
-- (b) Application config checked in `subscribe/1`
-- (c) Both
-
-Is 100 the right default (implied by the "100 × 8MB = 800MB" aggregate memory example)?
+Already fully specified in the doc: DynamicSupervisor `max_children: 100`, configurable via `config :remote_code_agents, max_pane_streams: 100`. `subscribe/1` returns `{:error, :max_pane_streams}` when the limit is hit. No changes needed.
 
 ### 4. CSRF protection for REST API
 
