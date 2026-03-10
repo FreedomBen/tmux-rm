@@ -693,6 +693,9 @@ remote_code_agents/
         terminal_channel.ex         # Raw terminal I/O channel (for native clients)
         session_channel.ex          # Real-time session list updates (for native clients)
         user_socket.ex              # Socket configuration
+      plugs/
+        require_auth.ex             # Plug: checks session cookie, redirects to /login
+        rate_limit.ex               # Plug: per-IP rate limiting via ETS (login, websocket, session create)
       controllers/                  # REST API (for native clients)
         auth_controller.ex          # POST /api/login — returns bearer token
         health_controller.ex        # GET /healthz endpoint
@@ -830,6 +833,36 @@ config :remote_code_agents,
 - **CSRF**: Phoenix's built-in CSRF protection applies to all LiveView forms (login, settings, session creation). REST API routes (`/api/*`) are exempt — they use bearer token auth via `Authorization` header, which is not vulnerable to CSRF (tokens are not auto-attached by the browser like cookies are).
 - **Channel auth**: `TerminalChannel` verifies auth token on join to prevent unauthorized WebSocket connections from native apps
 - **FIFO permissions**: Created via `mkfifo -m 0600` (owner read/write only, set at creation time) to prevent other users on the host from reading terminal output
+- **Rate limiting**: Per-IP rate limits protect against brute-force and abuse on internet-facing deployments. Implemented as a Plug that tracks request counts per IP using `:ets` (no external dependencies). Rate limit state is lost on application restart — acceptable since restart clears the attack window anyway. Only applied when auth is enabled (remote mode); in localhost mode, rate limiting is skipped.
+
+  | Endpoint | Limit | Window | Response on exceed |
+  |----------|-------|--------|--------------------|
+  | `POST /api/login` | 5 requests | 1 minute | `429 Too Many Requests` with `{"error": "rate_limited", "retry_after": seconds}` and `Retry-After` header |
+  | WebSocket upgrade (`/socket/websocket`) | 10 attempts | 1 minute | Connection rejected (HTTP 429 before upgrade) |
+  | `POST /api/sessions` | 10 requests | 1 minute | `429 Too Many Requests` with same format |
+
+  **Implementation**: `RemoteCodeAgentsWeb.Plugs.RateLimit` — a Plug that uses an ETS table (`:set`, `:public`, with `read_concurrency: true`) to track `{ip, endpoint_key, window_start}` → `count`. The window start is truncated to the current minute (`System.system_time(:second) |> div(60)`). Stale entries are cleaned up lazily — on each request, if the window has rolled over, the old entry is replaced. A periodic cleanup (every 5 minutes via `Process.send_after` in the application supervisor) sweeps entries older than 2 minutes to prevent unbounded ETS growth from many distinct IPs.
+
+  **Configuration**:
+  ```elixir
+  # config/config.exs
+  config :remote_code_agents,
+    rate_limits: %{
+      login: {5, 60},           # {max_requests, window_seconds}
+      websocket: {10, 60},
+      session_create: {10, 60}
+    }
+  ```
+
+  **Why these limits**: `/api/login` is the most sensitive — 5 per minute allows a few typos but makes brute-force impractical (at 5/min, a 6-character lowercase password would take ~190 years). WebSocket and session creation limits are higher since they require auth (a compromised token) and are less likely attack vectors. All limits are configurable for users who want stricter or more lenient settings.
+
+  **IP extraction**: Uses `conn.remote_ip` which respects `x-forwarded-for` if the endpoint is configured with `Plug.RewriteOn` (needed behind a reverse proxy). Users deploying behind nginx/Caddy should configure `Plug.RewriteOn` in the endpoint to avoid all requests appearing as `127.0.0.1`.
+
+  **Not rate limited** (and why):
+  - Authenticated REST reads (`GET /api/sessions`, `GET /api/quick-actions`) — cheap, bounded by data size, require valid token
+  - Channel events (`"input"`, `"resize"`) — post-authentication, bounded by tmux throughput
+  - LiveView mounts — protected by session cookie, Phoenix has built-in connection limits
+  - `GET /healthz` — intentionally open for monitoring; returns static data, negligible cost
 
 ## Testing Strategy
 
@@ -1840,7 +1873,7 @@ end
 ```elixir
 # router.ex
 scope "/api", RemoteCodeAgentsWeb do
-  pipe_through [:api]
+  pipe_through [:api, :rate_limit_login]
 
   post "/login", AuthController, :login
 end
@@ -1849,7 +1882,7 @@ scope "/api", RemoteCodeAgentsWeb do
   pipe_through [:api, :require_auth_token]
 
   get "/sessions", SessionController, :index
-  post "/sessions", SessionController, :create
+  post "/sessions", SessionController, :create  # rate limited via :rate_limit_session_create plug
   delete "/sessions/:name", SessionController, :delete
 
   # Custom route before resources to avoid :id shadowing "order"

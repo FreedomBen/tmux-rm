@@ -4,14 +4,9 @@
 
 Resolved: Option (c) — each `SessionChannel` subscribes to PubSub `"sessions"` for instant updates + runs its own poll timer for external changes. Dedicated `SessionChannel` design section added to APPLICATION_DESIGN.md (after TerminalChannel), plus SessionChannel events added to the Event Reference table.
 
-## #11 — Rate Limiting on `/api/login`
+## ~~#11 — Rate Limiting~~ RESOLVED
 
-No brute-force protection specified for the login endpoint. The web login uses `Bcrypt.no_user_verify/0` for timing attack prevention, but there's no rate limiting on `/api/login` POST requests.
-
-Options:
-- Simple per-IP rate limit (e.g., 5 attempts per minute, reject with 429)
-- Exponential backoff per IP
-- Skip it given the single-user context and rely on network-level protection (Tailscale, firewall)
+Resolved: Per-IP rate limiting added to Security Considerations section. Three endpoints rate limited: `POST /api/login` (5/min), WebSocket upgrade (10/min), `POST /api/sessions` (10/min). Implementation via `RateLimit` Plug using ETS. Configurable limits, lazy cleanup, only active in remote mode. Added `rate_limit.ex` to project structure, rate limit pipeline to routes.
 
 ## #12 — Certificate Pinning for Android
 
