@@ -348,7 +348,7 @@ For native Android client only. Not used by the web UI.
   1. Parse topic into target: `"terminal:foo:0:1"` → `"foo:0.1"`.
   2. Call `PaneStream.subscribe/1` — same path as TerminalLive.
   3. Monitor the returned `pane_stream_pid`.
-  4. On success, reply `{:ok, %{"history" => raw_binary, "cols" => int, "rows" => int}}` — history is the ring buffer contents (raw bytes, no base64), cols/rows are the pane's current dimensions.
+  4. On success, reply `{:ok, %{"history" => base64_string, "cols" => int, "rows" => int}}` — history is the ring buffer contents (base64-encoded, because join replies are JSON text frames), cols/rows are the pane's current dimensions.
   5. On `{:error, :pane_not_found}`, reply `{:error, %{"reason" => "pane_not_found"}}`.
   6. On `{:error, :max_pane_streams}`, reply `{:error, %{"reason" => "max_pane_streams"}}`.
 - **Client → Server events**:
@@ -416,7 +416,7 @@ For native Android client only. Not used by the web UI.
 | Server → Client | `"pane_superseded"` | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
 | Server → Client | `"resized"` | `%{"cols" => int, "rows" => int}` | Pane resized by another viewer. |
 
-**Join reply**: `{:ok, %{"history" => raw_binary, "cols" => int, "rows" => int}}` or `{:error, %{"reason" => string}}`. All binary payloads on the Channel use raw bytes (no base64) — see "Binary Frames on Phoenix Channel" in Bandwidth Optimization.
+**Join reply**: `{:ok, %{"history" => base64_string, "cols" => int, "rows" => int}}` or `{:error, %{"reason" => string}}`. Join replies are JSON text frames, so history is base64-encoded here — the only exception to the raw binary convention. All subsequent data events (`output`, `reconnected`, `input`) use raw binary frames — see "Binary Frames on Phoenix Channel" in Bandwidth Optimization.
 
 ### Terminal Output (tmux → browser)
 
@@ -1006,7 +1006,7 @@ The `TerminalChannel` speaks a simple protocol over the Phoenix Channel WebSocke
 **Connection**: Client connects to `wss://host:port/socket/websocket` with `%{"token" => "..."}` param. `UserSocket.connect/3` verifies the token. Rejected connections receive a socket error — the client should prompt for a new token.
 
 **Join**: `"terminal:{session}:{window}:{pane}"` — server converts to target format, calls `PaneStream.subscribe/1`.
-- **Success reply**: `{:ok, %{"history" => binary, "cols" => int, "rows" => int}}` — ring buffer contents and current pane dimensions. The reply itself is a JSON text frame (Phoenix Channel replies are always JSON); `history` is base64-encoded in this one message. Immediately after, the server pushes a `reconnected` binary frame with the same data — the client can use whichever arrives, but the binary frame is preferred. Alternatively, the join reply can omit history and the client waits for the initial `output` binary push.
+- **Success reply**: `{:ok, %{"history" => base64_string, "cols" => int, "rows" => int}}` — ring buffer contents and current pane dimensions. The reply is a JSON text frame (Phoenix Channel replies are always JSON), so history is base64-encoded — the only exception to the raw binary convention. All subsequent data events use binary frames.
 - **Error reply**: `{:error, %{"reason" => "pane_not_found" | "max_pane_streams"}}`.
 
 **Events**:
@@ -1019,9 +1019,11 @@ Events carrying terminal data (`output`, `reconnected`, `input`) are sent as **b
 | C→S | `resize` | JSON | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane`. |
 | S→C | `output` | binary | raw bytes | Streaming terminal output. |
 | S→C | `reconnected` | binary | raw bytes | Full buffer after PaneStream crash recovery. Client should clear and re-render. |
-| S→C | `pane_dead` | `%{}` | Pane/session ended |
-| S→C | `pane_superseded` | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
-| S→C | `resized` | `%{"cols" => int, "rows" => int}` | Pane was resized by another viewer |
+| S→C | `pane_dead` | JSON | `%{}` | Pane/session ended |
+| S→C | `pane_superseded` | JSON | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
+| S→C | `resized` | JSON | `%{"cols" => int, "rows" => int}` | Pane was resized by another viewer |
+
+**Binary frame dispatch**: Phoenix's V2 serializer deserializes incoming binary frames into `%Phoenix.Socket.Message{}` structs (extracting the event name from the binary header) before dispatching to `handle_in/3`. This means `handle_in("input", payload, socket)` works identically for binary and JSON frames — the Channel code does not need to distinguish frame types. The `payload` for binary frames is the raw bytes (as an Elixir binary), not a JSON-decoded map. The Channel should pattern-match accordingly: `handle_in("input", {:binary, bytes}, socket)` for binary payloads vs `handle_in("resize", %{"cols" => c, "rows" => r}, socket)` for JSON payloads.
 
 **Leave/disconnect**: On network drop, Phoenix Channel auto-reconnects. Client re-joins the topic and receives fresh history in the join reply. No special reconnect event needed — the join flow handles it.
 
@@ -1058,7 +1060,7 @@ The `SessionChannel` join reply includes the current session list, so the client
 #### Strategy: Last-Writer-Wins with Broadcast
 
 1. Any viewer sends `"resize"` event with `{cols, rows}`.
-2. Server calls `tmux resize-pane -t {target} -x {cols} -y {rows}`.
+2. Server calls `tmux resize-pane -t {pane_id} -x {cols} -y {rows}`.
 3. PaneStream broadcasts `{:pane_resized, cols, rows}` via PubSub.
 4. All *other* viewers receive the broadcast, call `term.resize(cols, rows)` on their xterm.js instance.
 5. The viewer that initiated the resize already has the right size — skip the update.
@@ -1114,6 +1116,10 @@ Mobile viewers are **passive resizers** by default:
 - **Layout discovery**: `tmux list-panes -t {session} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'` returns pane positions and sizes
 - **Rendering**: CSS Grid layout with each pane mapped to a grid area based on its tmux coordinates. Each pane gets its own xterm.js instance and PaneStream subscription.
 - **Layout refresh**: Poll `list-panes` periodically (every 2-3s) to detect layout changes (user splits/closes panes via tmux commands)
+
+#### Resize Behavior
+
+In multi-pane view, all panes are **passive resizers** — they read the current pane dimensions and render at that size. Individual panes do not send resize events when the browser window changes. The tmux layout (split ratios, pane sizes) is controlled by tmux itself, and the web view mirrors it. Users who want to resize panes should use tmux commands (`resize-pane`) or the single-pane full-viewport view.
 
 #### Single-Pane Fallback
 
@@ -1805,9 +1811,13 @@ end
 ```elixir
 # router.ex
 scope "/api", RemoteCodeAgentsWeb do
-  pipe_through [:api, :require_auth_token]
+  pipe_through [:api]
 
   post "/login", AuthController, :login
+end
+
+scope "/api", RemoteCodeAgentsWeb do
+  pipe_through [:api, :require_auth_token]
 
   get "/sessions", SessionController, :index
   post "/sessions", SessionController, :create
@@ -1912,7 +1922,7 @@ WantedBy=multi-user.target
 ### Docker (alternative)
 
 ```dockerfile
-FROM elixir:1.17-slim AS build
+FROM elixir:1.17-slim AS build  # Pin to match minimum Elixir version; bump as needed
 # ... standard Phoenix Dockerfile ...
 
 FROM debian:bookworm-slim
@@ -2052,7 +2062,8 @@ The primary screen. Full-screen terminal with an action bar overlay.
 5. Keyboard input → convert to terminal byte sequences → send via Channel `"input"` event
 6. Special key toolbar taps → emit corresponding escape sequences/control codes via Channel `"input"`
 7. Quick action tap → send command + `\n` as bytes via Channel `"input"` (with confirmation dialog if `confirm: true`)
-8. On screen exit: leave the Channel topic (server auto-unsubscribes via monitor)
+8. Channel `"pane_superseded"` event → leave the current topic, convert `new_target` (e.g., `"new-name:0.1"`) to Channel topic format (`"terminal:new-name:0:1"`), rejoin under the new topic. The rejoin provides fresh history — clear the terminal emulator and re-render. The user sees a brief reload, same as the web redirect.
+9. On screen exit: leave the Channel topic (server auto-unsubscribes via monitor)
 
 **Terminal rendering integration**:
 
@@ -2080,6 +2091,10 @@ class TerminalSession(
     }
 }
 ```
+
+**Screen orientation**: The Terminal Screen allows both portrait and landscape (auto-rotate). Landscape is valuable for terminal work (more columns). Compose + ViewModel ensures UI state survives configuration changes. The Termux `TerminalView` (traditional Android View) must explicitly save and restore its state across configuration changes — the `TerminalEmulator` instance is held in the ViewModel (not the View), so the View reconnects to the same emulator after rotation. The Channel connection lives in the repository layer and is unaffected by UI configuration changes.
+
+**TerminalView + Compose lifecycle**: Wrapping Termux's `TerminalView` in Compose's `AndroidView` requires explicit focus management — the `TerminalView` needs `requestFocus()` on first composition and after returning from other screens (e.g., Settings), otherwise keyboard input may not reach the terminal. The `AndroidView`'s `update` callback should handle re-binding the `TerminalView` to the current `TerminalEmulator` instance from the ViewModel. The `TerminalView`'s lifecycle is tied to the Compose composition, not the Activity — this is correct for the single-screen navigation model, but means the View is destroyed and recreated on navigation (the emulator state in the ViewModel persists).
 
 **Keyboard input handling**:
 
@@ -2272,6 +2287,11 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // proguard-rules.pro must include keep rules for:
+            // - OkHttp (ships its own rules via META-INF, but verify)
+            // - kotlinx.serialization (@Serializable data classes, serializers)
+            // - Retrofit (service interfaces, parameter annotations)
+            // - Termux terminal-emulator (JNI and reflection if used)
         }
         debug {
             applicationIdSuffix = ".debug"
