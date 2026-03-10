@@ -179,7 +179,22 @@ pane_dead → PaneStream → LiveView (JSON) → TerminalHook → overlay
 <meta name="channel-token" content={@channel_token} />
 ```
 
-**Dependency note**: This means Phase 5 depends on Phase 11 (TerminalChannel) for the data path. However, the Phase 11 TerminalChannel is straightforward server-side code that can be built as part of Phase 5 — it's just a Channel module. The Phase 11 doc describes additional Channel features (SessionChannel, binary frame details) but the core TerminalChannel can be implemented here. Alternatively, implement Phase 5 with base64 over LiveView first, then swap to the Channel path when Phase 11 is built — the JS hook abstraction makes this a clean swap.
+**Dependency resolution**: Phase 5 builds the core `TerminalChannel` (join, output push, input handler, PaneStream subscription). This is straightforward server-side code — just a Channel module. Phase 11 later adds `SessionChannel` and documents the native client protocol, but does NOT re-create TerminalChannel. Phase 5 owns TerminalChannel; Phase 11 extends it if needed.
+
+**UserSocket**: Phase 5 creates `user_socket.ex` as a stub (no auth verification — pass-through `connect/3`). Phase 6 adds token verification to `connect/3`. Phase 11 adds the `channel "sessions", SessionChannel` registration. The initial Phase 5 UserSocket:
+```elixir
+defmodule RemoteCodeAgentsWeb.UserSocket do
+  use Phoenix.Socket
+
+  channel "terminal:*", RemoteCodeAgentsWeb.TerminalChannel
+
+  @impl true
+  def connect(_params, socket, _connect_info), do: {:ok, socket}
+
+  @impl true
+  def id(_socket), do: nil
+end
+```
 
 ### 5.5 Route Configuration
 

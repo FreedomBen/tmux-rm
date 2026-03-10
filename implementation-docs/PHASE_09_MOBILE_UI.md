@@ -54,8 +54,27 @@ Fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 
 - **Tap**: focus terminal (opens soft keyboard)
 - **Long press**: text selection (native xterm.js behavior)
-- **Two-finger pinch**: zoom/font size adjustment (CSS transform on terminal container, update localStorage preference)
+- **Two-finger pinch**: zoom/font size adjustment (CSS transform on terminal container). Save via `savePref('fontSize', newSize)` helper (see below). Phase 10 replaces this helper with the full preference system — the interface is the same.
 - **Swipe from left edge**: back to session list (use browser back or custom gesture handler with `touchstart`/`touchmove` detection)
+
+### 9.3a Preference Helper (Minimal)
+
+Phase 9 introduces a minimal `savePref`/`loadPref` helper that Phase 10 later replaces with the full preference system. This avoids a circular dependency:
+
+```javascript
+// In terminal_hook.js (Phase 9 addition):
+function savePref(key, value) {
+  const prefs = JSON.parse(localStorage.getItem('rca-preferences') || '{}');
+  prefs[key] = value;
+  localStorage.setItem('rca-preferences', JSON.stringify(prefs));
+}
+function loadPref(key, defaultValue) {
+  const prefs = JSON.parse(localStorage.getItem('rca-preferences') || '{}');
+  return prefs[key] ?? defaultValue;
+}
+```
+
+Phase 10 replaces these with `loadPrefs()`/`savePrefs()` from `preferences.js`. The localStorage key (`rca-preferences`) is the same, so Phase 9 preferences carry over seamlessly.
 
 ### 9.4 Auto-Hiding Header
 

@@ -7,6 +7,8 @@ Wire up the Telemetry dependencies (added in Phase 1) into actionable metrics, s
 - Phase 14 complete (deployment infrastructure)
 - `telemetry_metrics` and `telemetry_poller` dependencies (Phase 1)
 
+**Implementation note**: While this phase is listed last, the `RemoteCodeAgents.Telemetry` supervisor should be added to the supervision tree during **Phase 1** (it's just a supervisor with telemetry_poller — no deps on other phases). Then, as each subsequent phase is built, add the `:telemetry.execute/3` calls inline (step 15.5 lists them all). This phase formalizes the metrics endpoint, structured logging, and health check enrichment — but the instrumentation itself should be incremental.
+
 ## Steps
 
 ### 15.1 Telemetry Event Definitions

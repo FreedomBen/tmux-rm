@@ -8,7 +8,7 @@ Implement `TerminalChannel` and `SessionChannel` — the server-side Channel inf
 - Phase 4 complete (SessionPoller)
 - Phase 6 complete (UserSocket with token auth)
 
-**Note**: The core `TerminalChannel` may already exist from Phase 5 (which uses it as a companion channel for binary terminal I/O in the web UI). If so, this phase extends it with any missing features and adds `SessionChannel`. If Phase 5 was implemented with a base64-over-LiveView fallback, this phase creates the full TerminalChannel.
+**Note**: The core `TerminalChannel` (join, output push, input handler, PaneStream subscription) is built in Phase 5 as part of the hybrid LiveView + Channel architecture. This phase extends it with any missing native-client-specific features (e.g., resize handling differences) and adds `SessionChannel`. Do NOT re-create TerminalChannel from scratch — build on the Phase 5 implementation.
 
 ## Steps
 
@@ -32,11 +32,11 @@ Implement `TerminalChannel` and `SessionChannel` — the server-side Channel inf
 - `"resize"` with `%{"cols" => c, "rows" => r}` — validate bounds (cols 1-500, rows 1-200), forward to PaneStream
 
 **`handle_info` callbacks**:
-- `{:pane_output, _target, data}` → push binary frame: `push(socket, "output", {:binary, data})`
+- `{:pane_output, _target, data}` → push binary frame: `{:push, {:binary, data}, socket}` (see 11.4 for binary frame details)
 - `{:pane_dead, _target}` → push JSON: `push(socket, "pane_dead", %{})`
 - `{:pane_superseded, _old, new_target}` → push JSON: `push(socket, "pane_superseded", %{"new_target" => new_target})`
 - `{:pane_resized, cols, rows}` → push JSON: `push(socket, "resized", %{"cols" => cols, "rows" => rows})`
-- `{:pane_reconnected, _target, buffer}` → push binary: `push(socket, "reconnected", {:binary, buffer})`
+- `{:pane_reconnected, _target, buffer}` → push binary frame: `{:push, {:binary, buffer}, socket}` (see 11.4)
 - `{:DOWN, ref, :process, _pid, _reason}` → PaneStream crashed. Re-subscribe, push fresh history via "reconnected", monitor new PID.
 
 **`terminate/2`**:
@@ -49,7 +49,7 @@ Implement `TerminalChannel` and `SessionChannel` — the server-side Channel inf
 **Topic**: `"sessions"`
 
 **`join/3`**:
-1. Subscribe to PubSub topic `"sessions"`
+1. Subscribe to PubSub topic `"sessions:state"`
 2. Fetch current session list via `SessionPoller.get/0`
 3. Reply `{:ok, %{"sessions" => sessions_json}}`
 
@@ -69,17 +69,21 @@ channel "sessions", RemoteCodeAgentsWeb.SessionChannel
 
 ### 11.4 Binary Frame Support
 
-Phoenix Channels do **not** auto-detect binary payloads. To send raw binary terminal data efficiently:
+Phoenix Channels use JSON text frames by default. To send raw binary terminal data efficiently, we use a **custom approach** since `push/3` only accepts map payloads:
 
-**Approach**: Use `{:binary, data}` as the payload in `push/3`. This requires the **V2 serializer** (default in Phoenix 1.7+), which supports a binary opcode format:
+**Approach**: Return `{:push, {:binary, data}, socket}` from `handle_info/2` to send raw binary WebSocket frames. This bypasses the Channel serializer entirely. The binary frame contains only the raw terminal bytes — no event name, no JSON wrapper. The client distinguishes binary frames (terminal data) from text frames (JSON control messages) by WebSocket opcode.
+
 ```elixir
-# Sending binary output to client:
-push(socket, "output", {:binary, data})
+# In TerminalChannel handle_info:
+def handle_info({:pane_output, _target, data}, socket) do
+  # Send as raw binary WebSocket frame
+  {:push, {:binary, data}, socket}
+end
 ```
 
-The V2 serializer encodes `{:binary, data}` messages as WebSocket binary frames with a compact header (join_ref, ref, topic, event encoded as varint + string, followed by raw payload bytes). The client must decode this format — the standard Phoenix JS client handles it, but native clients need a custom deserializer matching the V2 binary wire format.
+**Important**: `{:push, {:binary, data}, socket}` is a valid return from `handle_info/2` in Phoenix Channels. It sends a raw binary WebSocket frame without Channel serialization. This is different from `push/3` which always serializes to JSON.
 
-**For control messages** (resize, pane_dead, pane_superseded), use normal map payloads — these are sent as JSON text frames.
+**For control messages** (resize, pane_dead, pane_superseded), use normal `push/3` with map payloads — these are sent as JSON text frames.
 
 **Input from client**: Native clients send binary WebSocket frames for terminal input. The Channel receives these as `{:binary, bytes}` in `handle_in/3`:
 ```elixir
@@ -89,6 +93,8 @@ def handle_in("input", {:binary, bytes}, socket) do
   {:noreply, socket}
 end
 ```
+
+**Alternative approach if `{:push, {:binary, ...}}` is not supported in your Phoenix version**: Use base64 encoding as a fallback: `push(socket, "output", %{"data" => Base64.encode64(data)})`. This adds 33% overhead but works with all Phoenix Channel versions. Test binary push support during Phase 5 implementation and choose accordingly.
 
 Verify that `UserSocket` uses the default V2 serializer (do NOT override `@serializer`):
 ```elixir

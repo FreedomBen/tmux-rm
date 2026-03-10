@@ -106,10 +106,10 @@ Implement username+password authentication with bcrypt, optional static token fa
 - On exceed: 429 with `{"error": "rate_limited", "retry_after": seconds}` and `Retry-After` header
 - Rate limiting is always active (even in localhost mode) to protect against accidental runaway clients or scripts
 
-### 6.9 UserSocket
+### 6.9 UserSocket (Update Existing)
 
-**`lib/remote_code_agents_web/channels/user_socket.ex`**:
-- `connect/3`: check per-IP WebSocket rate limit, verify bearer token via `Phoenix.Token.verify/4`
+**`lib/remote_code_agents_web/channels/user_socket.ex`** — update the stub created in Phase 5:
+- Replace pass-through `connect/3` with: check per-IP WebSocket rate limit, verify bearer token via `Phoenix.Token.verify/4`
 - IP extracted from `connect_info: [:peer_data, :x_headers]`
 - Return `{:ok, socket}` or `:error`
 - No-op token check if auth not enabled

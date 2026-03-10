@@ -32,15 +32,15 @@ end
 
 - `list_panes/1` — takes a session name, runs `tmux list-panes -s -t {session} -F '#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}\t#{pane_id}'`. The `-s` flag lists all panes across all windows in the target session (as opposed to `-a` which lists all panes in all sessions, making `-t` ineffective). Parses into a map of `%{window_index => [%Pane{}]}` grouped by window index.
 
-- `create_session/1` — validates name against `^[a-zA-Z0-9_-]+$`. Runs `tmux new-session -d -s {name} [-x cols -y rows] [command]`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions"` on success. Returns `{:ok, session_info}` or `{:error, reason}`.
+- `create_session/1` — validates name against `^[a-zA-Z0-9_-]+$`. Runs `tmux new-session -d -s {name} [-x cols -y rows] [command]`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions:mutations"` on success. Returns `{:ok, session_info}` or `{:error, reason}`.
 
-- `kill_session/1` — runs `tmux kill-session -t {name}`. Broadcasts `{:sessions_changed}` on success. Returns `:ok` or `{:error, reason}`.
+- `kill_session/1` — runs `tmux kill-session -t {name}`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions:mutations"` on success. Returns `:ok` or `{:error, reason}`.
 
 - `session_exists?/1` — runs `tmux has-session -t {name}`, returns boolean.
 
-- `rename_session/2` — validates new name, runs `tmux rename-session -t {old} {new}`. Broadcasts `{:sessions_changed}` on success.
+- `rename_session/2` — validates new name, runs `tmux rename-session -t {old} {new}`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions:mutations"` on success.
 
-- `create_window/1` — runs `tmux new-window -t {session}`. Broadcasts `{:sessions_changed}` on success.
+- `create_window/1` — runs `tmux new-window -t {session}`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions:mutations"` on success.
 
 - `split_pane/2` — runs `tmux split-window -h|-v -t {target}`. Returns new pane info. Broadcasts `{:sessions_changed}`.
 

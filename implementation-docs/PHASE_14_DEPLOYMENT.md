@@ -254,7 +254,39 @@ Document the three deployment options for remote access:
 2. **Phoenix direct TLS**: Configure `:https` in endpoint with cert/key paths
 3. **Tailscale/WireGuard**: VPN access, no public exposure, app stays HTTP
 
-Provide example nginx/Caddy configs for option 1.
+Example configs for option 1:
+
+**Caddy** (recommended — automatic HTTPS via Let's Encrypt):
+```
+tmux-rm.example.com {
+  reverse_proxy localhost:4000
+}
+```
+
+**nginx**:
+```nginx
+server {
+    listen 443 ssl;
+    server_name tmux-rm.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/tmux-rm.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tmux-rm.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;  # WebSocket keep-alive (24h)
+    }
+}
+```
+
+Note: WebSocket support (`Upgrade`/`Connection` headers) is critical — both LiveView and Channels use WebSockets. The `proxy_read_timeout` must be long enough to keep idle WebSocket connections alive.
 
 ### 14.12 Health Check Integration
 

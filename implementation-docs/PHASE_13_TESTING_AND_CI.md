@@ -1,10 +1,10 @@
 # Phase 13: Testing & CI/CD
 
 ## Goal
-Establish comprehensive test coverage across all layers (unit, integration, LiveView, E2E) and set up CI/CD via GitHub Actions. After this phase, the test suite runs reliably in CI and catches regressions.
+Set up CI/CD via GitHub Actions and consolidate test coverage across all layers. **Tests are written incrementally in each phase** (every phase has a "Tests" section and exit criteria requiring passing tests). This phase does NOT introduce first-time test writing — it sets up CI, fills any coverage gaps, and formalizes the test infrastructure.
 
 ## Dependencies
-- All previous phases complete (or tests written incrementally per phase)
+- All previous phases complete (tests written incrementally per phase)
 
 ## Steps
 

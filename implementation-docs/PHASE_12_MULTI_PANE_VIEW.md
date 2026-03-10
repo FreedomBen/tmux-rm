@@ -19,7 +19,7 @@ Implement `MultiPaneLive` — a view that shows all panes in a tmux window side-
 
 **`mount/3`**:
 1. Parse session and window from params
-2. Subscribe to PubSub topics: `"sessions"` (window add/remove), `"layout:{session}:{window}"` (layout changes)
+2. Subscribe to PubSub topics: `"sessions:state"` (window add/remove), `"layout:{session}:{window}"` (layout changes)
 3. Fetch window list for the session (for tab bar)
 4. Fetch initial layout from `LayoutPoller.get(session, window)` (starts poller if not running)
 5. For each pane, call `PaneStream.subscribe/1` — get history and PID
@@ -136,7 +136,7 @@ Shared layout poller that avoids redundant `tmux list-panes` calls across multip
 - **Registration**: `{:via, Registry, {PaneRegistry, {:layout_poller, session, window}}}`
 - **Polling**: runs `tmux list-panes -t {session}:{window} -F '#{pane_id}\t#{pane_left}\t#{pane_top}\t#{pane_width}\t#{pane_height}'` every 2s (tab-separated for reliable parsing)
 - **Diffing**: compares new layout to previous; on change, broadcasts `{:layout_updated, panes}` on PubSub topic `"layout:{session}:{window}"`
-- **Also subscribes** to PubSub `"sessions"` to trigger immediate re-poll on `{:sessions_changed}` (split/close via app)
+- **Also subscribes** to PubSub `"sessions:mutations"` to trigger immediate re-poll on `{:sessions_changed}` (split/close via app)
 - **Grace period**: shuts down 30s after the last viewer unsubscribes from its PubSub topic (detected via Phoenix.PubSub listener count, or explicit reference counting)
 - **Pane death**: if `list-panes` returns empty or errors (window killed), broadcast final empty layout and terminate
 

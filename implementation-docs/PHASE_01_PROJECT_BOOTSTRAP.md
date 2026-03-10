@@ -5,7 +5,7 @@ Set up the Elixir/Phoenix project with all dependencies, configuration, and the 
 
 ## Prerequisites
 - Elixir 1.17+, OTP 27+, Phoenix 1.8, LiveView ~1.0
-- tmux 2.6+ installed on the host
+- tmux 3.1+ installed on the host (required for `send-keys -H` hex input mode)
 - Node.js (for esbuild/npm asset pipeline)
 
 ## Steps
@@ -81,6 +81,7 @@ config :remote_code_agents,
 Set up `Application.start/2`:
 1. FIFO directory cleanup on boot: `File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`
 2. Start children in order:
+   - `RemoteCodeAgents.Telemetry` (Supervisor — wraps `telemetry_poller`; started first so metrics are available from boot. See Phase 15 for full implementation, but the supervisor shell is created here.)
    - `RemoteCodeAgents.PaneRegistry` (Registry, keys: :unique)
    - `RemoteCodeAgents.PaneStreamSupervisor` (DynamicSupervisor, `max_children` from config)
    - `Phoenix.PubSub` (name: `RemoteCodeAgents.PubSub`)
@@ -136,7 +137,7 @@ end
 - `run!/1` — calls `run/1`, raises on error
 - Socket path support (`-S` / `-L` from config)
 - tmux version check on first call (cache in `:persistent_term`)
-- Log error if tmux < 2.6
+- Log error if tmux < 3.1
 
 **Application config** — allow swapping the implementation for tests:
 ```elixir
@@ -204,7 +205,7 @@ In `application.ex`, after starting the supervision tree, perform a non-blocking
 - Run `CommandRunner.run(["list-sessions"])` to verify tmux is reachable
 - If tmux binary not found: log `:warning` with message including `$PATH` and suggestions for installation
 - If tmux server not running: log `:info` — this is normal (tmux starts on demand)
-- If tmux version < 2.6: log `:warning` with detected version and minimum required
+- If tmux version < 3.1: log `:warning` with detected version and minimum required
 - **Do NOT abort startup** — the app should boot and show helpful error UI (Phase 4) instead of crashing
 
 ### 1.13 Logging

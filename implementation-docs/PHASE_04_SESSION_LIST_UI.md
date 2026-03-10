@@ -14,10 +14,12 @@ Implement the `SessionListLive` page and the `SessionPoller` GenServer. After th
 **`lib/remote_code_agents/session_poller.ex`**:
 
 - Polls `TmuxManager.list_sessions/0` (with panes via `list_panes/1`) every `session_poll_interval` (default 3s)
-- Compares result to previous snapshot; if changed, broadcasts `{:sessions_updated, sessions}` on PubSub topic `"sessions"`
+- Compares result to previous snapshot; if changed, broadcasts `{:sessions_updated, sessions}` on PubSub topic `"sessions:state"`
 - Exposes `SessionPoller.get/0` — `GenServer.call` returning the last-known session list (synchronous read, no file I/O). Returns `[]` before the first poll completes.
 - Performs the first poll asynchronously via `handle_continue(:initial_poll, state)` to avoid blocking the supervision tree if tmux is slow or unavailable. `get/0` returns `[]` before the first poll completes, which is acceptable (the UI shows an empty state briefly, then updates via PubSub within milliseconds).
-- Also subscribes to PubSub topic `"sessions"` to handle `{:sessions_changed}` from `TmuxManager` mutations (immediate re-poll on app-driven changes)
+- Also subscribes to PubSub topic `"sessions:mutations"` to handle `{:sessions_changed}` from `TmuxManager` mutations (immediate re-poll on app-driven changes)
+
+**PubSub topic separation**: `"sessions:mutations"` carries `{:sessions_changed}` from TmuxManager (trigger events with no payload). `"sessions:state"` carries `{:sessions_updated, sessions}` from SessionPoller (state snapshots with full session list). LiveViews subscribe to `"sessions:state"` only. SessionPoller subscribes to `"sessions:mutations"` to trigger immediate re-polls.
 - Stores the last session list in GenServer state for diffing
 - Comparison uses sorted session data (name, window count, pane list) for order-independent equality
 
@@ -26,7 +28,7 @@ Implement the `SessionListLive` page and the `SessionPoller` GenServer. After th
 **`lib/remote_code_agents_web/live/session_list_live.ex`**:
 
 **`mount/3`**:
-- Subscribe to PubSub topic `"sessions"` (receives `{:sessions_updated, sessions}`)
+- Subscribe to PubSub topic `"sessions:state"` (receives `{:sessions_updated, sessions}`)
 - Fetch initial session list from `SessionPoller.get/0`
 - Assign `:sessions` to socket
 
@@ -73,8 +75,8 @@ The app must handle tmux being unavailable gracefully — both at startup and if
 
 **SessionPoller tmux status tracking**:
 - SessionPoller tracks a `:tmux_status` in its state: `:ok`, `:no_server`, `:not_found`, or `{:error, message}`
-- On each poll failure, update `:tmux_status` and broadcast `{:tmux_status_changed, status}` on PubSub topic `"sessions"`
-- On recovery (poll succeeds after failure), broadcast `{:tmux_status_changed, :ok}`
+- On each poll failure, update `:tmux_status` and broadcast `{:tmux_status_changed, status}` on PubSub topic `"sessions:state"`
+- On recovery (poll succeeds after failure), broadcast `{:tmux_status_changed, :ok}` on `"sessions:state"`
 - `SessionPoller.tmux_status/0` — returns current status (synchronous call)
 
 **UI error states**:
