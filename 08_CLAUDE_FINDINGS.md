@@ -8,13 +8,9 @@
 
 **Decision**: Option (a) — write IDs back to the file after first load. Updated: `parse/1` returns `ids_generated?` flag, `init/1` and `handle_info(:poll_config)` write back when IDs were generated, schema description and loading docs updated.
 
-## Q3: Retrofit or plain OkHttp for Android REST calls?
+## ~~Q3: Retrofit or plain OkHttp for Android REST calls?~~ — RESOLVED
 
-Line 2159 references `Retrofit/OkHttp` but the tech stack table only lists `OkHttp + kotlinx.serialization`.
-
-Options:
-- **(a)** Add Retrofit to the tech stack (it's a natural fit with OkHttp for REST APIs)
-- **(b)** Remove the Retrofit reference and keep it as plain OkHttp + manual request building
+**Decision**: Option (a) — added Retrofit to the tech stack table alongside OkHttp + kotlinx.serialization.
 
 ## Q4: Auth session TTL `0 = never expire`
 

@@ -1939,7 +1939,7 @@ A native Android app (also named "tmux-rm") that connects to the tmux-rm server,
 | Terminal view | Termux `TerminalView` (Android View) | Wrapped in Compose via `AndroidView` composable |
 | WebSocket | OkHttp | Reliable, widely used, built-in reconnect support |
 | Channel protocol | Thin Kotlin Phoenix Channel client | Implements Phoenix Channel JSON framing on top of OkHttp WebSocket. Libraries exist (e.g., `JavaPhoenixClient`) or can be written in ~200 lines — the protocol is simple |
-| HTTP client | OkHttp + kotlinx.serialization | REST API calls (sessions, quick actions, auth) |
+| HTTP client | Retrofit + OkHttp + kotlinx.serialization | REST API calls (sessions, quick actions, auth). Retrofit provides declarative API interface definitions; kotlinx.serialization converter handles JSON. |
 | DI | Hilt | Standard Android DI, integrates with ViewModel and Compose |
 | Navigation | Compose Navigation | Type-safe routes between screens |
 | Build | Gradle (Kotlin DSL) | Standard Android tooling |
