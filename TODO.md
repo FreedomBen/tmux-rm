@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- Let's add the design details for the android app to APPLICATION_DESIGN.md .  Start with everything you already know and can infer from the rest of the document, and then make a list of things we need to decide on.
+
 - let's write up a comprehensive implementation plan.  break into phases if necessary.  Write each phase to a seprate file in implementation-docs directory with names like
   PHASE_01_DO_SOMETHING.md.  Don't plan implementation for the android app quite yet.
 
