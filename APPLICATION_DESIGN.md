@@ -151,6 +151,7 @@ PaneStream startup (order matters):
      — Returns the stable pane identifier (e.g., "%0"). Stored in state
        as `pane_id` and used for all subsequent tmux commands that target
        this pane (send-keys, has-session, display-message). If this fails,
+       the pane does not exist — return {:error, :pane_not_found}.
 
   0b. Register pane_id and detect stale PaneStreams:
      — Call `Registry.register(PaneRegistry, {:pane_id, pane_id}, nil)`.
@@ -158,14 +159,12 @@ PaneStream startup (order matters):
      — If it returns `{:error, {:already_registered, old_pid}}`, a stale
        PaneStream exists for this pane under an old target (session/window
        was renamed). Send `GenServer.cast(old_pid, {:superseded, target})`
-       to tell it to shut down, then retry the registration after a brief
-       `Process.sleep(100)` (the old process needs time to terminate and
-       release the key). If the retry also fails, log a warning and proceed
-       without the secondary registration — the stale one will still
-       eventually clean up via grace period.
-
-
-       the pane does not exist — return {:error, :pane_not_found}.
+       to tell it to shut down. Rather than sleeping in `init/1` (which
+       blocks the supervisor), return `{:ok, state, {:continue, :retry_pane_id_registration}}`
+       and retry the registration in `handle_continue/2`. If the retry
+       also fails, log a warning and proceed without the secondary
+       registration — the stale one will still eventually clean up via
+       grace period.
   1. Detach any existing pipe-pane on the target: tmux pipe-pane -t {pane_id}
      — No-op if nothing is attached. Prevents conflict with a stale pipe-pane
        left by a previous crash, or an externally-attached pipe.
@@ -202,7 +201,9 @@ PaneStream startup (order matters):
      — Old content naturally rolls off as the buffer fills
 ```
 
-**Startup sequence rationale**: The key insight is that `cat` on a FIFO blocks at the OS level until a writer opens the pipe, but since it's a Port (separate OS process), it doesn't block the Elixir GenServer. The GenServer can proceed to call `pipe-pane` which opens the write end, unblocking `cat`. This avoids the FIFO deadlock without needing `O_NONBLOCK` or `O_RDWR` hacks.
+**Startup sequence rationale**: The entire startup sequence (steps 0–9) runs synchronously in `init/1`. This means `start_link/1` (and therefore the first `subscribe/1` call) blocks until all tmux commands complete. This is accepted — tmux commands execute against tmux's in-memory state and complete in <10ms each on localhost. The alternative (`handle_continue`) would require `subscribe/1` to handle a "still starting" state, adding complexity for negligible latency savings. If tmux becomes unresponsive, the GenServer start will time out via the default 5-second `GenServer.call` timeout in `subscribe/1`, surfacing the problem clearly.
+
+The key insight is that `cat` on a FIFO blocks at the OS level until a writer opens the pipe, but since it's a Port (separate OS process), it doesn't block the Elixir GenServer. The GenServer can proceed to call `pipe-pane` which opens the write end, unblocking `cat`. This avoids the FIFO deadlock without needing `O_NONBLOCK` or `O_RDWR` hacks.
 
 Scrollback is captured *after* pipe-pane is attached (step 8 after step 6). This means there's a brief window where output appears in both the pipe stream and the scrollback capture. This overlap is accepted rather than deduplicated — see below.
 
@@ -237,7 +238,7 @@ The `:shutting_down` status prevents the Port exit (triggered by step 2 closing 
 
 **tmux server restart / mass pane death**: If the tmux server is killed or restarted, all PaneStream Ports receive EOF simultaneously. Each PaneStream independently follows its normal death path (set `:dead`, broadcast `:pane_dead`, terminate normally). Since `restart: :transient` does not restart normal exits, the DynamicSupervisor does not restart any of them — there is no thundering herd of restarts. Each TerminalLive viewer receives its own `:pane_dead` message and shows "Session ended." SessionListLive's polling (every 3s) will naturally show an empty session list, reflecting the correct state. No special mass-death detection is needed.
 
-**Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts: (1) detach all stale pipe-pane attachments by iterating `tmux list-panes -a -F '#{pane_id}'` and running `tmux pipe-pane -t {pane_id}` on each (this is a no-op for panes that don't have pipe-pane attached); (2) clear the FIFO directory (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This catches both orphaned pipe-pane attachments and stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. It only takes effect on the *next* application boot.
+**Application startup cleanup (defense-in-depth)**: In `Application.start/2`, before the supervision tree starts: clear the FIFO directory (`File.rm_rf(fifo_dir)` then `File.mkdir_p(fifo_dir)`). This removes stale FIFOs left by a hard kill (SIGKILL) of the entire application, where no cleanup callbacks run. Stale pipe-pane attachments are **not** detached globally at startup — doing so would interfere with any pipe-pane the user has attached independently (e.g., for logging). Instead, each PaneStream detaches any existing pipe-pane on its specific pane during its own startup sequence (step 1), scoping cleanup to only panes the application actively manages. The application should behave like a remote `tmux attach` — it should never surprise the host operator by modifying panes it isn't actively streaming.
 
 **FIFO naming and shell safety**: Target strings like `mysession:0.1` are sanitized for filesystem use using percent-encoding: `:` becomes `%3A` and `.` becomes `%2E`, giving FIFO names like `pane-mysession%3A0%2E1.fifo`. This is collision-free because `%` cannot appear in tmux session names (which match `^[a-zA-Z0-9_-]+$`) or in the window/pane numeric indices. **Shell injection safety**: The resulting FIFO paths contain only `[a-zA-Z0-9_%.-/]` characters, making them safe for interpolation into the `open_port({:spawn, "cat {fifo_path}"})` shell string (step 5) and the `pipe-pane` command's single-quoted argument (step 6). This safety is guaranteed by the composition of: (1) session name validation (`^[a-zA-Z0-9_-]+$`), (2) window/pane indices being numeric, and (3) percent-encoding replacing `:` and `.` with `%XX` sequences. No shell metacharacters can appear in the path.
 
@@ -345,15 +346,15 @@ For native Android client only. Not used by the web UI. The design below is docu
   1. Parse topic into target: `"terminal:foo:0:1"` → `"foo:0.1"`.
   2. Call `PaneStream.subscribe/1` — same path as TerminalLive.
   3. Monitor the returned `pane_stream_pid`.
-  4. On success, reply `{:ok, %{"history" => base64_binary, "cols" => int, "rows" => int}}` — history is the ring buffer contents, cols/rows are the pane's current dimensions.
+  4. On success, reply `{:ok, %{"history" => raw_binary, "cols" => int, "rows" => int}}` — history is the ring buffer contents (raw bytes, no base64), cols/rows are the pane's current dimensions.
   5. On `{:error, :pane_not_found}`, reply `{:error, %{"reason" => "pane_not_found"}}`.
   6. On `{:error, :max_pane_streams}`, reply `{:error, %{"reason" => "max_pane_streams"}}`.
 - **Client → Server events**:
-  - `"input"` — `%{"data" => base64_binary}` — keyboard input. Decoded, validated (max 128KB, same as LiveView), passed to `PaneStream.send_keys/2`.
+  - `"input"` — `%{"data" => raw_binary}` — keyboard input. Raw bytes, validated (max 128KB, same as LiveView), passed to `PaneStream.send_keys/2`.
   - `"resize"` — `%{"cols" => int, "rows" => int}` — client requests pane resize. Forwarded to `tmux resize-pane`. Validated: cols 1–500, rows 1–200.
 - **Server → Client events**:
-  - `"output"` — `%{"data" => base64_binary}` — streaming terminal output bytes.
-  - `"reconnected"` — `%{"data" => base64_binary}` — full ring buffer after PaneStream crash recovery. Client should clear its terminal and re-render.
+  - `"output"` — `%{"data" => raw_binary}` — streaming terminal output. Raw bytes, no base64.
+  - `"reconnected"` — `%{"data" => raw_binary}` — full ring buffer after PaneStream crash recovery. Client should clear its terminal and re-render.
   - `"pane_dead"` — `%{}` — pane/session no longer exists. Client should show a disconnected state.
   - `"pane_superseded"` — `%{"new_target" => "new-name:0.1"}` — PaneStream was replaced due to session/window rename. Client can rejoin under the new topic.
   - `"resized"` — `%{"cols" => int, "rows" => int}` — pane was resized by another viewer. Client should resize its terminal view.
@@ -405,15 +406,15 @@ For native Android client only. Not used by the web UI. The design below is docu
 
 | Direction | Event | Payload | Description |
 |-----------|-------|---------|-------------|
-| Client → Server | `"input"` | `%{"data" => base64_binary}` | Keyboard/touch input. Max 128KB decoded. |
+| Client → Server | `"input"` | `%{"data" => raw_binary}` | Keyboard/touch input. Raw bytes, no base64. Max 128KB. |
 | Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane` (unlike Phase 1 LiveView, which stores only). |
-| Server → Client | `"output"` | `%{"data" => base64_binary}` | Streaming terminal output. |
-| Server → Client | `"reconnected"` | `%{"data" => base64_binary}` | Full buffer after PaneStream crash recovery. Client clears and re-renders. |
+| Server → Client | `"output"` | `%{"data" => raw_binary}` | Streaming terminal output. Raw bytes, no base64. |
+| Server → Client | `"reconnected"` | `%{"data" => raw_binary}` | Full buffer after PaneStream crash recovery. Client clears and re-renders. |
 | Server → Client | `"pane_dead"` | `%{}` | Pane/session ended. |
 | Server → Client | `"pane_superseded"` | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
 | Server → Client | `"resized"` | `%{"cols" => int, "rows" => int}` | Pane resized by another viewer. |
 
-**Join reply**: `{:ok, %{"history" => base64_binary, "cols" => int, "rows" => int}}` or `{:error, %{"reason" => string}}`.
+**Join reply**: `{:ok, %{"history" => raw_binary, "cols" => int, "rows" => int}}` or `{:error, %{"reason" => string}}`. All binary payloads on the Channel use raw bytes (no base64) — see "Binary Frames on Phoenix Channel" in Bandwidth Optimization.
 
 ### Terminal Output (tmux → browser)
 
@@ -519,6 +520,7 @@ During high-throughput output (e.g., `cat large_file`, build logs), the `cat` Po
 2. On subsequent Port data while the timer is active: append to the accumulator (IO list cons, no copying).
 3. On `:flush_output`: convert the IO list to a binary via `IO.iodata_to_binary/1`, append to ring buffer, broadcast `{:pane_output, coalesced_bytes}` via PubSub, clear the accumulator.
 4. If the accumulator exceeds a size threshold (e.g., 32KB) before the timer fires, flush immediately — this prevents unbounded memory growth during extreme throughput.
+5. `terminate/2` flushes any pending accumulator to the ring buffer before shutdown, minimizing data loss on graceful termination. On hard crashes (e.g., killed by supervisor), up to one coalesce window (~3ms / ≤32KB) of buffered output may be lost from the ring buffer. This is an accepted trade-off — the data was already broadcast to connected viewers in real-time and only affects the ring buffer history for future subscribers.
 
 **Configuration**:
 
@@ -918,7 +920,7 @@ This application is **fully stateless from a storage perspective**. No database 
   1. Prompts for username (pre-filled with `whoami` output)
   2. Prompts for password (with confirmation)
   3. Hashes password via `Bcrypt.hash_pwd_salt/1`
-  4. Writes `%{username: username, password_hash: hash}` to `~/.config/remote_code_agents/credentials` (Erlang term format via `:erlang.term_to_binary/1`, or a simple `username:hash` text format)
+  4. Writes `username:hash` to `~/.config/remote_code_agents/credentials` (plain text, one line, colon-delimited — human-inspectable and easy to parse via `String.split(line, ":", parts: 2)`)
 - **Password change**: `mix rca.change_password` — prompts for current password (verified against stored hash), then new password with confirmation.
 - **Dependencies**: `bcrypt_elixir` (+ `comeonin`) — the standard password hashing library in the Phoenix ecosystem.
 
@@ -934,7 +936,7 @@ This application is **fully stateless from a storage perspective**. No database 
 3. On submit, server checks:
    a. If `RCA_AUTH_TOKEN` is set and the password matches (constant-time compare), authenticate.
    b. Otherwise, verify username matches stored username and password matches stored hash via `Bcrypt.verify_pass/2`. On mismatch, call `Bcrypt.no_user_verify/0` to prevent timing attacks.
-4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; 0 = never expire, re-auth only on explicit logout). Configured via `auth.session_ttl_days` in `config.yaml`.
+4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; 0 = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth is P1 and must not depend on the Config GenServer, which is introduced by the Quick Actions feature).
 5. All LiveView mounts check `on_mount` hook for valid session. Redirect to `/login` if missing.
 
 #### Auth Flow — Phoenix Channel (Android, future)
@@ -944,7 +946,7 @@ This application is **fully stateless from a storage perspective**. No database 
 3. WebSocket connect sends token as a param: `socket("/socket", UserSocket, params: {"token" => "..."})`
 4. `UserSocket.connect/3` verifies the token via `Phoenix.Token.verify/4`. Returns `{:ok, socket}` or `:error`.
 5. On `:error`, the client receives a connection rejection and prompts the user to re-authenticate.
-6. Token TTL matches the web session TTL (`auth.session_ttl_days`).
+6. Token TTL matches the web session TTL (`auth_session_ttl_days` application config).
 
 #### Implementation Modules
 
@@ -984,17 +986,17 @@ The `TerminalChannel` speaks a simple protocol over the Phoenix Channel WebSocke
 **Connection**: Client connects to `wss://host:port/socket/websocket` with `%{"token" => "..."}` param. `UserSocket.connect/3` verifies the token. Rejected connections receive a socket error — the client should prompt for a new token.
 
 **Join**: `"terminal:{session}:{window}:{pane}"` — server converts to target format, calls `PaneStream.subscribe/1`.
-- **Success reply**: `{:ok, %{"history" => base64_binary, "cols" => int, "rows" => int}}` — ring buffer contents and current pane dimensions.
+- **Success reply**: `{:ok, %{"history" => raw_binary, "cols" => int, "rows" => int}}` — ring buffer contents and current pane dimensions. Binary data is sent as raw bytes (no base64 encoding) — see "Binary Frames on Phoenix Channel" in Bandwidth Optimization.
 - **Error reply**: `{:error, %{"reason" => "pane_not_found" | "max_pane_streams"}}`.
 
 **Events**:
 
 | Direction | Event | Payload | Notes |
 |-----------|-------|---------|-------|
-| C→S | `input` | `%{"data" => base64_binary}` | Keyboard/touch input. Max 128KB decoded. |
+| C→S | `input` | `%{"data" => raw_binary}` | Keyboard/touch input. Raw bytes, no base64. Max 128KB. |
 | C→S | `resize` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane` (unlike Phase 1 LiveView, which stores only). |
-| S→C | `output` | `%{"data" => base64_binary}` | Streaming terminal output |
-| S→C | `reconnected` | `%{"data" => base64_binary}` | Full buffer after PaneStream crash recovery. Client should clear and re-render. |
+| S→C | `output` | `%{"data" => raw_binary}` | Streaming terminal output. Raw bytes, no base64. |
+| S→C | `reconnected` | `%{"data" => raw_binary}` | Full buffer after PaneStream crash recovery. Client should clear and re-render. |
 | S→C | `pane_dead` | `%{}` | Pane/session ended |
 | S→C | `pane_superseded` | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
 | S→C | `resized` | `%{"cols" => int, "rows" => int}` | Pane was resized by another viewer |
@@ -1136,7 +1138,7 @@ quick_actions:
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `id` | string | auto | — | Stable identifier (UUID v4). Auto-generated when omitted (e.g., hand-edited YAML). Used by the API for update/delete. |
+| `id` | string | no | auto-generated | Stable identifier. Auto-generated (URL-safe random token) when omitted (e.g., hand-edited YAML). Used by the API for update/delete. |
 | `label` | string | yes | — | Button text (keep short — 1-2 words) |
 | `command` | string | yes | — | Full command string sent to the terminal |
 | `confirm` | boolean | no | `false` | Show confirmation dialog before executing. Renders as a LiveView modal (not `window.confirm()`) with the command text, "Execute" and "Cancel" buttons. On mobile, the modal uses full-width buttons for easy tap targets. The `"confirm_action"` / `"cancel_action"` LiveView events handle the response. |
@@ -1162,6 +1164,7 @@ quick_actions:
 ```elixir
 defmodule RemoteCodeAgents.Config do
   use GenServer
+  require Logger
 
   @default_path "~/.config/remote_code_agents/config.yaml"
 
@@ -1219,7 +1222,6 @@ defmodule RemoteCodeAgents.Config do
         {:reply, {:ok, updated}, %{state | config: updated, mtime: mtime}}
 
       {:error, reason} ->
-        require Logger
         Logger.error("Failed to write config to #{state.path}: #{inspect(reason)}")
         {:reply, {:error, reason}, state}
     end
@@ -1238,7 +1240,6 @@ defmodule RemoteCodeAgents.Config do
           {:error, :malformed, mtime} ->
             # Keep last good config in memory, update mtime to avoid re-reading
             # the same malformed file every poll cycle
-            require Logger
             Logger.warning("Config file is malformed — keeping last good config")
             %{state | mtime: mtime}
 
@@ -1293,6 +1294,34 @@ defmodule RemoteCodeAgents.Config do
 
   defp defaults, do: %{quick_actions: []}
 
+  defp to_yaml(config) do
+    data = %{
+      "quick_actions" =>
+        Enum.map(config.quick_actions, fn action ->
+          %{
+            "id" => action.id,
+            "label" => action.label,
+            "command" => action.command,
+            "confirm" => action.confirm,
+            "color" => action.color,
+            "icon" => action.icon
+          }
+          |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+          |> Map.new()
+        end)
+    }
+
+    header = """
+    # Remote Code Agents configuration
+    # Edit this file directly or use the web UI at /settings
+    #
+    # Quick actions appear as buttons above the terminal.
+    # Fields: label (required), command (required), confirm, color, icon
+    """
+
+    header <> "\n" <> Ymlr.document!(data)
+  end
+
   defp parse(yaml) do
     actions =
       yaml
@@ -1304,7 +1333,6 @@ defmodule RemoteCodeAgents.Config do
 
   defp valid_action?(%{"label" => l, "command" => c}) when is_binary(l) and is_binary(c), do: true
   defp valid_action?(entry) do
-    require Logger
     Logger.warning("Skipping invalid quick action entry: #{inspect(entry)}")
     false
   end
@@ -1582,18 +1610,24 @@ defmodule RemoteCodeAgentsWeb.SettingsLive do
   end
 
   def handle_event("save_action", %{"action" => action_params}, socket) do
-    {:ok, updated} = RemoteCodeAgents.Config.upsert_action(action_params)
-    {:noreply, assign(socket, :config, updated)}
+    case RemoteCodeAgents.Config.upsert_action(action_params) do
+      {:ok, updated} -> {:noreply, assign(socket, :config, updated)}
+      {:error, _reason} -> {:noreply, put_flash(socket, :error, "Failed to save — check file permissions")}
+    end
   end
 
   def handle_event("delete_action", %{"id" => id}, socket) do
-    {:ok, updated} = RemoteCodeAgents.Config.delete_action(id)
-    {:noreply, assign(socket, :config, updated)}
+    case RemoteCodeAgents.Config.delete_action(id) do
+      {:ok, updated} -> {:noreply, assign(socket, :config, updated)}
+      {:error, _reason} -> {:noreply, put_flash(socket, :error, "Failed to delete — check file permissions")}
+    end
   end
 
   def handle_event("reorder_actions", %{"ids" => ids}, socket) do
-    {:ok, updated} = RemoteCodeAgents.Config.reorder_actions(ids)
-    {:noreply, assign(socket, :config, updated)}
+    case RemoteCodeAgents.Config.reorder_actions(ids) do
+      {:ok, updated} -> {:noreply, assign(socket, :config, updated)}
+      {:error, _reason} -> {:noreply, put_flash(socket, :error, "Failed to reorder — check file permissions")}
+    end
   end
 
   # Also receives PubSub broadcasts if config changes externally
@@ -1664,8 +1698,8 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
     json(conn, %{quick_actions: updated.quick_actions})
   end
 
-  def update(conn, %{"id" => _id, "action" => action_params}) do
-    {:ok, updated} = RemoteCodeAgents.Config.upsert_action(action_params)
+  def update(conn, %{"id" => id, "action" => action_params}) do
+    {:ok, updated} = RemoteCodeAgents.Config.upsert_action(Map.put(action_params, "id", id))
     json(conn, %{quick_actions: updated.quick_actions})
   end
 
