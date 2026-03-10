@@ -29,7 +29,6 @@ defp deps do
     {:telemetry_poller, "~> 1.0"},
     {:jason, "~> 1.2"},
     {:bandit, "~> 1.0"},
-    {:bcrypt_elixir, "~> 3.0"},
     {:yaml_elixir, "~> 2.11"},
     {:ymlr, "~> 5.0"},
     {:mox, "~> 1.0", only: :test},

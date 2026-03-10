@@ -7,7 +7,7 @@ Implement username+password authentication with bcrypt, optional static token fa
 
 ## Dependencies
 - Phase 5 complete (terminal view working)
-- `bcrypt_elixir` dependency (Phase 1)
+- `Plug.Crypto` (included with Phoenix — no additional dependency)
 
 ## Steps
 
@@ -15,10 +15,11 @@ Implement username+password authentication with bcrypt, optional static token fa
 
 **`lib/remote_code_agents/auth.ex`**:
 
-- Credentials file: `~/.config/remote_code_agents/credentials` (format: `username:bcrypt_hash`, single line — this is a single-user system by design)
+- Credentials file: `~/.config/remote_code_agents/credentials` (format: `username:pbkdf2_hash`, single line — this is a single-user system by design)
 - `verify_credentials(username, password)` → `:ok` or `:error`
   - Check `RCA_AUTH_TOKEN` first (via `Application.get_env(:remote_code_agents, :auth_token)`): if set and password matches (constant-time via `Plug.Crypto.secure_compare/2`), return `:ok`
-  - Otherwise: read credentials file, compare username. If no match, call `Bcrypt.no_user_verify/0` (timing attack mitigation), return `:error`. If match, verify via `Bcrypt.verify_pass/2`.
+  - Otherwise: read credentials file, compare username. If no match, perform a dummy `Plug.Crypto.verify_pass` call (timing attack mitigation), return `:error`. If match, verify via `Plug.Crypto.verify_pass(password, hash)`.
+- **Password hashing**: Uses `Plug.Crypto.hash_pwd_salt/2` (PBKDF2-based, pure Elixir — no NIF/C compiler required). Simpler build pipeline than bcrypt, and sufficient security for a single-user system.
 - `auth_enabled?/0` → `true` if credentials file exists or `auth_token` is configured
 - `read_credentials/0` → `{:ok, {username, hash}}` or `{:error, :not_found}`
 - `write_credentials(username, password)` → writes `username:bcrypt_hash` to credentials file. Sets file permissions to `0o600` (owner read/write only) via `File.chmod/2`. Creates parent directory with `0o700` if needed.
@@ -28,7 +29,7 @@ Implement username+password authentication with bcrypt, optional static token fa
 **`lib/mix/tasks/rca.setup.ex`** — `mix rca.setup`:
 1. Prompt for username (pre-filled with `whoami`)
 2. Prompt for password (with confirmation)
-3. Hash via `Bcrypt.hash_pwd_salt/1`
+3. Hash via `Plug.Crypto.hash_pwd_salt/1`
 4. Write to credentials file
 5. Create parent directory if needed
 
@@ -170,7 +171,7 @@ In `application.ex`: if the endpoint is bound to `0.0.0.0` and `Auth.auth_enable
 
 ### 6.13 Tests
 
-- Auth module: test credential verification (bcrypt, token fallback, timing-safe comparison)
+- Auth module: test credential verification (pbkdf2, token fallback, timing-safe comparison)
 - Auth plug: test redirect on missing session
 - Rate limiting: test limit enforcement, window rollover, cleanup
 - Login page: test form submission, success redirect, failure flash

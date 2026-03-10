@@ -77,8 +77,14 @@ These require design decisions before implementation:
 ### C. tmux Server Restart Recovery
 If tmux restarts, all FIFOs are orphaned, pane IDs invalidated, pipe-pane attachments gone. Each PaneStream detects this independently (port exit → existence check fails → `:dead`). **No coordinated recovery** — acceptable since tmux restart is rare and destructive by nature.
 
-### D. bcrypt NIF Build Complexity
-`bcrypt_elixir` requires a C compiler. For a single-user app, `Plug.Crypto.pbkdf2` would be simpler. **Trade-off**: bcrypt is more secure for password hashing; build complexity is a one-time cost absorbed by Docker multi-stage build.
+### D. bcrypt → pbkdf2 ✅
+Switched from `bcrypt_elixir` (NIF, requires C compiler) to `Plug.Crypto.hash_pwd_salt` (PBKDF2, pure Elixir). Removed `bcrypt_elixir` from deps, removed `build-essential` from Dockerfile. Sufficient for single-user system.
 
-### E. Multiple xterm.js Performance
+### E. URL Scheme — Keep `/terminal/:target` ✅
+Colons in the target (e.g., `mysession:0.1`) are URL-safe enough — Phoenix captures the full path segment. Kept as-is.
+
+### F. Binary Frame Approach ✅
+Plan to verify `{:push, {:binary, data}, socket}` during Phase 5 implementation, with base64 fallback ready. Already documented in Phase 11.
+
+### G. Multiple xterm.js Performance
 Multi-pane view (Phase 12) creates one xterm.js per pane. No max pane count guidance. **Consider**: documenting a recommended max (8-12 panes) and degrading gracefully beyond that.
