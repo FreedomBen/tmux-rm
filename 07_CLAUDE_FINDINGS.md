@@ -27,9 +27,9 @@ Already fully specified in the doc: DynamicSupervisor `max_children: 100`, confi
 
 REST API (`/api/*`) routes are exempt from CSRF — they use bearer token auth via `Authorization` header, which isn't vulnerable to CSRF (not auto-attached by the browser). LiveView forms keep Phoenix's built-in CSRF protection (default behavior). Added to Security Considerations section.
 
-### 5. Rate limiting on `send_keys`
+### ~~5. Rate limiting on `send_keys`~~ RESOLVED
 
-Should there be a server-side rate limit on `key_input` events (e.g., max N events/second per viewer), or is the 128KB payload cap + client-side 16ms batching sufficient?
+No rate limiting needed. Single-user personal tool — the only sender is the authenticated user. The 128KB payload cap prevents accidental oversized payloads. Rate limiting would risk throttling legitimate fast input (key repeat, paste). No doc changes.
 
 ### 6. tmux socket path
 
