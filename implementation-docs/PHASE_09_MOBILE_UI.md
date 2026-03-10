@@ -34,7 +34,7 @@ Fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 - Dark theme buttons matching terminal aesthetic
 - Min touch target 44px × 44px
 - Horizontal scroll with momentum if all keys don't fit
-- Toolbar auto-hides when soft keyboard is open (to maximize terminal space)
+- When soft keyboard is open: the full toolbar hides to save space, but a compact modifier row (Esc, Ctrl, Alt) remains visible above the keyboard so users can send Ctrl+C etc. without dismissing the keyboard first.
 
 ### 9.2 Soft Keyboard Handling
 
@@ -44,11 +44,11 @@ Fixed bottom toolbar providing keys that don't exist on mobile keyboards:
   ```javascript
   window.visualViewport.addEventListener('resize', () => {
     // When viewport height shrinks significantly → keyboard opened
-    // Resize terminal, hide virtual toolbar
+    // Resize terminal, show compact modifier row, hide full toolbar
   });
   ```
-- When soft keyboard open: terminal shrinks to fit above keyboard, virtual toolbar hides
-- When soft keyboard closes: terminal expands to full viewport, virtual toolbar reappears
+- When soft keyboard open: terminal shrinks to fit above keyboard, full toolbar collapses to compact modifier row (Esc, Ctrl, Alt)
+- When soft keyboard closes: terminal expands to full viewport, full toolbar reappears
 
 ### 9.3 Touch Gestures
 

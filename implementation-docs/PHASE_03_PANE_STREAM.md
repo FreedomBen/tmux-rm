@@ -33,8 +33,9 @@ Implement the `PaneStream` GenServer — the heart of the application. This brid
 - Primary key: `{:pane, target}` via GenServer `name:` option using `{:via, Registry, {PaneRegistry, {:pane, target}}}`
 - Secondary key: `{:pane_id, pane_id}` registered manually in `init/1` after resolving pane_id
 
-#### Startup Sequence (in `init/1`)
-Synchronous, as described in APPLICATION_DESIGN.md:
+#### Startup Sequence (async via `handle_continue`)
+`init/1` sets status to `:starting` and returns `{:ok, state, {:continue, :setup}}` to avoid blocking the DynamicSupervisor. All I/O happens in `handle_continue(:setup, state)`:
+
 0. Resolve `pane_id` via `tmux display-message -p -t {target} '#{pane_id}'`
 0b. Register `{:pane_id, pane_id}` — handle collision (stale PaneStream detection, supersede flow)
 1. Detach any existing pipe-pane: `tmux pipe-pane -t {pane_id}`
@@ -43,12 +44,17 @@ Synchronous, as described in APPLICATION_DESIGN.md:
 4. Create named pipe: `mkfifo -m 0600 {fifo_path}`
 5. Start Port: `open_port({:spawn, "cat #{fifo_path}"}, [:binary, :stream, :exit_status])`
 6. Attach pipe: `tmux pipe-pane -t {pane_id} -o 'cat >> #{fifo_path}'`
-7. Query buffer size (history-limit × pane width, clamped to min/max, memory pressure check)
+7. Query buffer size (history-limit × pane width, clamped to min/max)
 8. Capture scrollback: `tmux capture-pane -p -e -S -{max_lines} -t {pane_id}`
 9. Write scrollback into ring buffer
+10. Set status to `:streaming`
 
-FIFO path: `/tmp/remote-code-agents/pane-{percent_encoded_target}.fifo`
-Percent encoding: `:` → `%3A`, `.` → `%2E`
+If any step fails, set status to `:dead` and schedule termination.
+
+**Note**: `subscribe/1` callers that arrive while status is `:starting` should receive `{:error, :not_ready}`. The caller can retry after a short delay (PaneStream startup typically completes in <100ms).
+
+FIFO path: `/tmp/remote-code-agents/pane-{pane_id}.fifo` (e.g., `/tmp/remote-code-agents/pane-%0.fifo`)
+Uses the resolved `pane_id` (not the target string) for stability across session/window renames. The `%` prefix in tmux pane IDs is filesystem-safe.
 
 ### 3.2 Public API (Module Functions)
 
@@ -68,8 +74,8 @@ Percent encoding: `:` → `%3A`, `.` → `%2E`
 - `send_keys/2` — called by viewer process:
   1. Look up PaneStream via Registry
   2. `GenServer.call` to send input
-  3. GenServer handler: convert bytes to hex, `tmux send-keys -H -t {pane_id} {hex_bytes}`
-  4. Chunk large inputs (>65,536 bytes) into sequential `send-keys` calls
+  3. GenServer handler: convert each byte to a two-char hex string, join with spaces, send as `tmux send-keys -H -t {pane_id} 41 42 43 ...` (space-separated hex values, no `0x` prefix)
+  4. Chunk large inputs into sequential `send-keys` calls, each with at most 65,536 bytes (separate `CommandRunner.run/1` invocations, sent sequentially — not atomic)
   5. Return `:ok`, `{:error, :pane_dead}`, `{:error, :not_ready}`, or `{:error, :not_found}`
 
 ### 3.3 Output Handling (Coalescing)
@@ -78,7 +84,7 @@ In `handle_info({port, {:data, bytes}})`:
 1. Append bytes to IO list accumulator
 2. If no coalesce timer active, start one (`Process.send_after(self(), :flush_output, coalesce_ms)`)
 3. If accumulator exceeds `output_coalesce_max_bytes` (32KB), flush immediately
-4. On `:flush_output`: convert accumulator to binary, append to ring buffer, broadcast `{:pane_output, binary}` via PubSub, clear accumulator
+4. On `:flush_output`: convert accumulator to binary, append to ring buffer, broadcast `{:pane_output, target, binary}` via PubSub, clear accumulator
 
 ### 3.4 Viewer Lifecycle
 

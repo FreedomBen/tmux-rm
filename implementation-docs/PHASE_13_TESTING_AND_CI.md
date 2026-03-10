@@ -152,8 +152,16 @@ jobs:
             _build
           key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install dependencies
         run: mix deps.get
+
+      - name: Install npm deps
+        run: cd assets && npm ci
 
       - name: Check formatting
         run: mix format --check-formatted
@@ -161,23 +169,15 @@ jobs:
       - name: Compile (warnings as errors)
         run: mix compile --warnings-as-errors
 
-      - name: Run tests
-        run: mix test
-        env:
-          MIX_ENV: test
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install npm deps
-        run: cd assets && npm ci
-
       - name: Build assets
         run: mix assets.deploy
         env:
           MIX_ENV: prod
+
+      - name: Run tests
+        run: mix test
+        env:
+          MIX_ENV: test
 
   release:
     needs: test

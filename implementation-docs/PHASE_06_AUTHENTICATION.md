@@ -13,7 +13,7 @@ Implement username+password authentication with bcrypt, optional static token fa
 
 **`lib/remote_code_agents/auth.ex`**:
 
-- Credentials file: `~/.config/remote_code_agents/credentials` (format: `username:bcrypt_hash`)
+- Credentials file: `~/.config/remote_code_agents/credentials` (format: `username:bcrypt_hash`, single line — this is a single-user system by design)
 - `verify_credentials(username, password)` → `:ok` or `:error`
   - Check `RCA_AUTH_TOKEN` first (via `Application.get_env(:remote_code_agents, :auth_token)`): if set and password matches (constant-time via `Plug.Crypto.secure_compare/2`), return `:ok`
   - Otherwise: read credentials file, compare username. If no match, call `Bcrypt.no_user_verify/0` (timing attack mitigation), return `:error`. If match, verify via `Bcrypt.verify_pass/2`.

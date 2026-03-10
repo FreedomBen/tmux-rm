@@ -17,8 +17,8 @@ def project do
     # ...
     releases: [
       remote_code_agents: [
-        include_erts: true,  # Bundle Erlang runtime
-        cookie: "remote-code-agents-release-cookie"
+        include_erts: true  # Bundle Erlang runtime
+        # Cookie is set via RELEASE_COOKIE env var at runtime, not hardcoded
       ]
     ]
   ]
@@ -177,9 +177,12 @@ EXPOSE 4000
 CMD ["/app/bin/remote_code_agents", "start"]
 ```
 
+**Docker deployment modes**:
+
+The Dockerfile installs tmux inside the container, so the default mode runs tmux sessions *inside* the container. To connect to **host** tmux sessions instead, mount the host's tmux socket and set `RCA_TMUX_SOCKET`.
+
 **`docker-compose.yml`** (optional, for easy testing):
 ```yaml
-version: '3.8'
 services:
   tmux-rm:
     build: .
@@ -189,9 +192,11 @@ services:
       - SECRET_KEY_BASE=generate-me
       - PORT=4000
       - PHX_HOST=localhost
-    volumes:
-      # Mount host tmux socket for host session access
-      - /tmp/tmux-${UID}:/tmp/tmux-${UID}
+      # Uncomment for host tmux access:
+      # - RCA_TMUX_SOCKET=/tmp/tmux-host/default
+    # volumes:
+      # Uncomment for host tmux access (replace 1000 with your UID):
+      # - /tmp/tmux-1000:/tmp/tmux-host
 ```
 
 ### 14.7 BEAM Distribution Safety

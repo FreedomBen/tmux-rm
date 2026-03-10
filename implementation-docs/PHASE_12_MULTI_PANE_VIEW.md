@@ -29,7 +29,7 @@ Implement `MultiPaneLive` — a view that shows all panes in a tmux window side-
 **`handle_info` callbacks**:
 - `:poll_layout` — re-fetch pane layout from tmux, compare to current. If changed, update CSS Grid layout, re-subscribe to new panes, unsubscribe from removed panes. Reschedule poll.
 - `{:sessions_updated, _}` — update window tab list
-- `{:pane_output, data}` — route to correct xterm.js instance by pane target
+- `{:pane_output, target, data}` — route to correct xterm.js instance using `target` to identify the pane
 - `{:pane_dead, target}` — mark pane as dead in layout
 - `{:pane_resized, cols, rows}` — update pane dimensions in layout
 - `{:DOWN, ...}` — PaneStream crashed, re-subscribe

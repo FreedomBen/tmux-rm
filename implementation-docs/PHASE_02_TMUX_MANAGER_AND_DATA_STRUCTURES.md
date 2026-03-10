@@ -20,7 +20,7 @@ end
 **`lib/remote_code_agents/tmux/pane.ex`** — Pane struct:
 ```elixir
 defmodule RemoteCodeAgents.Tmux.Pane do
-  defstruct [:index, :width, :height, :command, :pane_id]
+  defstruct [:session_name, :window_index, :index, :width, :height, :command, :pane_id]
 end
 ```
 
@@ -30,7 +30,7 @@ end
 
 - `list_sessions/0` — shells out to `tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_created}\t#{session_attached}'`, parses into `[%Session{}]`. Returns `{:ok, []}` if tmux returns "no server running" (exit code 1). Returns `{:error, :tmux_not_found}` if tmux binary missing.
 
-- `list_panes/1` — takes a session name, runs `tmux list-panes -t {session} -a -F '#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}\t#{pane_id}'`. Parses into `[%Pane{}]` grouped by window.
+- `list_panes/1` — takes a session name, runs `tmux list-panes -t {session} -a -F '#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}\t#{pane_id}'`. Parses into a map of `%{window_index => [%Pane{}]}` grouped by window index.
 
 - `create_session/1` — validates name against `^[a-zA-Z0-9_-]+$`. Runs `tmux new-session -d -s {name} [-x cols -y rows] [command]`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions"` on success. Returns `{:ok, session_info}` or `{:error, reason}`.
 

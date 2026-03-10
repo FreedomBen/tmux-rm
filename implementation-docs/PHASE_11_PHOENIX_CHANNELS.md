@@ -30,11 +30,11 @@ Implement `TerminalChannel` and `SessionChannel` — the server-side Channel inf
 - `"resize"` with `%{"cols" => c, "rows" => r}` — validate bounds (cols 1-500, rows 1-200), forward to PaneStream
 
 **`handle_info` callbacks**:
-- `{:pane_output, data}` → push binary frame: `push(socket, "output", {:binary, data})`
+- `{:pane_output, _target, data}` → push binary frame: `push(socket, "output", %{data: data})` (Phoenix V2 serializer auto-detects binary payloads in map values and sends as binary frames)
 - `{:pane_dead, _target}` → push JSON: `push(socket, "pane_dead", %{})`
 - `{:pane_superseded, _old, new_target}` → push JSON: `push(socket, "pane_superseded", %{"new_target" => new_target})`
 - `{:pane_resized, cols, rows}` → push JSON: `push(socket, "resized", %{"cols" => cols, "rows" => rows})`
-- `{:pane_reconnected, _target, buffer}` → push binary: `push(socket, "reconnected", {:binary, buffer})`
+- `{:pane_reconnected, _target, buffer}` → push binary: `push(socket, "reconnected", %{data: buffer})` (binary payload auto-detected)
 - `{:DOWN, ref, :process, _pid, _reason}` → PaneStream crashed. Re-subscribe, push fresh history via "reconnected", monitor new PID.
 
 **`terminate/2`**:

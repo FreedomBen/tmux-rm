@@ -48,8 +48,8 @@ Implement `TerminalLive` and the `TerminalHook` JavaScript module. After this ph
 - `this.handleEvent("pane_dead", () => { ... })` — display "Session ended" overlay with link back to session list
 
 **Clipboard**:
-- `onSelectionChange`: auto-copy via `navigator.clipboard.writeText()`
-- Paste handler: intercept Ctrl+Shift+V → `navigator.clipboard.readText()` → send as `"key_input"` event
+- Copy: user selects text in terminal, uses Ctrl+Shift+C (or right-click → Copy) to copy. No auto-copy on selection (browsers gate clipboard writes behind user gestures in secure contexts, and auto-copy is disruptive).
+- Paste: intercept Ctrl+Shift+V → `navigator.clipboard.readText()` → send as `"key_input"` event
 - Fallback to `document.execCommand` for older browsers
 
 **`destroyed()`**:
@@ -84,7 +84,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
    - `:max_pane_streams` → show error UI
 
 **`handle_info` callbacks**:
-- `{:pane_output, data}` → `push_event(socket, "output", %{data: Base.encode64(data)})`
+- `{:pane_output, _target, data}` → `push_event(socket, "output", %{data: Base.encode64(data)})`
 - `{:pane_dead, _target}` → `push_event(socket, "pane_dead", %{})`
 - `{:pane_superseded, _old_target, new_target}` → unsubscribe, parse new_target, `push_navigate` to new URL
 - `{:pane_resized, cols, rows}` → `push_event(socket, "resized", %{cols: cols, rows: rows})`

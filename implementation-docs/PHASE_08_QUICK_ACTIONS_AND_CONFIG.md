@@ -19,7 +19,7 @@ Implement the full GenServer as specified in APPLICATION_DESIGN.md (the design d
 - **Startup**: Read + validate config file. Generate missing IDs and rewrite if needed. If no file exists, write default config (empty quick_actions list).
 - **File change detection**: Poll mtime every 2s (`config_poll_interval`). Re-read on change, broadcast `{:config_changed, config}` on PubSub topic `"config"`.
 - **Reads**: `Config.get/0` — synchronous GenServer.call, returns in-memory config
-- **Writes**: `Config.update/1` — takes `(config -> config)` function, writes atomically (tmp + rename), updates mtime, broadcasts change
+- **Writes**: `Config.update/1` — `GenServer.call` that takes a `(config -> config)` function. The read-modify-write is serialized through the GenServer (no concurrent update races). Writes atomically (tmp + rename), updates mtime, broadcasts change
 - **Convenience**: `upsert_action/1`, `delete_action/1`, `reorder_actions/1`
 - **Malformed file**: Keep last good config in memory, log warning
 - **Deleted file**: Keep last good config, recreate on next write
