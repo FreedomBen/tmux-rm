@@ -8,6 +8,8 @@ Implement `TerminalChannel` and `SessionChannel` — the server-side Channel inf
 - Phase 4 complete (SessionPoller)
 - Phase 6 complete (UserSocket with token auth)
 
+**Note**: The core `TerminalChannel` may already exist from Phase 5 (which uses it as a companion channel for binary terminal I/O in the web UI). If so, this phase extends it with any missing features and adds `SessionChannel`. If Phase 5 was implemented with a base64-over-LiveView fallback, this phase creates the full TerminalChannel.
+
 ## Steps
 
 ### 11.1 TerminalChannel

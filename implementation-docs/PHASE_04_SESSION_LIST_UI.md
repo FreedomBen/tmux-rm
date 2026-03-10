@@ -67,11 +67,39 @@ Use Tailwind Plus application-ui components for:
 - **Feedback**: flash messages, error banners
 - **Empty states**: no-sessions placeholder
 
-### 4.5 Error States
+### 4.5 Error States & tmux Degradation
 
-- **tmux not installed**: Error banner — "tmux is not installed. Please install tmux to use this application."
-- **tmux not running (no sessions)**: Empty state with "Create Session" CTA (not an error — tmux starts on demand)
-- **Session creation failure**: Flash error with reason
+The app must handle tmux being unavailable gracefully — both at startup and if tmux dies mid-session. The goal is to surface as much diagnostic information as possible so the user knows exactly what to fix.
+
+**SessionPoller tmux status tracking**:
+- SessionPoller tracks a `:tmux_status` in its state: `:ok`, `:no_server`, `:not_found`, or `{:error, message}`
+- On each poll failure, update `:tmux_status` and broadcast `{:tmux_status_changed, status}` on PubSub topic `"sessions"`
+- On recovery (poll succeeds after failure), broadcast `{:tmux_status_changed, :ok}`
+- `SessionPoller.tmux_status/0` — returns current status (synchronous call)
+
+**UI error states**:
+
+- **tmux not installed** (`{:error, :tmux_not_found}`):
+  - Persistent error banner (not dismissable): "tmux is not installed or not in PATH."
+  - Show diagnostic details: expected PATH locations checked, current `$PATH` value
+  - Suggest: "Install tmux via your package manager (e.g., `apt install tmux`, `brew install tmux`) and restart the application."
+  - All session actions disabled (create, kill, etc.)
+
+- **tmux server not running** (`:no_server`, zero sessions):
+  - Not an error — normal state. Empty state with "Create Session" CTA
+  - tmux starts on demand when a session is created
+
+- **tmux server died** (was `:ok`, now `:no_server` or `{:error, _}`):
+  - Warning banner: "tmux server is no longer reachable. Sessions may have been lost."
+  - Show last known error output from tmux command
+  - "Retry" button that triggers `SessionPoller.force_poll/0`
+  - If tmux comes back, banner auto-dismisses and sessions repopulate via normal PubSub flow
+
+- **Session creation failure**: Flash error with the full tmux error message (not a generic "failed")
+
+- **PaneStream with dead tmux**: PaneStreams detect tmux death via port exit + pane existence check (Phase 3). When tmux dies, all PaneStreams enter `:dead` state and broadcast `{:pane_dead, target}`. The terminal view shows "Session ended" overlay. When tmux comes back, SessionPoller detects recovery, and the user can navigate to sessions again — but dead PaneStreams are not automatically restarted (user must re-open the terminal view).
+
+**Health check reflects tmux status**: `/healthz` returns `"tmux": "not_found"` (503) or `"tmux": "no_server"` (200, degraded) or `"tmux": "ok"` (200).
 
 ### 4.6 Logging
 

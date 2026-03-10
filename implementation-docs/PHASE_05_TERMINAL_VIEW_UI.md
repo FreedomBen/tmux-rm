@@ -30,22 +30,40 @@ Implement `TerminalLive` and the `TerminalHook` JavaScript module. After this ph
 2. Create and load `FitAddon`, optionally `WebLinksAddon`
 3. Open terminal in container div: `term.open(this.el)`
 4. Call `fitAddon.fit()`
-5. Send initial resize: `this.pushEvent("resize", {cols: term.cols, rows: term.rows})`
+5. **Open companion Channel** for binary terminal I/O (see 5.9 below):
+   ```javascript
+   const target = this.el.dataset.target;
+   // Convert "session:window.pane" to Channel topic "terminal:session:window:pane"
+   const topic = "terminal:" + target.replace(".", ":").replace(/^([^:]+):/, "$1:");
+   this.channel = window.userSocket.channel(topic, {});
+   this.channel.join()
+     .receive("ok", (reply) => {
+       // Write history (base64 in join reply)
+       const historyBytes = Uint8Array.from(atob(reply.history), c => c.charCodeAt(0));
+       term.write(historyBytes);
+     })
+     .receive("error", (reason) => { /* show error UI */ });
+   ```
+6. Send initial resize: `this.pushEvent("resize", {cols: term.cols, rows: term.rows})`
 
 **`onData` handler** (keyboard input):
 - Buffer keystrokes in a local array
 - Flush every 16ms (via `requestAnimationFrame`) or when buffer exceeds 64 bytes
-- On flush: concatenate bytes, encode to UTF-8 via `TextEncoder`, base64-encode, send `this.pushEvent("key_input", {data: base64String})`
+- On flush: concatenate bytes, encode to UTF-8 via `TextEncoder`, send as binary frame via Channel: `this.channel.push("input", new ArrayBuffer(bytes))`
 
 **`onResize` handler**:
 - Debounce 300ms
 - Send `this.pushEvent("resize", {cols, rows})`
 
-**Server event handlers**:
-- `this.handleEvent("output", ({data}) => { ... })` — base64 decode, `term.write(bytes)`
-- `this.handleEvent("history", ({data}) => { ... })` — base64 decode, `term.write(bytes)` (initial scrollback)
-- `this.handleEvent("reconnected", ({data}) => { ... })` — `term.reset()`, base64 decode, `term.write(bytes)`
-- `this.handleEvent("pane_dead", () => { ... })` — display "Session ended" overlay with link back to session list
+**Channel event handlers** (binary terminal data via companion Channel — no base64 overhead):
+- `this.channel.on("output", (msg) => { ... })` — receive binary payload, `term.write(new Uint8Array(msg))`
+- History: received in Channel join reply as base64 (JSON text frame exception), decoded and written to terminal on join success
+- `this.channel.on("reconnected", (msg) => { ... })` — `term.reset()`, write binary payload
+- `this.channel.on("pane_dead", () => { ... })` — display "Session ended" overlay with link back to session list
+
+**LiveView event handlers** (control/UI events only — no terminal data):
+- `this.handleEvent("pane_superseded", ({new_target}) => { ... })` — LiveView handles navigation to new URL
+- `this.handleEvent("pane_resized", ({cols, rows}) => { ... })` — resize xterm.js to match
 
 **Clipboard**:
 - Copy: user selects text in terminal, uses Ctrl+Shift+C (or right-click → Copy) to copy. No auto-copy on selection (browsers gate clipboard writes behind user gestures in secure contexts, and auto-copy is disruptive).
@@ -59,14 +77,22 @@ Implement `TerminalLive` and the `TerminalHook` JavaScript module. After this ph
 - This ensures the terminal state is reconciled: server sends full ring buffer contents, client resets and replays
 
 **`destroyed()`**:
+- Leave Channel: `this.channel.leave()`
 - Dispose xterm.js instance
 - Cancel any pending timers
 
-### 5.2 Register Hook in app.js
+### 5.2 Register Hook and UserSocket in app.js
 
 **`assets/js/app.js`**:
 ```javascript
+import { Socket } from "phoenix";
 import { TerminalHook } from "./hooks/terminal_hook";
+
+// Companion Channel socket for binary terminal I/O
+// Auth token is embedded in the page by LiveView (see 5.9)
+const userToken = document.querySelector("meta[name='channel-token']")?.content;
+window.userSocket = new Socket("/socket", { params: { token: userToken } });
+window.userSocket.connect();
 
 let liveSocket = new LiveSocket("/live", Socket, {
   hooks: { TerminalHook },
@@ -78,31 +104,26 @@ let liveSocket = new LiveSocket("/live", Socket, {
 
 **`lib/remote_code_agents_web/live/terminal_live.ex`**:
 
+**Architecture**: TerminalLive handles UI/control concerns only. Terminal data (output/input) flows through the companion TerminalChannel (Phase 11) opened by the JS hook. LiveView does NOT subscribe to PaneStream for output — the Channel handles that. This eliminates base64 overhead entirely for terminal data.
+
 **`mount/3`**:
 1. Parse target from URL params: `"#{session}:#{window}.#{pane}"`
-2. Call `PaneStream.subscribe(target)` → `{:ok, history, pane_stream_pid}` or `{:error, reason}`
-3. On success:
-   - Monitor `pane_stream_pid` via `Process.monitor/1`
-   - Push history: `push_event(socket, "history", %{data: Base.encode64(history)})`
-   - Assign `:target`, `:pane_stream_pid`, `:monitor_ref`
-4. On error:
-   - `:pane_not_found` → show error UI
-   - `:max_pane_streams` → show error UI
+2. Verify pane exists via `TmuxManager.session_exists?/1` (lightweight check — full PaneStream subscription happens via Channel)
+3. Generate a short-lived Channel token: `Phoenix.Token.sign(socket, "channel", %{})` — embed in socket assigns for the template to render as a `<meta>` tag
+4. Assign `:target`, `:channel_token`, `:pane_dead` (false)
 
-**`handle_info` callbacks**:
-- `{:pane_output, _target, data}` → `push_event(socket, "output", %{data: Base.encode64(data)})`
-- `{:pane_dead, _target}` → `push_event(socket, "pane_dead", %{})`
-- `{:pane_superseded, _old_target, new_target}` → unsubscribe, parse new_target, `push_navigate` to new URL
-- `{:pane_resized, cols, rows}` → `push_event(socket, "resized", %{cols: cols, rows: rows})`
-- `{:pane_reconnected, _target, buffer}` → `push_event(socket, "reconnected", %{data: Base.encode64(buffer)})`
-- `{:DOWN, ref, :process, _pid, _reason}` → PaneStream crashed. Demonitor old ref, re-subscribe, push fresh history via "reconnected" event, monitor new PID. If pane gone, show dead UI.
+**`handle_info` callbacks** (subscribed to PubSub `"pane:#{target}"` for control events only):
+- `{:pane_dead, _target}` → assign `:pane_dead` to true (shows overlay in template)
+- `{:pane_superseded, _old_target, new_target}` → `push_navigate` to new URL
+- `{:pane_resized, cols, rows}` → `push_event(socket, "pane_resized", %{cols: cols, rows: rows})`
 
 **`handle_event` callbacks**:
-- `"key_input"` → `Base.decode64/1` (log + ignore invalid), validate size ≤ 128KB, `PaneStream.send_keys(target, bytes)`
 - `"resize"` → validate cols/rows bounds, forward to PaneStream which calls `tmux resize-pane` and broadcasts
 
 **`terminate/2`**:
-- Call `PaneStream.unsubscribe(target)`
+- No PaneStream unsubscribe needed (Channel handles its own lifecycle)
+
+**Note**: Input (`key_input`) and output are handled entirely by the companion Channel — they never touch LiveView. This means LiveView's JSON serialization overhead is avoided for all terminal data.
 
 ### 5.4 Terminal View Template
 
@@ -133,6 +154,32 @@ let liveSocket = new LiveSocket("/live", Socket, {
   </div>
 </div>
 ```
+
+### 5.9 Hybrid LiveView + Channel Architecture
+
+**Why**: LiveView serializes all data as JSON. Terminal output is binary — base64 encoding it adds 33% overhead on every frame. Phoenix Channels natively support binary WebSocket frames with zero encoding overhead.
+
+**How it works**:
+1. User navigates to `/terminal/:target` — LiveView mounts, renders the page and a `<meta name="channel-token">` tag containing a signed Phoenix token
+2. `TerminalHook.mounted()` reads the token from the meta tag, connects to `UserSocket`, and joins `TerminalChannel` with the pane's topic
+3. TerminalChannel subscribes to PaneStream, sends history in the join reply, and pushes binary output frames
+4. Input from the keyboard flows through the Channel as binary frames — never touches LiveView
+5. LiveView handles only control/UI: resize events, pane death overlay, navigation (supersede)
+
+**Data flow**:
+```
+Keyboard → TerminalHook → Channel (binary) → PaneStream → tmux
+tmux → PaneStream → Channel (binary) → TerminalHook → xterm.js
+resize → TerminalHook → LiveView (JSON) → PaneStream → tmux
+pane_dead → PaneStream → LiveView (JSON) → TerminalHook → overlay
+```
+
+**Template meta tag** (in `terminal_live.html.heex`):
+```heex
+<meta name="channel-token" content={@channel_token} />
+```
+
+**Dependency note**: This means Phase 5 depends on Phase 11 (TerminalChannel) for the data path. However, the Phase 11 TerminalChannel is straightforward server-side code that can be built as part of Phase 5 — it's just a Channel module. The Phase 11 doc describes additional Channel features (SessionChannel, binary frame details) but the core TerminalChannel can be implemented here. Alternatively, implement Phase 5 with base64 over LiveView first, then swap to the Channel path when Phase 11 is built — the JS hook abstraction makes this a clean swap.
 
 ### 5.5 Route Configuration
 
@@ -177,21 +224,25 @@ Note: The target param uses `:` and `.` separators (e.g., `mysession:0.1`). Phoe
 ## Files Created/Modified
 ```
 assets/js/hooks/terminal_hook.js
-assets/js/app.js
+assets/js/app.js (update — add UserSocket connection)
 lib/remote_code_agents_web/live/terminal_live.ex
 lib/remote_code_agents_web/live/terminal_live.html.heex
+lib/remote_code_agents_web/channels/terminal_channel.ex (core TerminalChannel — extended in Phase 11)
+lib/remote_code_agents_web/channels/user_socket.ex (update — register terminal:* channel)
 lib/remote_code_agents_web/router.ex (update routes)
 test/remote_code_agents_web/live/terminal_live_test.exs
+test/remote_code_agents_web/channels/terminal_channel_test.exs
 ```
 
 ## Exit Criteria
 - Click a pane in session list → full-viewport terminal opens
-- Terminal shows scrollback history on attach
-- Typing in browser reaches the tmux pane (visible output)
-- Terminal output streams in real-time
+- Terminal shows scrollback history on attach (via Channel join reply)
+- Typing in browser reaches the tmux pane (via Channel binary frames — no base64)
+- Terminal output streams in real-time (via Channel binary frames — no base64)
 - Ctrl+C, arrow keys, escape sequences work correctly
 - Pane death shows overlay with "Back to Sessions" link
-- Resize works: browser resize triggers tmux pane resize
+- Resize works: browser resize triggers tmux pane resize (via LiveView event)
 - Copy/paste works (desktop: Ctrl+Shift+V; selection auto-copies)
-- Multiple browser tabs on same pane share the stream
-- PaneStream crash → terminal recovers transparently
+- Multiple browser tabs on same pane share the PaneStream (each has its own Channel)
+- PaneStream crash → Channel receives `:DOWN`, re-subscribes, pushes fresh history
+- LiveView handles only control/UI — zero terminal data passes through LiveView

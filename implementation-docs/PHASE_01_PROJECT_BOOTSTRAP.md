@@ -198,16 +198,25 @@ defp elixirc_paths(:test), do: ["lib", "test/support"]
 defp elixirc_paths(_), do: ["lib"]
 ```
 
-### 1.12 Logging
+### 1.12 tmux Startup Check (Non-Blocking)
+
+In `application.ex`, after starting the supervision tree, perform a non-blocking tmux availability check:
+- Run `CommandRunner.run(["list-sessions"])` to verify tmux is reachable
+- If tmux binary not found: log `:warning` with message including `$PATH` and suggestions for installation
+- If tmux server not running: log `:info` — this is normal (tmux starts on demand)
+- If tmux version < 2.6: log `:warning` with detected version and minimum required
+- **Do NOT abort startup** — the app should boot and show helpful error UI (Phase 4) instead of crashing
+
+### 1.13 Logging
 
 Add `require Logger` to all modules. Key log events for this phase:
 - `:info` — Application startup: bind address, tmux version, auth mode
 - `:info` — tmux version check result
 - `:warning` — tmux version < 2.6
-- `:warning` — tmux binary not found
+- `:warning` — tmux binary not found (with PATH details)
 - `:debug` — Individual tmux commands executed by CommandRunner (args + exit code)
 
-### 1.13 Verify Boot
+### 1.14 Verify Boot
 
 - `mix deps.get && mix compile`
 - `mix phx.server` starts without errors
