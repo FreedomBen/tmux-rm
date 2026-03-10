@@ -500,8 +500,7 @@ All viewers — first or late — follow the same path. The ring buffer always c
 2. PaneStream receives `{port, {:exit_status, n}}` where `n > 0`
 3. PaneStream checks if the tmux pane is still alive
 4. If alive: restarts the pipeline (new FIFO, new Port, re-attach pipe-pane). Broadcasts `{:pane_reconnected, target, buffer_binary}` via PubSub with the current ring buffer contents. Viewers clear their terminal and re-render from the fresh buffer — this avoids subtle rendering corruption from the interrupted stream. Output briefly pauses during recovery (~10-50ms), then resumes normally.
-5. If dead (or recovery fails, or retry limit exceeded): follows the normal death path above (steps 5-7)
-6. PaneStream cleans up FIFO and terminates
+5. If dead (or recovery fails, or retry limit exceeded): follows the normal pane death path above (pane death steps 5-7 — broadcast `:pane_dead`, grace period, cleanup).
 
 **GenServer crash (PaneStream process itself crashes)**:
 
@@ -1056,7 +1055,7 @@ This application is **fully stateless from a storage perspective**. No database 
 2. `/login` page shows username and password fields.
 3. On submit, server checks:
    a. If `RCA_AUTH_TOKEN` is set and the password matches (constant-time compare), authenticate.
-   b. Otherwise, verify username matches stored username and password matches stored hash via `Bcrypt.verify_pass/2`. On mismatch, call `Bcrypt.no_user_verify/0` to prevent timing attacks.
+   b. Otherwise, look up the stored username. If the username doesn't match, call `Bcrypt.no_user_verify/0` (performs a dummy hash to prevent timing-based username enumeration) and reject. If the username matches, verify the password via `Bcrypt.verify_pass/2`.
 4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; `nil` = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth settings use application config, not the YAML config file, to avoid a circular dependency on the Config GenServer during boot).
 5. All LiveView mounts check `on_mount` hook for valid session. Redirect to `/login` if missing.
 6. **Logout**: `DELETE /logout` (handled by `AuthController`) clears the session cookie and redirects to `/login`. A "Logout" link is shown in the settings panel. For the Android app, logout clears the stored token from `EncryptedSharedPreferences` and navigates to the Login Screen — no server call needed since Phoenix.Token is stateless (the server doesn't track issued tokens).
@@ -1199,8 +1198,8 @@ Mobile viewers are **passive resizers** by default:
 | Kill session | Confirmation dialog per session | `tmux kill-session -t {name}` |
 | Rename session | Inline edit on session name | `tmux rename-session -t {old} {new}` (with name validation) |
 | Create window | "+" button within a session | `tmux new-window -t {session}` |
-| Split pane (horizontal) | "Split ─" button on pane action menu | `tmux split-window -h -t {target}` |
-| Split pane (vertical) | "Split │" button on pane action menu | `tmux split-window -v -t {target}` |
+| Split pane (horizontal) | "Split │" button on pane action menu | `tmux split-window -h -t {target}` — panes side-by-side, vertical divider |
+| Split pane (vertical) | "Split ─" button on pane action menu | `tmux split-window -v -t {target}` — panes stacked, horizontal divider |
 | Kill pane | "x" button on pane in session list | `tmux kill-pane -t {target}` |
 
 #### UI Updates
@@ -1336,7 +1335,21 @@ defmodule RemoteCodeAgents.Config do
   # Convenience wrappers for quick action CRUD
   def upsert_action(params), do: update(&do_upsert_action(&1, params))
   def delete_action(id), do: update(&do_delete_action(&1, id))
-  def reorder_actions(ids), do: update(&do_reorder_actions(&1, ids))
+
+  def reorder_actions(ids) do
+    # Pre-validate IDs before calling update to avoid silently writing
+    # unchanged config on mismatch. Minor TOCTOU race is acceptable for
+    # a single-user tool.
+    config = get()
+    known_ids = MapSet.new(config.quick_actions, & &1.id)
+    requested_ids = MapSet.new(ids)
+
+    if MapSet.equal?(known_ids, requested_ids) do
+      update(&do_reorder_actions(&1, ids))
+    else
+      {:error, :id_mismatch}
+    end
+  end
 
   # --- GenServer callbacks ---
 
@@ -1555,15 +1568,7 @@ defmodule RemoteCodeAgents.Config do
   end
   defp do_reorder_actions(config, ids) do
     by_id = Map.new(config.quick_actions, &{&1.id, &1})
-    known_ids = MapSet.new(Map.keys(by_id))
-    requested_ids = MapSet.new(ids)
-
-    if MapSet.equal?(known_ids, requested_ids) do
-      %{config | quick_actions: Enum.map(ids, &Map.fetch!(by_id, &1))}
-    else
-      Logger.warning("Reorder rejected: ID mismatch (expected #{inspect(MapSet.to_list(known_ids))}, got #{inspect(ids)})")
-      config
-    end
+    %{config | quick_actions: Enum.map(ids, &Map.fetch!(by_id, &1))}
   end
 end
 ```
@@ -1822,6 +1827,7 @@ defmodule RemoteCodeAgentsWeb.SettingsLive do
   def handle_event("reorder_actions", %{"ids" => ids}, socket) do
     case RemoteCodeAgents.Config.reorder_actions(ids) do
       {:ok, updated} -> {:noreply, assign(socket, :config, updated)}
+      {:error, :id_mismatch} -> {:noreply, put_flash(socket, :error, "Quick actions changed — please refresh and try again")}
       {:error, _reason} -> {:noreply, put_flash(socket, :error, "Failed to reorder — check file permissions")}
     end
   end
@@ -1893,8 +1899,6 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
     case RemoteCodeAgents.Config.upsert_action(action_params) do
       {:ok, updated} ->
         conn |> put_status(201) |> json(%{quick_actions: updated.quick_actions})
-      {:error, :validation, message} ->
-        conn |> put_status(422) |> json(%{error: message})
       {:error, reason} ->
         conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
@@ -1903,8 +1907,6 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
   def update(conn, %{"id" => id, "action" => action_params}) do
     case RemoteCodeAgents.Config.upsert_action(Map.put(action_params, "id", id)) do
       {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
-      {:error, :validation, message} ->
-        conn |> put_status(422) |> json(%{error: message})
       {:error, reason} ->
         conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
@@ -1921,6 +1923,8 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
   def reorder(conn, %{"ids" => ids}) do
     case RemoteCodeAgents.Config.reorder_actions(ids) do
       {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
+      {:error, :id_mismatch} ->
+        conn |> put_status(422) |> json(%{error: "ID list does not match existing quick action IDs"})
       {:error, reason} ->
         conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
@@ -1961,6 +1965,17 @@ scope "/api", RemoteCodeAgentsWeb do
   # Custom route before resources to avoid :id shadowing "order"
   put "/quick-actions/order", QuickActionController, :reorder
   resources "/quick-actions", QuickActionController, only: [:index, :create, :update, :delete]
+end
+
+scope "/", RemoteCodeAgentsWeb do
+  pipe_through :browser
+
+  # Login page — outside authenticated scope so unauthenticated users can reach it.
+  # AuthHook is NOT applied here. If the user is already authenticated,
+  # AuthLive redirects to "/" on mount.
+  live_session :unauthenticated do
+    live "/login", AuthLive
+  end
 end
 
 scope "/", RemoteCodeAgentsWeb do
