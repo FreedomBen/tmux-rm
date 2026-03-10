@@ -182,10 +182,10 @@ PaneStream startup (order matters):
      — This opens the write end of the FIFO, unblocking the `cat` reader
   7. Query buffer size: determine ring buffer capacity (see Buffer Sizing below)
   8. Capture initial scrollback: tmux capture-pane -p -e -S -{max_lines} -t {pane_id}
-     — `max_lines` is computed as `ring_buffer_capacity / pane_width` (from step 7),
-       limiting the capture to approximately what the ring buffer can hold. This avoids
-       pulling the full tmux history (potentially tens of MB for large history-limit
-       values) only to discard most of it when writing into the capped ring buffer.
+     — `max_lines` is set to the pane's effective `history-limit` (from step 7),
+       limiting the capture to what the ring buffer was sized to hold. This avoids
+       pulling more history than the buffer can store. (The ring buffer capacity is
+       `history_limit × pane_width`, so `capacity / pane_width = history_limit`.)
      — `-p` outputs to stdout; `-e` preserves ANSI escape sequences. Note:
        this output includes a trailing newline per line, which may differ
        slightly from the raw pty stream delivered by pipe-pane. xterm.js
@@ -251,7 +251,7 @@ The ring buffer is the single source of history for all viewers. Its size is com
 3. Compute: `history_limit × pane_width` bytes (one byte per cell is a rough estimate; ANSI escape sequences from `capture-pane -e` and multi-byte UTF-8 characters add overhead that can exceed this, but most lines aren't full-width, so it roughly balances out)
 4. Clamp the result between `ring_buffer_min_size` (default 512KB) and `ring_buffer_max_size` (default 8MB)
 5. If either tmux query fails, use `ring_buffer_default_size` (default 2MB)
-6. **Memory pressure check**: Before allocating, check `:erlang.memory(:total)` against `memory_high_watermark` (default 768MB). If BEAM memory exceeds the watermark, use `ring_buffer_min_size` instead of the computed size and log a warning: "Memory pressure detected ({current}MB used, watermark {watermark}MB) — using minimum ring buffer size for pane {target}". Existing PaneStreams are not affected — only new ones are constrained. This provides graceful degradation without requiring a central memory coordinator.
+6. **Memory pressure check**: Before allocating, check `:erlang.memory(:total)` against `memory_high_watermark` (default 768MB). If BEAM memory exceeds the watermark, use `ring_buffer_min_size` instead of the computed size and log a warning: "Memory pressure detected ({current_bytes / 1_048_576}MB used, watermark {watermark_bytes / 1_048_576}MB) — using minimum ring buffer size for pane {target}". (Convert bytes to MB for readability in log output.) Existing PaneStreams are not affected — only new ones are constrained. This provides graceful degradation without requiring a central memory coordinator.
 
 **Examples**:
 - Default tmux (2000 lines × 120 cols) = 240KB → clamped to 512KB (floor)
@@ -327,7 +327,7 @@ Example: User types "hi" then Ctrl+C
   - Pushes history to client via `push_event(socket, "history", %{data: ...})`
   - `handle_info({:pane_output, data})` → `push_event(socket, "output", %{data: data})`
   - `handle_info({:pane_dead, _target})` → `push_event(socket, "pane_dead", %{})`
-  - `handle_info({:pane_superseded, _old_target, new_target})` — session/window was renamed. Calls `PaneStream.unsubscribe(target)`, then redirects to the new URL via `push_navigate(socket, to: ~p"/sessions/#{session}/#{window}/#{pane}")` (where session, window, pane are parsed from `new_target`). The new `TerminalLive` mount re-subscribes under the new target, receiving full history from the (new) PaneStream's ring buffer. The user sees a seamless redirect — the terminal briefly reloads with the correct URL.
+  - `handle_info({:pane_superseded, _old_target, new_target})` — session/window was renamed. Calls `PaneStream.unsubscribe(target)`, parses `new_target` by splitting on `:` and `.` (e.g., `"new-name:0.1"` → `session = "new-name"`, `window = "0"`, `pane = "1"`), then redirects to the new URL via `push_navigate(socket, to: ~p"/sessions/#{session}/#{window}/#{pane}")`. The new `TerminalLive` mount re-subscribes under the new target, receiving full history from the (new) PaneStream's ring buffer. The user sees a seamless redirect — the terminal briefly reloads with the correct URL.
   - `handle_info({:DOWN, ref, :process, _pid, _reason})` — PaneStream crashed. The viewer demonitors the old ref, then calls `PaneStream.subscribe(target)` again (which starts or finds the restarted PaneStream). If successful, pushes fresh history to the client (xterm.js `term.reset()` + `term.write(history)` via a `"reconnected"` push event) and monitors the new PID. If the pane no longer exists, transitions to the pane-dead UI. This recovery is transparent to the user — output briefly pauses, then the terminal refreshes with full history.
   - `handle_event("key_input", %{"data" => b64})` → `Base.decode64/1` with error handling (invalid base64 is logged and ignored, not crashed on) → `PaneStream.send_keys(target, bytes)`
   - `handle_event("resize", %{"cols" => c, "rows" => r})` → Phase 1: stored in assigns for future use but no `tmux resize-pane` call is made (resize is disabled). See Resize Conflicts below for the future strategy.
@@ -704,7 +704,7 @@ Application
 ```
 
 - `PaneRegistry` starts first — PaneStreams need it for registration
-- `PaneStreamSupervisor` starts next — ready to accept PaneStream children. Configured with `max_children: 100` to bound resource usage (FIFOs, ports, memory). If the limit is hit, `subscribe/1` returns `{:error, :max_pane_streams}`. This is configurable via `config :remote_code_agents, max_pane_streams: 100`. PaneStream children use `restart: :transient` — they are restarted on abnormal exit (crash) but not on normal exit (graceful shutdown via grace period or pane death).
+- `PaneStreamSupervisor` starts next — ready to accept PaneStream children. Configured with `max_children: 100` to bound resource usage (FIFOs, ports, memory). If the limit is hit, `subscribe/1` returns `{:error, :max_pane_streams}`. This is configurable via `config :remote_code_agents, max_pane_streams: 100`. PaneStream children use `restart: :transient` — they are restarted on abnormal exits but not on `:normal`, `:shutdown`, or `{:shutdown, reason}` exits. All deliberate PaneStream terminations (grace period expiry, pane death, superseded) use `{:stop, :normal, state}` to avoid triggering a supervisor restart.
 - PubSub starts before Config — Config broadcasts via PubSub on config changes
 - Config starts before Endpoint — config must be loaded before LiveViews mount
 - No TmuxManager in the tree — it's a stateless module, not a process
@@ -1107,7 +1107,7 @@ This feature introduces `RemoteCodeAgents.Config` (`lib/remote_code_agents/confi
 
 #### Configuration File
 
-Quick actions are defined in a YAML configuration file at `~/.config/remote_code_agents/config.yaml`. This file is the central place for all server-side user configuration (auth token, quick actions, and any future settings).
+Quick actions are defined in a YAML configuration file at `~/.config/remote_code_agents/config.yaml`. This file is the central place for quick actions and any future non-auth settings. Auth credentials are stored separately (see Authentication & Remote Access).
 
 ```yaml
 # ~/.config/remote_code_agents/config.yaml
@@ -1344,7 +1344,7 @@ defmodule RemoteCodeAgents.Config do
       command: entry["command"],
       confirm: entry["confirm"] == true,
       color: validate_color(entry["color"]),
-      icon: entry["icon"]
+      icon: validate_icon(entry["icon"])
     }
   end
 
@@ -1353,6 +1353,10 @@ defmodule RemoteCodeAgents.Config do
   @valid_colors ~w(default green red yellow blue)
   defp validate_color(c) when c in @valid_colors, do: c
   defp validate_color(_), do: "default"
+
+  @valid_icons ~w(rocket play stop trash arrow-up terminal)
+  defp validate_icon(i) when i in @valid_icons, do: i
+  defp validate_icon(_), do: nil
 
   # CRUD helpers (pure functions on config map)
   defp do_upsert_action(config, params) do
@@ -1369,7 +1373,15 @@ defmodule RemoteCodeAgents.Config do
   end
   defp do_reorder_actions(config, ids) do
     by_id = Map.new(config.quick_actions, &{&1.id, &1})
-    %{config | quick_actions: Enum.map(ids, &Map.fetch!(by_id, &1))}
+    known_ids = MapSet.new(Map.keys(by_id))
+    requested_ids = MapSet.new(ids)
+
+    if MapSet.equal?(known_ids, requested_ids) do
+      %{config | quick_actions: Enum.map(ids, &Map.fetch!(by_id, &1))}
+    else
+      Logger.warning("Reorder rejected: ID mismatch (expected #{inspect(MapSet.to_list(known_ids))}, got #{inspect(ids)})")
+      config
+    end
   end
 end
 ```
@@ -1668,7 +1680,7 @@ DELETE /api/quick-actions/:id   — delete a quick action by stable id
 PUT    /api/quick-actions/order — reorder quick actions (body: {"ids": ["id1","id2","id3"]})
 ```
 
-**Why IDs, not list indices**: Index-based addressing is fragile — if two clients read the list and one deletes an item, the other client's indices become stale and would target the wrong action. Stable IDs (auto-generated UUIDs) prevent this.
+**Why IDs, not list indices**: Index-based addressing is fragile — if two clients read the list and one deletes an item, the other client's indices become stale and would target the wrong action. Stable IDs (auto-generated random tokens via `Base.url_encode64`) prevent this.
 
 All endpoints require the same bearer token auth as other API routes.
 
@@ -1694,23 +1706,31 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
   end
 
   def create(conn, %{"action" => action_params}) do
-    {:ok, updated} = RemoteCodeAgents.Config.upsert_action(action_params)
-    json(conn, %{quick_actions: updated.quick_actions})
+    case RemoteCodeAgents.Config.upsert_action(action_params) do
+      {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
+      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+    end
   end
 
   def update(conn, %{"id" => id, "action" => action_params}) do
-    {:ok, updated} = RemoteCodeAgents.Config.upsert_action(Map.put(action_params, "id", id))
-    json(conn, %{quick_actions: updated.quick_actions})
+    case RemoteCodeAgents.Config.upsert_action(Map.put(action_params, "id", id)) do
+      {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
+      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+    end
   end
 
   def delete(conn, %{"id" => id}) do
-    {:ok, updated} = RemoteCodeAgents.Config.delete_action(id)
-    json(conn, %{quick_actions: updated.quick_actions})
+    case RemoteCodeAgents.Config.delete_action(id) do
+      {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
+      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+    end
   end
 
   def reorder(conn, %{"ids" => ids}) do
-    {:ok, updated} = RemoteCodeAgents.Config.reorder_actions(ids)
-    json(conn, %{quick_actions: updated.quick_actions})
+    case RemoteCodeAgents.Config.reorder_actions(ids) do
+      {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
+      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+    end
   end
 end
 ```
@@ -1748,7 +1768,7 @@ end
 | Color theme | Dark, light, solarized, custom | Dark (xterm.js default) | `localStorage` |
 | Cursor style | Block, underline, bar | Block | `localStorage` |
 | Cursor blink | On/off | On | `localStorage` |
-| Scrollback limit | 1k-100k lines | 10k | `localStorage` |
+| Scrollback limit | 1k-100k lines | 10k | `localStorage` | Note: this controls the xterm.js *client-side* scrollback buffer (how many lines the browser retains for scroll-up). It is independent of the server-side ring buffer and tmux's `history-limit`. |
 | Virtual toolbar | Show/hide, key selection | Show | `localStorage` |
 
 #### Implementation
