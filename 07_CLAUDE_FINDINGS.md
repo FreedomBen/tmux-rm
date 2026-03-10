@@ -23,9 +23,9 @@ Changed default from 5s to 30s. Updated in both the PaneStream lifecycle descrip
 
 Already fully specified in the doc: DynamicSupervisor `max_children: 100`, configurable via `config :remote_code_agents, max_pane_streams: 100`. `subscribe/1` returns `{:error, :max_pane_streams}` when the limit is hit. No changes needed.
 
-### 4. CSRF protection for REST API
+### ~~4. CSRF protection for REST API~~ RESOLVED
 
-The REST API endpoints (`POST /api/sessions`, quick actions CRUD) don't mention CSRF. Should the REST API rely solely on bearer token auth (no CSRF needed since tokens aren't cookie-based), or should CSRF tokens be required too?
+REST API (`/api/*`) routes are exempt from CSRF — they use bearer token auth via `Authorization` header, which isn't vulnerable to CSRF (not auto-attached by the browser). LiveView forms keep Phoenix's built-in CSRF protection (default behavior). Added to Security Considerations section.
 
 ### 5. Rate limiting on `send_keys`
 

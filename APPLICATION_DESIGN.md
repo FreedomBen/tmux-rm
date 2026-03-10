@@ -774,10 +774,11 @@ config :remote_code_agents,
 
 - **Authentication**: This application gives full terminal access. Must be protected:
   - Localhost mode (default): Bind to `127.0.0.1` only — no auth required
-  - Remote mode: Token-based auth required when binding to `0.0.0.0` (see Authentication & Remote Access in Feature Designs). This is a P1 feature — required for mobile use, the primary motivation.
+  - Remote mode: Username+password auth required when binding to `0.0.0.0` (see Authentication & Remote Access in Feature Designs). This is a P1 feature — required for mobile use, the primary motivation.
 - **Input handling**: All input sent via `send-keys -H` (hex mode) — bytes are passed directly to tmux with no shell interpretation. The user is intentionally sending arbitrary commands to a shell — access control is the real security boundary.
 - **Session name validation**: Enforced at `TmuxManager.create_session/1` — only `^[a-zA-Z0-9_-]+$` accepted. Prevents tmux target format injection.
 - **HTTPS**: Required if exposed beyond localhost; configure via Phoenix endpoint or reverse proxy. Also required for Clipboard API access.
+- **CSRF**: Phoenix's built-in CSRF protection applies to all LiveView forms (login, settings, session creation). REST API routes (`/api/*`) are exempt — they use bearer token auth via `Authorization` header, which is not vulnerable to CSRF (tokens are not auto-attached by the browser like cookies are).
 - **Channel auth**: `TerminalChannel` (future) must verify auth token on join to prevent unauthorized WebSocket connections from native apps
 - **FIFO permissions**: Created via `mkfifo -m 0600` (owner read/write only, set at creation time) to prevent other users on the host from reading terminal output
 
