@@ -1,0 +1,110 @@
+# Phase 4: Session List Web UI
+
+## Goal
+Implement the `SessionListLive` page and the `SessionPoller` GenServer. After this phase, users can browse tmux sessions in the web UI, create new sessions, and navigate to terminal views.
+
+## Dependencies
+- Phase 2 complete (TmuxManager)
+- Phase 1 complete (layout, Tailwind Plus components)
+
+## Steps
+
+### 4.1 SessionPoller GenServer
+
+**`lib/remote_code_agents/session_poller.ex`**:
+
+- Polls `TmuxManager.list_sessions/0` (with panes via `list_panes/1`) every `session_poll_interval` (default 3s)
+- Compares result to previous snapshot; if changed, broadcasts `{:sessions_updated, sessions}` on PubSub topic `"sessions"`
+- Exposes `SessionPoller.get/0` — `GenServer.call` returning the last-known session list (synchronous read, no file I/O)
+- Also subscribes to PubSub topic `"sessions"` to handle `{:sessions_changed}` from `TmuxManager` mutations (immediate re-poll on app-driven changes)
+- Stores the last session list in GenServer state for diffing
+- Comparison uses sorted session data (name, window count, pane list) for order-independent equality
+
+### 4.2 SessionListLive
+
+**`lib/remote_code_agents_web/live/session_list_live.ex`**:
+
+**`mount/3`**:
+- Subscribe to PubSub topic `"sessions"` (receives `{:sessions_updated, sessions}`)
+- Fetch initial session list from `SessionPoller.get/0`
+- Assign `:sessions` to socket
+
+**`handle_info`**:
+- `{:sessions_updated, sessions}` → update `:sessions` assign
+
+**`handle_event`**:
+- `"create_session"` — validate name, call `TmuxManager.create_session/1`, show errors on failure
+- `"kill_session"` — call `TmuxManager.kill_session/1` (confirmation handled client-side)
+
+**Template** (`session_list_live.html.heex`):
+- Session cards showing: name, window count, created time, attached status
+- Each session expandable to show panes (index, dimensions, running command)
+- Click a pane → `push_navigate` to `/terminal/{session}:{window}.{pane}`
+- "New Session" button/form — name input with validation, optional starting command
+- Empty state: friendly message when no sessions, prominent "Create Session" CTA
+
+### 4.3 Responsive Layout
+
+**Desktop (>1024px)**:
+- Sidebar with session list
+- Main area placeholder (will be terminal in later phase)
+
+**Tablet (640-1024px)**:
+- Sidebar + terminal split
+
+**Mobile (<640px)**:
+- Full-width card list
+- Large touch targets (min 48px height)
+- "New Session" as a floating action button or full-width button at top
+
+### 4.4 Tailwind Plus Components
+
+Use Tailwind Plus application-ui components for:
+- **Navigation shell**: sidebar + main content area
+- **Card/list components**: session cards, pane list items
+- **Forms**: session creation form (input, button)
+- **Feedback**: flash messages, error banners
+- **Empty states**: no-sessions placeholder
+
+### 4.5 Error States
+
+- **tmux not installed**: Error banner — "tmux is not installed. Please install tmux to use this application."
+- **tmux not running (no sessions)**: Empty state with "Create Session" CTA (not an error — tmux starts on demand)
+- **Session creation failure**: Flash error with reason
+
+### 4.6 Health Check Endpoint
+
+**`lib/remote_code_agents_web/controllers/health_controller.ex`**:
+- `GET /healthz` — unauthenticated
+- Calls `CommandRunner.run(["list-sessions"])` to verify tmux reachable
+- Returns `200 {"status": "ok", "tmux": "ok"}` or `{"tmux": "no_server"}` or `503 {"status": "error", "tmux": "not_found"}`
+
+### 4.7 Tests
+
+**`test/remote_code_agents_web/live/session_list_live_test.exs`**:
+- Mount page, verify sessions render
+- Test "New Session" form submission (valid name, invalid name)
+- Test session list updates via PubSub broadcast
+- Test empty state renders correctly
+- Test error state (mock tmux not found)
+
+## Files Created/Modified
+```
+lib/remote_code_agents/session_poller.ex
+lib/remote_code_agents_web/live/session_list_live.ex
+lib/remote_code_agents_web/live/session_list_live.html.heex
+lib/remote_code_agents_web/controllers/health_controller.ex
+lib/remote_code_agents_web/router.ex (add routes)
+test/remote_code_agents/session_poller_test.exs
+test/remote_code_agents_web/live/session_list_live_test.exs
+```
+
+## Exit Criteria
+- `/` shows session list pulled from tmux
+- Session cards show name, windows, attached status
+- Expanding a session shows its panes with dimensions and commands
+- "New Session" creates a tmux session and list updates immediately
+- Session list auto-updates within 3s of external changes
+- Mobile layout: full-width cards, large touch targets
+- Empty state renders when no sessions exist
+- `/healthz` returns correct status
