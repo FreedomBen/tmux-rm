@@ -702,6 +702,8 @@ remote_code_agents/
         session_controller.ex       # Session CRUD API (list, create, delete)
         quick_action_controller.ex  # CRUD API for quick actions
       live/
+        auth_live.ex                # Login page (username + password form)
+        auth_live.html.heex         # Login template
         session_list_live.ex        # Session listing + creation page
         session_list_live.html.heex # Template
         terminal_live.ex            # Terminal view page
@@ -831,6 +833,7 @@ config :remote_code_agents,
 - **Session name validation**: Enforced at `TmuxManager.create_session/1` — only `^[a-zA-Z0-9_-]+$` accepted. Prevents tmux target format injection.
 - **HTTPS**: Required if exposed beyond localhost; configure via Phoenix endpoint or reverse proxy. Also required for Clipboard API access.
 - **CSRF**: Phoenix's built-in CSRF protection applies to all LiveView forms (login, settings, session creation). REST API routes (`/api/*`) are exempt — they use bearer token auth via `Authorization` header, which is not vulnerable to CSRF (tokens are not auto-attached by the browser like cookies are).
+- **CORS**: Not configured. The REST API is consumed by the native Android app (no CORS needed) and the web UI uses LiveView (same-origin). Cross-origin browser access to the API is not a supported use case.
 - **Channel auth**: `TerminalChannel` verifies auth token on join to prevent unauthorized WebSocket connections from native apps
 - **FIFO permissions**: Created via `mkfifo -m 0600` (owner read/write only, set at creation time) to prevent other users on the host from reading terminal output
 - **Rate limiting**: Per-IP rate limits protect against brute-force and abuse on internet-facing deployments. Implemented as a Plug that tracks request counts per IP using `:ets` (no external dependencies). Rate limit state is lost on application restart — acceptable since restart clears the attack window anyway. Only applied when auth is enabled (remote mode); in localhost mode, rate limiting is skipped.
@@ -861,7 +864,7 @@ config :remote_code_agents,
   **Not rate limited** (and why):
   - Authenticated REST reads (`GET /api/sessions`, `GET /api/quick-actions`) — cheap, bounded by data size, require valid token
   - Channel events (`"input"`, `"resize"`) — post-authentication, bounded by tmux throughput
-  - LiveView mounts — protected by session cookie, Phoenix has built-in connection limits
+  - LiveView mounts (`/live` WebSocket) — protected by session cookie, Phoenix has built-in connection limits. A single-user tool with cookie auth makes LiveView-level rate limiting unnecessary; the auth check itself is the gate.
   - `GET /healthz` — intentionally open for monitoring; returns static data, negligible cost
 
 ## Testing Strategy
@@ -935,7 +938,7 @@ config :remote_code_agents,
 
 8. **FIFO blocking → cat Port**: The `cat` command runs as a Port (separate OS process), blocking on FIFO open without blocking the GenServer. `pipe-pane` opens the write end, unblocking `cat`. Simple and reliable.
 
-9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `subscribe/1` is a module function (not a GenServer call) that checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. It then makes a `GenServer.call` to register the viewer. This "get or start" logic lives inside `subscribe/1` — there is no separate public `get_or_start` function.
+9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `subscribe/1` is a module function (not a GenServer call) that checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. It then makes a `GenServer.call` to register the viewer. Returns `{:ok, history_binary, cols, rows}` on success or `{:error, reason}` (where reason is `:pane_not_found`, `:max_pane_streams`, etc.) on failure. This "get or start" logic lives inside `subscribe/1` — there is no separate public `get_or_start` function.
 
 10. **Resize conflicts → last-writer-wins**: Any viewer can resize the pane; the new dimensions are broadcast to all other viewers. Mobile viewers are passive resizers by default (read-only resize, with optional "Fit to screen" button).
 
@@ -1008,8 +1011,8 @@ This application is **fully stateless from a storage perspective**. No database 
 
 #### Fallback: Static Token (for headless/automated setups)
 
-- **`RCA_AUTH_TOKEN` env var**: If set, the login page accepts this token in the password field (with any username). Verified via `Plug.Crypto.secure_compare/2` (constant-time comparison). This supports systemd services, CI, and scripted deployments where interactive setup isn't possible.
-- **Precedence**: If `RCA_AUTH_TOKEN` is set, both token auth and credentials auth are accepted — whichever matches. If neither credentials file nor env var exists, auth is disabled (localhost-only mode). If the endpoint is bound to `0.0.0.0` and no auth is configured, log a warning on startup.
+- **`RCA_AUTH_TOKEN` env var**: If set (via `config :remote_code_agents, auth_token:` in `runtime.exs`), the login page accepts this token in the password field (with any username). The `Auth` module reads the token from application config (`Application.get_env(:remote_code_agents, :auth_token)`) and verifies via `Plug.Crypto.secure_compare/2` (constant-time comparison). This supports systemd services, CI, and scripted deployments where interactive setup isn't possible.
+- **Precedence**: If `auth_token` is configured, both token auth and credentials auth are accepted — whichever matches. If neither credentials file nor token config exists, auth is disabled (localhost-only mode). If the endpoint is bound to `0.0.0.0` and no auth is configured, log a warning on startup.
 
 #### Auth Flow — Web
 
@@ -1018,7 +1021,7 @@ This application is **fully stateless from a storage perspective**. No database 
 3. On submit, server checks:
    a. If `RCA_AUTH_TOKEN` is set and the password matches (constant-time compare), authenticate.
    b. Otherwise, verify username matches stored username and password matches stored hash via `Bcrypt.verify_pass/2`. On mismatch, call `Bcrypt.no_user_verify/0` to prevent timing attacks.
-4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; `0` or `nil` = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth settings use application config, not the YAML config file, to avoid a circular dependency on the Config GenServer during boot).
+4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; `nil` = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth settings use application config, not the YAML config file, to avoid a circular dependency on the Config GenServer during boot).
 5. All LiveView mounts check `on_mount` hook for valid session. Redirect to `/login` if missing.
 
 #### Auth Flow — Phoenix Channel (Android)
@@ -1033,7 +1036,7 @@ This application is **fully stateless from a storage perspective**. No database 
 #### Implementation Modules
 
 - `RemoteCodeAgentsWeb.Plugs.RequireAuth` — Plug that checks session cookie, redirects to `/login`
-- `RemoteCodeAgentsWeb.AuthLive` — LiveView for the login page (username + password form)
+- `RemoteCodeAgentsWeb.AuthLive` — LiveView for the web login page (username + password form, submits via `handle_event`). The REST API login (`POST /api/login`) is handled by `AuthController` — a separate path for native clients.
 - `RemoteCodeAgentsWeb.AuthHook` — `on_mount` hook for LiveView auth checks
 - `RemoteCodeAgents.Auth` — module that handles credential verification (bcrypt check, token fallback, credentials file I/O)
 
@@ -1237,7 +1240,7 @@ quick_actions:
 |-------|------|----------|---------|-------------|
 | `id` | string | no | auto-generated | Stable identifier. Auto-generated (URL-safe random token) when omitted (e.g., hand-edited YAML). If any actions are missing IDs on load, the file is rewritten with generated IDs to ensure stability across reloads and API clients. Used by the API and Android app for update/delete. |
 | `label` | string | yes | — | Button text (keep short — 1-2 words) |
-| `command` | string | yes | — | Full command string sent to the terminal |
+| `command` | string | yes | — | Full command string sent to the terminal. Max 4096 bytes — validated on save (UI and API reject longer commands). In practice, commands are a few hundred bytes; the limit prevents accidental megabyte payloads. |
 | `confirm` | boolean | no | `false` | Show confirmation dialog before executing. Renders as a LiveView modal (not `window.confirm()`) with the command text, "Execute" and "Cancel" buttons. On mobile, the modal uses full-width buttons for easy tap targets. The `"confirm_action"` / `"cancel_action"` LiveView events handle the response. |
 | `color` | string | no | `"default"` | Button color hint: `"default"`, `"green"`, `"red"`, `"yellow"`, `"blue"` |
 | `icon` | string | no | `null` | Optional icon name (Heroicons subset: `"rocket"`, `"play"`, `"stop"`, `"trash"`, `"arrow-up"`, `"terminal"`). Unrecognized icon names are ignored (no icon rendered). |
@@ -1255,6 +1258,7 @@ quick_actions:
 - **Validation**: On load, validate each quick action entry. Log warnings for invalid entries (missing `label`/`command`, unknown `color`) and skip them rather than crashing.
 - **Missing file**: If no config file exists at startup, the GenServer writes the default config to disk (creating the parent directory via `File.mkdir_p!/1` if needed), then loads it into memory. This ensures a human-editable config file always exists for users to discover and customize.
 - **Malformed file**: If the YAML is malformed on reload, `get/0` returns the last good config (still in GenServer state) and logs a warning. This is safer than the "fall back to defaults" approach — the user doesn't lose their action bar while fixing a typo.
+- **Deleted file**: If the config file is deleted while the app is running, the GenServer keeps the last good config in memory. The poll cycle detects `mtime == nil` and skips reloading. The next `update/1` call will recreate the file on disk (via `mkdir_p` + write). This is intentional — deleting the file doesn't reset the running config.
 - **Auto-creation on save**: `update/1` calls `File.mkdir_p!/1` on the parent directory before writing. If a user creates their first quick action via the Settings UI and no config file exists yet, it will be created automatically.
 - **PubSub topic**: `"config"` — LiveViews subscribe on mount and update assigns on `{:config_changed, config}`.
 
@@ -1643,9 +1647,11 @@ end
 
 defp send_quick_action(socket, action) do
   # Send the command text followed by Enter (newline) as a binary.
-  # Return value intentionally ignored: if the pane is dead, the :pane_dead
-  # PubSub broadcast triggers the "Session ended" overlay within milliseconds,
-  # making a separate error flash redundant.
+  # Return value intentionally ignored: if the pane is dead or no PaneStream
+  # exists, the :pane_dead PubSub broadcast triggers the "Session ended"
+  # overlay within milliseconds, making a separate error flash redundant.
+  # send_keys/2 looks up the PaneStream in the Registry and returns
+  # {:error, :not_found} if none exists (no crash).
   command_with_enter = action.command <> "\n"
   PaneStream.send_keys(socket.assigns.target, command_with_enter)
   {:noreply, socket}
@@ -1703,7 +1709,7 @@ end
 #### Design Principles
 
 - **YAML remains the source of truth**: The UI and API read from and write to `~/.config/remote_code_agents/config.yaml`. No database introduced.
-- **Round-trip safe**: The YAML writer rewrites the file cleanly using `ymlr` (a YAML encoder library) with a header comment explaining the format. Comments in the original file are not preserved — this is acceptable since the structure is simple and the header documents the format.
+- **Round-trip safe**: The YAML writer rewrites the file cleanly using `ymlr` (a YAML encoder library) with a header comment explaining the format. Comments in the original file are not preserved. Unknown top-level keys are also dropped — `to_yaml/1` only serializes known fields (`quick_actions`). This is acceptable since the structure is simple, the header documents the format, and new config sections will be added to `to_yaml/1` as they are implemented.
 - **Immediate effect**: After a save, the updated config is available on the next LiveView mount (already the case — config is re-read per mount).
 - **Conflict-free**: Single-user tool — no concurrent write concerns. The UI reads the current file, presents it for editing, and writes it back atomically (write to temp file + rename).
 
@@ -1873,16 +1879,16 @@ end
 ```elixir
 # router.ex
 scope "/api", RemoteCodeAgentsWeb do
-  pipe_through [:api, :rate_limit_login]
+  pipe_through :api
 
-  post "/login", AuthController, :login
+  post "/login", AuthController, :login  # rate limited via plug RateLimit, key: :login in AuthController
 end
 
 scope "/api", RemoteCodeAgentsWeb do
   pipe_through [:api, :require_auth_token]
 
   get "/sessions", SessionController, :index
-  post "/sessions", SessionController, :create  # rate limited via :rate_limit_session_create plug
+  post "/sessions", SessionController, :create  # rate limited via plug RateLimit, key: :session_create
   delete "/sessions/:name", SessionController, :delete
 
   # Custom route before resources to avoid :id shadowing "order"
@@ -2221,7 +2227,7 @@ class PhoenixChannel(
 
 **Protocol details**:
 - **Text frames** (JSON): `[join_ref, ref, topic, event, payload]` JSON array — used for control messages, join/leave, heartbeat, and replies
-- **Binary frames** (V2 format): `<<join_ref_size::8, topic_size::8, event_size::8, join_ref::bytes, topic::bytes, event::bytes, payload::bytes>>` — used for terminal data (`output`, `reconnected`, `input`)
+- **Binary frames** (V2 format): same header layout as described in "Binary Frames on Phoenix Channel" (Bandwidth Optimization section) — used for terminal data (`output`, `reconnected`, `input`)
 - Heartbeat: send `"heartbeat"` every 30 seconds to keep the WebSocket alive
 - Join: send `"phx_join"` event (text frame), wait for `"phx_reply"` with `"ok"` or `"error"` status
 - Push: send event with auto-incrementing `ref`, match reply by `ref`
@@ -2370,7 +2376,7 @@ android {
             // proguard-rules.pro must include keep rules for:
             // - OkHttp (ships its own rules via META-INF, but verify)
             // - kotlinx.serialization (@Serializable data classes, serializers)
-            // - Retrofit (service interfaces, parameter annotations)
+            // - Ktor (client engine, content negotiation plugin)
             // - Termux terminal-emulator (JNI and reflection if used)
         }
         debug {
