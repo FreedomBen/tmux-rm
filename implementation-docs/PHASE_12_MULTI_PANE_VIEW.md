@@ -34,7 +34,9 @@ Implement `MultiPaneLive` — a view that shows all panes in a tmux window side-
 - `{:DOWN, ...}` — PaneStream crashed, re-subscribe
 
 **`terminate/2`**:
-- Unsubscribe from all PaneStreams
+- Unsubscribe from all PaneStreams (each one independently enters its grace period)
+
+**PaneStream lifecycle in multi-pane**: All PaneStreams for a window are subscribed at mount time. When the user navigates away, `terminate/2` unsubscribes from all of them simultaneously. Each PaneStream independently enters its grace period and shuts down if no other viewers remain. If the user navigates to a different window in the same session, new PaneStreams are subscribed for the new window's panes while the old ones enter grace period.
 
 ### 12.2 Window Tabs
 
@@ -47,24 +49,32 @@ Tab bar across the top of the multi-pane view:
 
 ### 12.3 CSS Grid Layout
 
-Map tmux's pane coordinates to CSS Grid:
+Map tmux's pane coordinates to CSS Grid using proportional sizing:
 
-```javascript
-// Given panes with {left, top, width, height} from tmux:
-// Build a CSS Grid where each pane maps to a grid area
+**Algorithm**:
+1. Query pane geometry: `tmux list-panes -t {session}:{window} -F '#{pane_id}\t#{pane_left}\t#{pane_top}\t#{pane_width}\t#{pane_height}'`
+2. Compute total window dimensions: `total_width = max(pane.left + pane.width)`, `total_height = max(pane.top + pane.height)` across all panes (add 1 for each separator)
+3. Collect unique column boundaries (sorted `pane.left` values + right edges) and row boundaries (sorted `pane.top` values + bottom edges) — these become the grid tracks
+4. Convert each track to a proportional `fr` value: `track_size / total_size` (use `fr` units, not percentages, for better distribution)
+5. Place each pane by finding its start/end column and row indices in the boundary arrays
 
-function buildGridLayout(panes) {
-  // tmux coordinates are in character cells
-  // Map to CSS Grid template columns/rows
-  // Each pane becomes a grid item placed at its coordinates
-}
+```elixir
+# Example: two panes side-by-side (60 cols | 60 cols)
+# pane %0: left=0, top=0, width=60, height=40
+# pane %1: left=61, top=0, width=60, height=40
+# → grid-template-columns: 60fr 60fr
+# → grid-template-rows: 40fr
+# → pane %0: grid-column: 1/2; grid-row: 1/2
+# → pane %1: grid-column: 2/3; grid-row: 1/2
 ```
+
+**Note on fidelity**: CSS Grid uses proportional sizing which closely approximates tmux's character-cell layout but may differ by a few pixels. This is acceptable — the web view is a monitor, not a pixel-perfect replica. Each pane's xterm.js instance will `fit()` to its grid cell and may have slightly different dimensions than the tmux pane.
 
 Template approach:
 ```heex
 <div
   id="multi-pane-grid"
-  style={"display: grid; grid-template-columns: #{grid_cols}; grid-template-rows: #{grid_rows};"}
+  style={"display: grid; grid-template-columns: #{grid_cols}; grid-template-rows: #{grid_rows}; gap: 2px;"}
   class="h-full"
 >
   <div
@@ -74,7 +84,7 @@ Template approach:
     phx-hook="TerminalHook"
     phx-update="ignore"
     data-target={pane.target}
-    class="border border-gray-700 min-h-0"
+    class="border border-gray-700 min-h-0 overflow-hidden"
   >
   </div>
 </div>
@@ -124,7 +134,7 @@ Shared layout poller that avoids redundant `tmux list-panes` calls across multip
 - **Key**: `{session, window}` — one LayoutPoller per active window
 - **Started lazily**: `LayoutPoller.get(session, window)` starts a poller via DynamicSupervisor if not already running
 - **Registration**: `{:via, Registry, {PaneRegistry, {:layout_poller, session, window}}}`
-- **Polling**: runs `tmux list-panes -t {session}:{window} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'` every 2s
+- **Polling**: runs `tmux list-panes -t {session}:{window} -F '#{pane_id}\t#{pane_left}\t#{pane_top}\t#{pane_width}\t#{pane_height}'` every 2s (tab-separated for reliable parsing)
 - **Diffing**: compares new layout to previous; on change, broadcasts `{:layout_updated, panes}` on PubSub topic `"layout:{session}:{window}"`
 - **Also subscribes** to PubSub `"sessions"` to trigger immediate re-poll on `{:sessions_changed}` (split/close via app)
 - **Grace period**: shuts down 30s after the last viewer unsubscribes from its PubSub topic (detected via Phoenix.PubSub listener count, or explicit reference counting)

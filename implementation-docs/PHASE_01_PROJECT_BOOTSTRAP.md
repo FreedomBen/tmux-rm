@@ -32,6 +32,8 @@ defp deps do
     {:bcrypt_elixir, "~> 3.0"},
     {:yaml_elixir, "~> 2.11"},
     {:ymlr, "~> 5.0"},
+    {:mox, "~> 1.0", only: :test},
+    {:corsica, "~> 2.0"},
   ]
 end
 ```
@@ -113,15 +115,88 @@ Set up route structure with pipeline stubs:
 - Responsive shell: sidebar for desktop, bottom nav for mobile
 - `core_components.ex` with shared UI primitives
 
-### 1.10 tmux Version Check
+### 1.10 CommandRunner Behaviour & Implementation
 
-- Create `RemoteCodeAgents.Tmux.CommandRunner` module
-- Implement `run/1` and `run!/1` functions
+**`lib/remote_code_agents/tmux/command_runner_behaviour.ex`** — behaviour for testability:
+```elixir
+defmodule RemoteCodeAgents.Tmux.CommandRunnerBehaviour do
+  @doc "Run a tmux command with the given arguments. Returns stdout on success."
+  @callback run(args :: [String.t()]) :: {:ok, String.t()} | {:error, {String.t(), non_neg_integer()}}
+
+  @doc "Run a tmux command. Raises on failure."
+  @callback run!(args :: [String.t()]) :: String.t()
+end
+```
+
+**`lib/remote_code_agents/tmux/command_runner.ex`** — real implementation:
+- Implements `CommandRunnerBehaviour`
+- `run/1` — builds full command with socket args, calls `System.cmd/3`, returns `{:ok, stdout}` or `{:error, {stderr, exit_code}}`
+- `run!/1` — calls `run/1`, raises on error
 - Socket path support (`-S` / `-L` from config)
 - tmux version check on first call (cache in `:persistent_term`)
 - Log error if tmux < 2.6
 
-### 1.11 Verify Boot
+**Application config** — allow swapping the implementation for tests:
+```elixir
+# config/config.exs
+config :remote_code_agents, :command_runner, RemoteCodeAgents.Tmux.CommandRunner
+
+# config/test.exs
+config :remote_code_agents, :command_runner, RemoteCodeAgents.MockCommandRunner
+```
+
+All modules that call CommandRunner should use:
+```elixir
+defp command_runner, do: Application.get_env(:remote_code_agents, :command_runner)
+```
+
+### 1.11 Test Infrastructure
+
+Set up test infrastructure early so all subsequent phases can write tests immediately:
+
+**`test/test_helper.exs`**:
+```elixir
+ExUnit.start(exclude: [:skip])
+
+# Exclude tmux integration tests if tmux not installed
+unless System.find_executable("tmux") do
+  ExUnit.configure(exclude: [:tmux])
+end
+```
+
+**`test/support/mocks.ex`**:
+```elixir
+Mox.defmock(RemoteCodeAgents.MockCommandRunner, for: RemoteCodeAgents.Tmux.CommandRunnerBehaviour)
+```
+
+**`test/support/tmux_helpers.ex`**:
+```elixir
+defmodule RemoteCodeAgents.TmuxHelpers do
+  def create_test_session(name \\ nil) do
+    name = name || "test-#{:rand.uniform(100_000)}"
+    {_, 0} = System.cmd("tmux", ["new-session", "-d", "-s", name])
+    name
+  end
+
+  def destroy_test_session(name) do
+    System.cmd("tmux", ["kill-session", "-t", name])
+  end
+
+  def setup_tmux(_context) do
+    name = create_test_session()
+    on_exit(fn -> destroy_test_session(name) end)
+    %{session: name}
+  end
+end
+```
+
+Ensure `test/support` is compiled in test env via `mix.exs`:
+```elixir
+defp elixirc_paths(:test), do: ["lib", "test/support"]
+defp elixirc_paths(_), do: ["lib"]
+```
+
+### 1.12 Verify Boot
 
 - `mix deps.get && mix compile`
 - `mix phx.server` starts without errors
@@ -131,6 +206,7 @@ Set up route structure with pipeline stubs:
 ## Files Created/Modified
 ```
 lib/remote_code_agents/application.ex
+lib/remote_code_agents/tmux/command_runner_behaviour.ex
 lib/remote_code_agents/tmux/command_runner.ex
 lib/remote_code_agents_web/endpoint.ex
 lib/remote_code_agents_web/router.ex
@@ -143,6 +219,9 @@ config/runtime.exs
 assets/package.json
 assets/css/app.css
 mix.exs
+test/test_helper.exs
+test/support/mocks.ex
+test/support/tmux_helpers.ex
 ```
 
 ## Exit Criteria

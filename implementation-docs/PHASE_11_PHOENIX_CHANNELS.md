@@ -14,10 +14,10 @@ Implement `TerminalChannel` and `SessionChannel` — the server-side Channel inf
 
 **`lib/remote_code_agents_web/channels/terminal_channel.ex`**:
 
-**Topic**: `"terminal:{session}:{window}:{pane}"` — client-facing join topic.
+**Topic**: `"terminal:{session}:{window}:{pane}"` — client-facing join topic. Uses colons as separators because Phoenix Channel topics use `:` for namespacing.
 
 **`join/3`**:
-1. Parse topic into PaneStream target: `"terminal:foo:0:1"` → `"foo:0.1"`
+1. Parse topic into PaneStream target format `"session:window.pane"`: e.g., `"terminal:foo:0:1"` → `"foo:0.1"`. The canonical target format throughout the codebase is `"session:window.pane"` (colon between session and window, dot between window and pane). The Channel topic uses an extra colon only because Channel topics require the `"terminal:"` prefix for routing.
 2. Call `PaneStream.subscribe/1` (same as TerminalLive)
 3. Monitor returned `pane_stream_pid`
 4. On success: reply `{:ok, %{"history" => base64_history, "cols" => cols, "rows" => rows}}`

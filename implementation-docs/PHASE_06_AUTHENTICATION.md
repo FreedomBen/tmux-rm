@@ -3,6 +3,8 @@
 ## Goal
 Implement username+password authentication with bcrypt, optional static token fallback, session cookies for web, bearer tokens for API/Channel, rate limiting, and the login page. After this phase, the app can be safely exposed beyond localhost.
 
+**Scope**: This is a **single-user system** by design. One username+password pair is stored in a credentials file. There is no user management, no roles, no authorization layer — any authenticated user has full access to all sessions, panes, and settings. This matches the intended use case: a single developer managing their own tmux sessions remotely.
+
 ## Dependencies
 - Phase 5 complete (terminal view working)
 - `bcrypt_elixir` dependency (Phase 1)
@@ -94,6 +96,7 @@ Implement username+password authentication with bcrypt, optional static token fa
 - `check/2` — increment counter, return `:ok` or `{:error, :rate_limited, retry_after}`
 - Window: truncated to current minute (`System.system_time(:second) |> div(60)`)
 - Periodic cleanup: every 5 minutes, sweep entries older than 2 minutes
+- **Max table size**: If ETS table exceeds 100,000 entries (indicating a distributed attack), flush the entire table and log a warning. This prevents unbounded memory growth.
 
 **`lib/remote_code_agents_web/plugs/rate_limit.ex`** — Plug:
 - Configured per-route: `plug RateLimit, key: :login` or `key: :session_create`

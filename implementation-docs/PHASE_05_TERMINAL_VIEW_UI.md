@@ -52,6 +52,12 @@ Implement `TerminalLive` and the `TerminalHook` JavaScript module. After this ph
 - Paste: intercept Ctrl+Shift+V → `navigator.clipboard.readText()` → send as `"key_input"` event
 - Fallback to `document.execCommand` for older browsers
 
+**LiveView reconnection handling**:
+- When LiveView reconnects (e.g., after network drop or server restart), `mounted()` fires again on the same DOM element
+- On reconnect: check if xterm.js instance already exists on `this.el`; if so, call `term.reset()` before writing new history
+- The server re-runs `mount/3` on reconnect, which re-subscribes to PaneStream and pushes fresh history via the `"history"` event
+- This ensures the terminal state is reconciled: server sends full ring buffer contents, client resets and replays
+
 **`destroyed()`**:
 - Dispose xterm.js instance
 - Cancel any pending timers
@@ -136,6 +142,11 @@ live "/terminal/:target", TerminalLive
 ```
 
 Note: The target param uses `:` and `.` separators (e.g., `mysession:0.1`). Phoenix routes handle this fine — the entire path segment is captured as the `:target` param.
+
+**URL scheme relationship with Phase 12**: This single-pane view (`/terminal/:target`) provides a full-viewport terminal for one pane. Phase 12 adds a multi-pane view (`/sessions/:session/windows/:window`) showing all panes in a window. Both views coexist:
+- Session list (Phase 4) links to individual panes via `/terminal/:target` for the single-pane experience
+- Phase 12 adds an additional "Window view" link to `/sessions/:session/windows/:window`
+- The multi-pane view has a "Focus" button per pane that navigates to `/terminal/:target`
 
 ### 5.6 Resize Handling
 

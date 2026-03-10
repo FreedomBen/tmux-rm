@@ -62,7 +62,8 @@ Uses the resolved `pane_id` (not the target string) for stability across session
   1. Subscribe caller to PubSub topic `"pane:#{target}"`
   2. Look up or start PaneStream via Registry + DynamicSupervisor
   3. `GenServer.call` to register viewer (monitor PID, add to MapSet)
-  4. Return `{:ok, history_binary, pane_stream_pid}` or `{:error, reason}`
+  4. Return `{:ok, history :: binary(), pane_stream_pid :: pid()}` or `{:error, reason}`
+     - `history` is always a single contiguous binary (from `RingBuffer.read/1` which returns `IO.iodata_to_binary/1`)
   5. On error, unsubscribe from PubSub before returning
 
 - `unsubscribe/1` — called by viewer process:
@@ -80,11 +81,13 @@ Uses the resolved `pane_id` (not the target string) for stability across session
 
 ### 3.3 Output Handling (Coalescing)
 
+**Algorithm**: Both timer-based and size-based coalescing. Defaults from config: `output_coalesce_ms: 3` (3ms timer), `output_coalesce_max_bytes: 32_768` (32KB size cap).
+
 In `handle_info({port, {:data, bytes}})`:
-1. Append bytes to IO list accumulator
-2. If no coalesce timer active, start one (`Process.send_after(self(), :flush_output, coalesce_ms)`)
-3. If accumulator exceeds `output_coalesce_max_bytes` (32KB), flush immediately
-4. On `:flush_output`: convert accumulator to binary, append to ring buffer, broadcast `{:pane_output, target, binary}` via PubSub, clear accumulator
+1. Append bytes to IO list accumulator, increment `coalesce_bytes` counter
+2. If `coalesce_bytes >= output_coalesce_max_bytes` (32KB), flush immediately (size-triggered)
+3. If no coalesce timer active, start one: `Process.send_after(self(), :flush_output, output_coalesce_ms)` (timer-triggered)
+4. On `:flush_output`: convert accumulator to binary via `IO.iodata_to_binary/1`, append to ring buffer, broadcast `{:pane_output, target, binary}` via PubSub, reset accumulator and `coalesce_bytes` to 0, clear timer ref
 
 ### 3.4 Viewer Lifecycle
 

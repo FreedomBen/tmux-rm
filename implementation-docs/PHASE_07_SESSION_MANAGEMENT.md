@@ -100,11 +100,52 @@ PUT    /api/sessions/:name       — rename session
 POST   /api/sessions/:name/windows — create window
 ```
 
+**Response schemas**:
+
+`GET /api/sessions` → 200:
+```json
+{
+  "sessions": [
+    {
+      "name": "my-session",
+      "windows": 2,
+      "created": 1710000000,
+      "attached": false,
+      "panes": [
+        {"session_name": "my-session", "window_index": 0, "index": 0, "width": 120, "height": 40, "command": "bash", "pane_id": "%0"}
+      ]
+    }
+  ]
+}
+```
+
+`POST /api/sessions` — body: `{"name": "session-name", "command": "optional-command"}` → 201:
+```json
+{"name": "session-name", "status": "created"}
+```
+
+`PUT /api/sessions/:name` — body: `{"name": "new-name"}` → 200:
+```json
+{"name": "new-name", "status": "renamed"}
+```
+
+`DELETE /api/sessions/:name` → 200: `{"status": "ok"}`
+
+**Error responses** (all endpoints):
+- 400: `{"error": "invalid_name", "message": "Session name must match ^[a-zA-Z0-9_-]+$"}`
+- 404: `{"error": "not_found", "message": "Session 'foo' not found"}`
+- 409: `{"error": "already_exists", "message": "Session 'foo' already exists"}`
+- 422: `{"error": "validation_failed", "message": "..."}`
+- 429: `{"error": "rate_limited", "retry_after": 45}`
+
 **`lib/remote_code_agents_web/controllers/pane_controller.ex`**:
 ```
 POST   /api/panes/:target/split  — split pane (body: {"direction": "horizontal"|"vertical"})
 DELETE /api/panes/:target        — kill pane
 ```
+
+`POST /api/panes/:target/split` → 201: `{"pane_id": "%5", "status": "created"}`
+`DELETE /api/panes/:target` → 200: `{"status": "ok"}`
 
 ### 7.9 Tests
 

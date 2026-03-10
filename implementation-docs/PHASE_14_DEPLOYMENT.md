@@ -181,6 +181,8 @@ CMD ["/app/bin/remote_code_agents", "start"]
 
 The Dockerfile installs tmux inside the container, so the default mode runs tmux sessions *inside* the container. To connect to **host** tmux sessions instead, mount the host's tmux socket and set `RCA_TMUX_SOCKET`.
 
+**UID/GID mapping for host tmux access**: The container must run as the same UID as the host user who owns the tmux socket. Use `--user $(id -u):$(id -g)` when running the container, or set `user:` in docker-compose. The tmux socket is typically at `/tmp/tmux-{UID}/default` and is only readable by the owning user.
+
 **`docker-compose.yml`** (optional, for easy testing):
 ```yaml
 services:
@@ -194,19 +196,48 @@ services:
       - PHX_HOST=localhost
       # Uncomment for host tmux access:
       # - RCA_TMUX_SOCKET=/tmp/tmux-host/default
+    # user: "1000:1000"  # Must match host UID:GID for tmux socket access
     # volumes:
       # Uncomment for host tmux access (replace 1000 with your UID):
       # - /tmp/tmux-1000:/tmp/tmux-host
 ```
 
-### 14.7 BEAM Distribution Safety
+### 14.7 Configuration Precedence
+
+When the same setting can be specified in multiple places, the precedence order is:
+
+1. **Environment variables** (highest priority) — e.g., `RCA_AUTH_TOKEN`, `PORT`, `PHX_HOST`
+2. **YAML config file** (`~/.config/remote_code_agents/config.yaml`) — quick actions, app settings
+3. **`config/runtime.exs`** compile-time defaults (lowest priority)
+
+This is enforced in `config/runtime.exs` by only reading env vars with `||` fallbacks, and in the `Config` GenServer by merging YAML values over defaults. Environment variables always win because they're read in `runtime.exs` before the Config GenServer starts.
+
+### 14.8 CORS Configuration
+
+For deployments where native clients or external tools access the REST API from a different origin:
+
+- By default, no CORS headers are set (same-origin only)
+- If `RCA_CORS_ORIGIN` env var is set, add CORS headers via a Plug:
+  ```elixir
+  # In endpoint.ex or a dedicated plug:
+  if origin = Application.get_env(:remote_code_agents, :cors_origin) do
+    plug Corsica, origins: origin, allow_headers: ["authorization", "content-type"]
+  end
+  ```
+- For single-origin deployments: `RCA_CORS_ORIGIN=https://my-app.example.com`
+- For development: `RCA_CORS_ORIGIN=*`
+- Add `{:corsica, "~> 2.0"}` to deps in `mix.exs` (Phase 1)
+
+Note: WebSocket connections (LiveView and Channels) are not affected by CORS — they use the `check_origin` setting on the endpoint, which is already configured by Phoenix.
+
+### 14.9 BEAM Distribution Safety
 
 Ensure production release does NOT enable BEAM distribution:
 - Default `mix release` config does not start EPMD or distributed Erlang
 - Verify: the release should start with `--no-epmd` by default
 - If remote debugging is needed, use `--remsh` over SSH, not network distribution
 
-### 14.8 Secret Key Generation
+### 14.10 Secret Key Generation
 
 Document how to generate `SECRET_KEY_BASE`:
 ```bash
@@ -215,7 +246,7 @@ mix phx.gen.secret
 openssl rand -base64 64
 ```
 
-### 14.9 HTTPS Configuration Options
+### 14.11 HTTPS Configuration Options
 
 Document the three deployment options for remote access:
 
@@ -225,17 +256,24 @@ Document the three deployment options for remote access:
 
 Provide example nginx/Caddy configs for option 1.
 
-### 14.10 Health Check Integration
+### 14.12 Health Check Integration
 
 - systemd: use `ExecStartPost` with curl to `/healthz` or `Type=notify` with health checks
 - Docker: `HEALTHCHECK CMD curl -f http://localhost:4000/healthz || exit 1`
 - Reverse proxy: upstream health check to `/healthz`
 
-### 14.11 Logging
+### 14.13 Logging
 
 - Ensure meaningful actions are logged (startup, auth events, pane stream lifecycle)
 - Production log level: `:info` (configurable via `LOGGER_LEVEL` env var)
 - Structured logging format for log aggregation (optional: `logger_json` dependency)
+- **Key events to log** (at `:info` level):
+  - Application startup (bind address, auth mode, tmux version)
+  - Authentication events (login success/failure — log IP, not password)
+  - PaneStream lifecycle (start, subscriber count changes, grace period, shutdown)
+  - Config file changes (loaded, reloaded, malformed)
+- **Warning-level events**: auth disabled on 0.0.0.0, malformed config, rate limit table flush
+- **Debug-level events**: individual tmux commands (useful for troubleshooting, noisy in production)
 
 ## Files Created/Modified
 ```

@@ -10,7 +10,9 @@ Establish comprehensive test coverage across all layers (unit, integration, Live
 
 ### 13.1 Test Infrastructure
 
-**Test configuration** (`config/test.exs`):
+**Note**: Core test infrastructure (Mox setup, `MockCommandRunner`, `TmuxHelpers`, `test_helper.exs`) is established in **Phase 1** (step 1.11) so that all subsequent phases can write tests immediately. This phase extends and formalizes that foundation.
+
+**Test configuration** (`config/test.exs`) — extend what Phase 1 set up:
 ```elixir
 config :remote_code_agents,
   pane_stream_grace_period: 100,    # Short for fast tests
@@ -18,32 +20,6 @@ config :remote_code_agents,
   session_poll_interval: 500,       # Faster polling in tests
   config_poll_interval: 500,
   output_coalesce_ms: 0             # Disable coalescing in tests for determinism
-```
-
-**Test helpers** (`test/support/tmux_helpers.ex`):
-```elixir
-defmodule RemoteCodeAgents.TmuxHelpers do
-  def create_test_session(name \\ nil) do
-    name = name || "test-#{:rand.uniform(100_000)}"
-    {_, 0} = System.cmd("tmux", ["new-session", "-d", "-s", name])
-    name
-  end
-
-  def destroy_test_session(name) do
-    System.cmd("tmux", ["kill-session", "-t", name])
-  end
-
-  def setup_tmux(_context) do
-    name = create_test_session()
-    on_exit(fn -> destroy_test_session(name) end)
-    %{session: name}
-  end
-end
-```
-
-**Mox setup** (`test/support/mocks.ex`):
-```elixir
-Mox.defmock(RemoteCodeAgents.MockCommandRunner, for: RemoteCodeAgents.Tmux.CommandRunnerBehaviour)
 ```
 
 ### 13.2 Unit Tests (No tmux Required)

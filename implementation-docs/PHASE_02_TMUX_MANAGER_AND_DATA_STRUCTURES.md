@@ -4,7 +4,7 @@
 Implement the stateless `TmuxManager` module that discovers, lists, and creates tmux sessions/panes, along with the supporting data structures (`Session`, `Pane`, `RingBuffer`). After this phase, the app can query tmux state and has the ring buffer ready for terminal streaming.
 
 ## Dependencies
-- Phase 1 complete (CommandRunner available)
+- Phase 1 complete (CommandRunner behaviour + implementation, test infrastructure with Mox)
 
 ## Steps
 
@@ -46,7 +46,7 @@ end
 
 - `kill_pane/1` — runs `tmux kill-pane -t {target}`. Broadcasts `{:sessions_changed}`.
 
-All tmux commands go through `CommandRunner.run/1`.
+All tmux commands go through the `CommandRunnerBehaviour` implementation (resolved via `Application.get_env(:remote_code_agents, :command_runner)`).
 
 ### 2.3 Session Name Validation
 
@@ -58,7 +58,7 @@ All tmux commands go through `CommandRunner.run/1`.
 
 **`lib/remote_code_agents/ring_buffer.ex`** — circular byte buffer:
 
-- `new(capacity)` — creates a ring buffer with the given byte capacity
+- `new(capacity)` — creates a ring buffer with the given byte capacity. Default capacity is `ring_buffer_default_size` (2MB from Phase 1 config). Min/max bounds: `ring_buffer_min_size` (512KB) / `ring_buffer_max_size` (8MB).
 - `append(buffer, binary)` — appends bytes, overwrites oldest data when full
 - `read(buffer)` — returns a single contiguous binary (concatenating the two halves of the circular buffer)
 - `size(buffer)` — returns current byte count
@@ -70,7 +70,7 @@ Suggested approach: store data as a list of binaries with a total byte count. On
 ### 2.5 Unit Tests
 
 **`test/remote_code_agents/tmux_manager_test.exs`**:
-- Mock `CommandRunner` to return canned tmux output
+- Use `Mox` with `MockCommandRunner` (set up in Phase 1) to return canned tmux output
 - Test `list_sessions/0` parsing with various format strings
 - Test `list_panes/1` parsing
 - Test session name validation (valid names, invalid names with special chars)

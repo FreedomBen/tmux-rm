@@ -65,9 +65,13 @@ const term = new Terminal({
 });
 ```
 
-### 10.3 Settings Panel (Client-Side Preferences Section)
+### 10.3 Preferences Panel (Client-Side, Separate from Settings Page)
 
-Add a preferences section to the Settings page (or a slide-out panel accessible from the gear icon in the terminal header):
+**Important**: Phase 8's `/settings` page (`SettingsLive`) manages server-side quick action configuration via the YAML config file. User preferences are purely client-side (localStorage) and do NOT belong on that page. Instead, implement preferences as a **slide-out panel triggered by the gear icon in the terminal header**. This keeps the two concerns cleanly separated:
+- `/settings` = server-side config (quick actions) — LiveView
+- Gear icon panel = client-side preferences (font, theme, cursor) — pure JS
+
+The preferences panel slides out from the right side of the terminal view:
 
 - **Font size**: slider or number input (8-24px range), with live preview
 - **Font family**: dropdown with common monospace fonts (monospace, Fira Code, JetBrains Mono, Source Code Pro, Courier New)
@@ -139,20 +143,18 @@ savePrefs({ ...loadPrefs(), fontSize: currentFontSize });
 
 ### 10.8 Implementation Approach
 
-The preferences UI can be implemented as:
-1. **LiveView + JS interop**: Settings page is a LiveView, but preference changes are handled client-side via a JS hook that reads/writes localStorage and updates xterm.js options
-2. **Pure client-side panel**: A JS-rendered slide-out panel (no LiveView involvement) triggered by the gear icon. Simpler since no server interaction is needed.
-
-Recommend option 2 for simplicity — this is purely a client feature.
+Implement as a **pure client-side slide-out panel** (no LiveView involvement) triggered by the gear icon in the terminal header. This is purely a client feature — no server interaction needed. The panel is rendered by a JS module (`preferences_panel.js`) and communicates with `TerminalHook` to apply changes live.
 
 ## Files Created/Modified
 ```
 assets/js/hooks/terminal_hook.js (update — preference loading/saving)
 assets/js/preferences.js (new — preference management, theme definitions)
 assets/js/preferences_panel.js (new — settings panel UI)
-assets/css/app.css (update — settings panel styles)
-lib/remote_code_agents_web/live/terminal_live.html.heex (update — gear icon trigger)
+assets/css/app.css (update — preferences panel styles)
+lib/remote_code_agents_web/live/terminal_live.html.heex (update — gear icon triggers JS panel, NOT navigate to /settings)
 ```
+
+Note: Phase 8's `settings_live.ex` is NOT modified by this phase. The gear icon in the terminal header opens the client-side preferences panel, not the `/settings` page. A separate link to `/settings` (for quick action management) remains in the app navigation.
 
 ## Exit Criteria
 - Terminal loads with user's saved preferences (font, theme, cursor)
