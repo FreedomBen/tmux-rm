@@ -964,7 +964,7 @@ config :remote_code_agents,
 11. Pane resize sync (last-writer-wins with broadcast)
 12. Health check endpoint (`GET /healthz`)
 13. Authentication & remote access (username+password, optional static token)
-14. Session management (kill, rename, create window, kill pane)
+14. Session management (kill, rename, create window, split pane, kill pane)
 15. Quick actions (configurable command buttons, YAML config, Settings UI, REST API)
 16. User preferences (font, theme, cursor — client-side `localStorage`)
 17. REST API for native clients (login, sessions, quick actions)
@@ -1101,9 +1101,13 @@ Events carrying terminal data (`output`, `reconnected`, `input`) are sent as **b
 2. **`SessionChannel`**: For real-time session list updates. The Android app joins the `"sessions"` topic on connect. The `SessionChannel` subscribes to PubSub topic `"sessions"` and forwards `{:sessions_updated, sessions}` broadcasts from `SessionPoller` as `"sessions_updated"` push events to the client. No per-Channel polling — the shared `SessionPoller` handles all tmux queries.
 
 ```
-POST /api/sessions        — create session (body: {"name": "...", "command": "..."})
-GET  /api/sessions        — list sessions with panes (initial fetch, pull-to-refresh)
-DELETE /api/sessions/:name — kill session
+POST   /api/sessions             — create session (body: {"name": "...", "command": "..."})
+GET    /api/sessions             — list sessions with panes (initial fetch, pull-to-refresh)
+DELETE /api/sessions/:name       — kill session
+PUT    /api/sessions/:name       — rename session (body: {"name": "new-name"})
+POST   /api/sessions/:name/windows — create window in session
+POST   /api/panes/:target/split  — split pane (body: {"direction": "horizontal" | "vertical"})
+DELETE /api/panes/:target        — kill pane
 ```
 
 **SessionChannel events**:
@@ -1159,6 +1163,8 @@ Mobile viewers are **passive resizers** by default:
 | Kill session | Confirmation dialog per session | `tmux kill-session -t {name}` |
 | Rename session | Inline edit on session name | `tmux rename-session -t {old} {new}` (with name validation) |
 | Create window | "+" button within a session | `tmux new-window -t {session}` |
+| Split pane (horizontal) | "Split ─" button on pane action menu | `tmux split-window -h -t {target}` |
+| Split pane (vertical) | "Split │" button on pane action menu | `tmux split-window -v -t {target}` |
 | Kill pane | "x" button on pane in session list | `tmux kill-pane -t {target}` |
 
 #### UI Updates
@@ -2094,6 +2100,11 @@ A native Android app (also named "tmux-rm") that connects to the tmux-rm server,
 - Expanding a session card shows its panes (pane index, dimensions, running command)
 - Tap a pane → navigate to Terminal Screen with `session:window.pane` target
 - "New Session" FAB → bottom sheet with name input and optional command
+- Session action menu (long-press or kebab icon): rename session, create window, kill session (with confirmation)
+- Rename session: inline edit dialog with name validation → `PUT /api/sessions/:name`
+- Create window: `POST /api/sessions/:name/windows`
+- Pane action menu (long-press on pane within expanded session card): split horizontal, split vertical, kill pane
+- Split pane: `POST /api/panes/:target/split` with direction → navigates to the new pane on success
 - Swipe-to-delete on sessions (with confirmation dialog) → `DELETE /api/sessions/:name`
 - **Pull-to-refresh**: Calls `GET /api/sessions` as a fallback (e.g., if the Channel is momentarily disconnected). Under normal operation, the Channel push keeps the list current without polling.
 - Leaves the `"sessions"` topic when navigating away from the screen
@@ -2422,7 +2433,8 @@ android {
 **All features ship in v1** — no phased rollout. The full feature set:
 - Connect to server, authenticate
 - List sessions and panes
-- Create/kill sessions
+- Create/kill/rename sessions
+- Create windows, split panes (horizontal/vertical), kill panes
 - Open a terminal session (stream output, send input)
 - Special key toolbar (Esc, Tab, Ctrl, Alt, arrows, F1-F12, PgUp/PgDn, Home/End)
 - Quick action buttons (read and CRUD management)
