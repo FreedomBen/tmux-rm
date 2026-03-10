@@ -1,13 +1,13 @@
 # Not Run Yet
 
-- Let's add the design details for the android app to APPLICATION_DESIGN.md .  Start with everything you already know and can infer from the rest of the document, and then make a list of things we need to decide on.
-
 - let's write up a comprehensive implementation plan.  break into phases if necessary.  Write each phase to a seprate file in implementation-docs directory with names like
   PHASE_01_DO_SOMETHING.md.  Don't plan implementation for the android app quite yet.
 
 - Let's go through the application and ensure that we are logging any meaningful action.
 
 # Already Run
+
+- Let's add the design details for the android app to APPLICATION_DESIGN.md .  Start with everything you already know and can infer from the rest of the document, and then make a list of things we need to decide on.
 
 - Let's define out tech stack.  Write decision to TECH_STACK.md.  Write out what we already know, and let's discuss the remaining options.  We do want to use tailwind css.  I bought a tailwind UI/tailwind Plus license and have files in ~/gitclone/tailwind-ui-tailwind-plus/tailwindplus that you can and should use as a starting point.  What else do we need to decide on for the tech stack?
 
