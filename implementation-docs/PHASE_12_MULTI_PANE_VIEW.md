@@ -19,15 +19,14 @@ Implement `MultiPaneLive` — a view that shows all panes in a tmux window side-
 
 **`mount/3`**:
 1. Parse session and window from params
-2. Subscribe to PubSub topic `"sessions"` (for window add/remove/rename detection)
+2. Subscribe to PubSub topics: `"sessions"` (window add/remove), `"layout:{session}:{window}"` (layout changes)
 3. Fetch window list for the session (for tab bar)
-4. Poll pane layout: `tmux list-panes -t {session}:{window} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'`
+4. Fetch initial layout from `LayoutPoller.get(session, window)` (starts poller if not running)
 5. For each pane, call `PaneStream.subscribe/1` — get history and PID
 6. Monitor all PaneStream PIDs
-7. Start layout poll timer (`Process.send_after(self(), :poll_layout, 2_000)`)
 
 **`handle_info` callbacks**:
-- `:poll_layout` — re-fetch pane layout from tmux, compare to current. If changed, update CSS Grid layout, re-subscribe to new panes, unsubscribe from removed panes. Reschedule poll.
+- `{:layout_updated, panes}` — compare to current pane set. Subscribe to new panes, unsubscribe from removed panes, update CSS Grid layout.
 - `{:sessions_updated, _}` — update window tab list
 - `{:pane_output, target, data}` — route to correct xterm.js instance using `target` to identify the pane
 - `{:pane_dead, target}` — mark pane as dead in layout
@@ -116,15 +115,31 @@ Multi-pane view is desktop/tablet only (>640px):
 - No CSS Grid layout on mobile — panes listed vertically as cards with preview thumbnails (or just metadata)
 - Alternatively: horizontal swipe between panes in the same window
 
-### 12.8 Layout Refresh
+### 12.8 LayoutPoller GenServer
 
-The `list-panes` poll (every 2-3s) detects layout changes:
+**`lib/remote_code_agents/layout_poller.ex`**:
+
+Shared layout poller that avoids redundant `tmux list-panes` calls across multiple viewers of the same window. Same pattern as `SessionPoller`.
+
+- **Key**: `{session, window}` — one LayoutPoller per active window
+- **Started lazily**: `LayoutPoller.get(session, window)` starts a poller via DynamicSupervisor if not already running
+- **Registration**: `{:via, Registry, {PaneRegistry, {:layout_poller, session, window}}}`
+- **Polling**: runs `tmux list-panes -t {session}:{window} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'` every 2s
+- **Diffing**: compares new layout to previous; on change, broadcasts `{:layout_updated, panes}` on PubSub topic `"layout:{session}:{window}"`
+- **Also subscribes** to PubSub `"sessions"` to trigger immediate re-poll on `{:sessions_changed}` (split/close via app)
+- **Grace period**: shuts down 30s after the last viewer unsubscribes from its PubSub topic (detected via Phoenix.PubSub listener count, or explicit reference counting)
+- **Pane death**: if `list-panes` returns empty or errors (window killed), broadcast final empty layout and terminate
+
+### 12.9 Layout Refresh
+
+The LayoutPoller (every 2-3s) detects layout changes:
 - User splits a pane via tmux → new pane appears in grid
 - User closes a pane via tmux → pane removed from grid
 - User resizes a pane via tmux → grid proportions update
 - Smooth transitions via CSS Grid animations
+- All viewers of the same window share one poller — no redundant tmux calls
 
-### 12.9 Tests
+### 12.10 Tests
 
 - Mount multi-pane view with a window containing 2+ panes
 - Verify all panes render with xterm.js instances
@@ -133,13 +148,16 @@ The `list-panes` poll (every 2-3s) detects layout changes:
 - Test pane removal (kill via tmux → pane removed)
 - Test mobile fallback (list view instead of grid)
 - Test redirect from `/sessions/:session` to active window
+- Test LayoutPoller: shared across viewers, grace period shutdown, layout diffing
 
 ## Files Created/Modified
 ```
+lib/remote_code_agents/layout_poller.ex
 lib/remote_code_agents_web/live/multi_pane_live.ex
 lib/remote_code_agents_web/live/multi_pane_live.html.heex
 assets/js/hooks/terminal_hook.js (update — multi-instance support)
 lib/remote_code_agents_web/router.ex (add routes)
+test/remote_code_agents/layout_poller_test.exs
 test/remote_code_agents_web/live/multi_pane_live_test.exs
 ```
 

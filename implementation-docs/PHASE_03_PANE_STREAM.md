@@ -44,7 +44,7 @@ Implement the `PaneStream` GenServer — the heart of the application. This brid
 4. Create named pipe: `mkfifo -m 0600 {fifo_path}`
 5. Start Port: `open_port({:spawn, "cat #{fifo_path}"}, [:binary, :stream, :exit_status])`
 6. Attach pipe: `tmux pipe-pane -t {pane_id} -o 'cat >> #{fifo_path}'`
-7. Query buffer size (history-limit × pane width, clamped to min/max)
+7. Query buffer size (history-limit × pane width, clamped to `ring_buffer_min_size`/`ring_buffer_max_size`)
 8. Capture scrollback: `tmux capture-pane -p -e -S -{max_lines} -t {pane_id}`
 9. Write scrollback into ring buffer
 10. Set status to `:streaming`

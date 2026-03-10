@@ -139,12 +139,14 @@ Note: The target param uses `:` and `.` separators (e.g., `mysession:0.1`). Phoe
 
 ### 5.6 Resize Handling
 
+- **Strategy: last writer wins.** Any desktop viewer can send resize events; the most recent one takes effect. This is simple and matches tmux's own behavior (the last `resize-pane` call wins).
 - Client sends resize after `FitAddon.fit()` and on window resize (debounced 300ms)
 - Server validates: cols 1-500, rows 1-200
 - Server calls `tmux resize-pane -t {pane_id} -x {cols} -y {rows}` via PaneStream
 - PaneStream broadcasts `{:pane_resized, cols, rows}` to all viewers
 - Other viewers receive and resize their xterm.js instances
 - Throttle: server ignores resize events within 500ms of last resize for same pane
+- Mobile viewers are passive resizers (Phase 9) — they do not send resize events
 
 ### 5.7 Mobile Layout
 
