@@ -499,9 +499,21 @@ All viewers — first or late — follow the same path. The ring buffer always c
 1. `cat` Port is killed externally (OOM, signal) — exits with non-zero status
 2. PaneStream receives `{port, {:exit_status, n}}` where `n > 0`
 3. PaneStream checks if the tmux pane is still alive
-4. If alive: restarts the pipeline (new FIFO, new Port, re-attach pipe-pane), resumes streaming. Viewers are unaware — output briefly pauses then resumes.
+4. If alive: restarts the pipeline (new FIFO, new Port, re-attach pipe-pane). Broadcasts `{:pane_reconnected, target, buffer_binary}` via PubSub with the current ring buffer contents. Viewers clear their terminal and re-render from the fresh buffer — this avoids subtle rendering corruption from the interrupted stream. Output briefly pauses during recovery (~10-50ms), then resumes normally.
 5. If dead (or recovery fails, or retry limit exceeded): follows the normal death path above (steps 5-7)
 6. PaneStream cleans up FIFO and terminates
+
+**GenServer crash (PaneStream process itself crashes)**:
+
+If PaneStream exits abnormally (e.g., unhandled exception), the supervisor restarts it (`restart: :transient`). However, viewers hold monitors on the *old* process and receive `:DOWN`. Recovery flow:
+
+1. Old PaneStream crashes — supervisor starts a new PaneStream with the same target.
+2. New PaneStream re-establishes pipe-pane pipeline, captures fresh scrollback into ring buffer.
+3. Viewers receive `{:DOWN, ref, :process, old_pid, reason}` for the old PaneStream.
+4. Viewer `handle_info(:DOWN, ...)` calls `PaneStream.subscribe/1` again, which finds the new PaneStream in the Registry.
+5. Viewer receives fresh history from the new PaneStream's ring buffer (via the normal subscribe reply), clears and re-renders.
+
+The `reconnected` Channel/LiveView event is used only for pipeline recovery (step 4 above), not for GenServer crashes. GenServer crashes are handled by the viewer re-subscribing after `:DOWN`.
 
 ### Resize Conflict Resolution
 
@@ -602,7 +614,7 @@ Client debounces resize events (300ms) to avoid flooding during window resize dr
 
 ### 7. Ring Buffer Cap
 
-History buffer sized dynamically per pane (see Buffer Sizing), clamped between 512KB and 8MB. Provides full scrollback context without excessive transfer on initial attach. Under memory pressure, new panes use the minimum buffer size.
+History buffer sized dynamically per pane (see Resolved Design Decision #2 — "History → unified ring buffer"), clamped between 512KB and 8MB. Provides full scrollback context without excessive transfer on initial attach. Under memory pressure, new panes use the minimum buffer size.
 
 ## Clipboard Integration
 
@@ -696,19 +708,26 @@ remote_code_agents/
         user_socket.ex              # Socket configuration
       plugs/
         require_auth.ex             # Plug: checks session cookie, redirects to /login
+        require_auth_token.ex       # Plug: checks bearer token in Authorization header (REST API)
         rate_limit.ex               # Plug: per-IP rate limiting via ETS (login, websocket, session create)
+      rate_limit_store.ex           # GenServer: owns rate limit ETS table, periodic cleanup
       controllers/                  # REST API (for native clients)
-        auth_controller.ex          # POST /api/login — returns bearer token
+        auth_controller.ex          # POST /api/login, DELETE /logout — auth endpoints
         health_controller.ex        # GET /healthz endpoint
-        session_controller.ex       # Session CRUD API (list, create, delete)
+        session_controller.ex       # Session CRUD API (list, create, delete, rename, create window)
+        pane_controller.ex          # Pane API (split, delete)
+        config_controller.ex        # GET /api/config — full config as JSON
         quick_action_controller.ex  # CRUD API for quick actions
       live/
+        auth_hook.ex                # on_mount hook for LiveView auth checks
         auth_live.ex                # Login page (username + password form)
         auth_live.html.heex         # Login template
         session_list_live.ex        # Session listing + creation page
         session_list_live.html.heex # Template
         terminal_live.ex            # Terminal view page
         terminal_live.html.heex     # Template
+        multi_pane_live.ex          # Multi-pane split view (session view)
+        multi_pane_live.html.heex   # Template
         settings_live.ex            # Settings panel (quick actions CRUD)
         settings_live.html.heex     # Settings template
       components/
@@ -750,6 +769,7 @@ Application
   ├── Phoenix.PubSub (RemoteCodeAgents.PubSub)
   ├── RemoteCodeAgents.SessionPoller (GenServer)
   ├── RemoteCodeAgents.Config (GenServer)
+  ├── RemoteCodeAgentsWeb.RateLimitStore (GenServer — owns ETS table, periodic cleanup)
   └── RemoteCodeAgentsWeb.Endpoint
 ```
 
@@ -799,7 +819,9 @@ config :remote_code_agents,
   # connections without perceptible delay on fast ones.
   output_coalesce_ms: 3,
   # Flush coalesced output immediately if accumulated bytes exceed this threshold
-  output_coalesce_max_bytes: 32_768  # 32 KB
+  output_coalesce_max_bytes: 32_768,  # 32 KB
+  # Auth session/token TTL (days). nil = never expire (re-auth only on explicit logout).
+  auth_session_ttl_days: 30
 
 # config/dev.exs
 config :remote_code_agents, RemoteCodeAgentsWeb.Endpoint,
@@ -847,7 +869,7 @@ config :remote_code_agents,
   | WebSocket upgrade (`/socket/websocket`) | 10 attempts | 1 minute | Connection rejected (HTTP 429 before upgrade) |
   | `POST /api/sessions` | 10 requests | 1 minute | `429 Too Many Requests` with same format |
 
-  **Implementation**: `RemoteCodeAgentsWeb.Plugs.RateLimit` — a Plug that uses an ETS table (`:set`, `:public`, with `read_concurrency: true`) to track `{ip, endpoint_key, window_start}` → `count`. The window start is truncated to the current minute (`System.system_time(:second) |> div(60)`). Stale entries are cleaned up lazily — on each request, if the window has rolled over, the old entry is replaced. A periodic cleanup (every 5 minutes via `Process.send_after` in the application supervisor) sweeps entries older than 2 minutes to prevent unbounded ETS growth from many distinct IPs.
+  **Implementation**: `RemoteCodeAgentsWeb.Plugs.RateLimit` — a Plug that uses an ETS table (`:set`, `:public`, with `read_concurrency: true`) to track `{ip, endpoint_key, window_start}` → `count`. The window start is truncated to the current minute (`System.system_time(:second) |> div(60)`). Stale entries are cleaned up lazily — on each request, if the window has rolled over, the old entry is replaced. A periodic cleanup (every 5 minutes via a `Process.send_after` loop inside the `RateLimit` module's companion GenServer, started in the supervision tree) sweeps entries older than 2 minutes to prevent unbounded ETS growth from many distinct IPs. The GenServer owns the ETS table; the Plug reads from it directly (`:public` table with `read_concurrency: true`).
 
   **Configuration**:
   ```elixir
@@ -869,6 +891,8 @@ config :remote_code_agents,
   - Channel events (`"input"`, `"resize"`) — post-authentication, bounded by tmux throughput
   - LiveView mounts (`/live` WebSocket) — protected by session cookie, Phoenix has built-in connection limits. A single-user tool with cookie auth makes LiveView-level rate limiting unnecessary; the auth check itself is the gate.
   - `GET /healthz` — intentionally open for monitoring; returns static data, negligible cost
+
+- **BEAM distribution**: The Erlang distribution protocol must be disabled in production when the app is exposed beyond localhost. Distribution allows arbitrary code execution by anyone who knows the BEAM cookie. The Mix release should start with `--no-epmd` and the endpoint should not enable distribution (this is the default for `mix release` in production). If remote BEAM debugging is needed, use `--remsh` over SSH rather than exposing distribution on the network.
 
 ## Testing Strategy
 
@@ -914,7 +938,7 @@ config :remote_code_agents,
 - **Stale PaneStream detection and cleanup**: When a viewer navigates to the new name, `subscribe/1` starts a new PaneStream under the new target. During init, the new PaneStream resolves `pane_id` and attempts to register `{:pane_id, pane_id}` in the Registry. This collides with the old PaneStream's registration, triggering the supersede flow:
     1. The new PaneStream sends `{:superseded, new_target}` to the old PaneStream.
     2. The old PaneStream detaches its `pipe-pane`, cleans up its FIFO, broadcasts `{:pane_superseded, old_target, new_target}` to its viewers, and terminates normally.
-    3. Viewers of the old PaneStream receive the `{:pane_superseded, old_target, new_target}` message and can redirect to the new URL. Viewers that don't handle this message recover via the `:DOWN` monitor.
+    3. Viewers of the old PaneStream receive the `{:pane_superseded, old_target, new_target}` message. **Web (LiveView)**: `TerminalLive.handle_info` calls `push_navigate(socket, to: ~p"/terminal/#{new_target}")` to redirect to the new URL. **Channel (Android)**: `TerminalChannel` pushes a `"pane_superseded"` event with the new target; the client leaves the old topic and re-joins under the new one (see Android Terminal Screen lifecycle step 8). Viewers that don't handle this message recover via the `:DOWN` monitor.
     4. The new PaneStream retries its `{:pane_id, pane_id}` registration, succeeds, and proceeds with normal startup.
   This ensures at most one PaneStream per underlying tmux pane, with no duplicate `pipe-pane`/FIFO pipelines.
 
@@ -943,11 +967,20 @@ config :remote_code_agents,
 
 9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `subscribe/1` is a module function (not a GenServer call) that checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. It then makes a `GenServer.call` to register the viewer. Returns `{:ok, history_binary, cols, rows}` on success or `{:error, reason}` (where reason is `:pane_not_found`, `:max_pane_streams`, etc.) on failure. This "get or start" logic lives inside `subscribe/1` — there is no separate public `get_or_start` function.
 
+    **Race condition handling**: If two viewers call `subscribe/1` concurrently for the same target, both may see "not found" in Registry and attempt `DynamicSupervisor.start_child`. PaneStream's `init/1` registers itself in the Registry via `{:via, Registry, {PaneRegistry, {:pane, target}}}` (the `name` option in `start_link`). The second `start_child` receives `{:error, {:already_started, pid}}` because Registry rejects duplicate keys. `subscribe/1` handles this by extracting the existing PID from the error tuple and proceeding with the `GenServer.call` to register the viewer — same as if the process had been found in the initial lookup.
+
+    **`send_keys/2`**: `PaneStream.send_keys(target, bytes)` is a convenience function that looks up the PaneStream in Registry via `{:pane, target}` and makes a `GenServer.call(:send_keys, bytes)`. Returns `:ok` on success or `{:error, :not_found}` if no PaneStream is registered for that target (e.g., pane is dead, no viewer has subscribed). The GenServer handler converts `bytes` to hex and calls `tmux send-keys -H -t {pane_id} {hex_bytes}` via `CommandRunner`.
+
 10. **Resize conflicts → last-writer-wins**: Any viewer can resize the pane; the new dimensions are broadcast to all other viewers. Mobile viewers are passive resizers by default (read-only resize, with optional "Fit to screen" button).
 
 11. **Session name validation → strict**: Only `^[a-zA-Z0-9_-]+$` allowed. Prevents tmux target format breakage from colons/periods in names.
 
 12. **Pane targeting → stable pane_id with dual registration**: PaneStream resolves tmux's stable `pane_id` (e.g., `%0`) during startup and uses it for all tmux commands (`send-keys`, `pipe-pane`, `capture-pane`, existence checks). The human-readable `target` (`session:window.pane`) is used only for the primary Registry key, PubSub topics, display, and URL routing. A secondary Registry key `{:pane_id, pane_id}` detects stale PaneStreams after session/window renames — the new PaneStream supersedes the old one, ensuring at most one PaneStream per underlying tmux pane.
+
+    **PubSub topics** (complete list):
+    - `"pane:{target}"` — per-pane events: `{:pane_output, bytes}`, `{:pane_reconnected, target, buffer_binary}`, `{:pane_resized, cols, rows}`, `{:pane_dead, target}`, `{:pane_superseded, old_target, new_target}`. Subscribed by `TerminalLive` and `TerminalChannel`.
+    - `"sessions"` — session list changes: `{:sessions_updated, sessions}`. Published by `SessionPoller`, subscribed by `SessionListLive` and `SessionChannel`.
+    - `"config"` — config file changes: `{:config_changed, config}`. Published by `Config` GenServer, subscribed by `TerminalLive` and `SettingsLive`.
 
 ## Scope
 
@@ -1026,6 +1059,7 @@ This application is **fully stateless from a storage perspective**. No database 
    b. Otherwise, verify username matches stored username and password matches stored hash via `Bcrypt.verify_pass/2`. On mismatch, call `Bcrypt.no_user_verify/0` to prevent timing attacks.
 4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; `nil` = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth settings use application config, not the YAML config file, to avoid a circular dependency on the Config GenServer during boot).
 5. All LiveView mounts check `on_mount` hook for valid session. Redirect to `/login` if missing.
+6. **Logout**: `DELETE /logout` (handled by `AuthController`) clears the session cookie and redirects to `/login`. A "Logout" link is shown in the settings panel. For the Android app, logout clears the stored token from `EncryptedSharedPreferences` and navigates to the Login Screen — no server call needed since Phoenix.Token is stateless (the server doesn't track issued tokens).
 
 #### Auth Flow — Phoenix Channel (Android)
 
@@ -1039,8 +1073,10 @@ This application is **fully stateless from a storage perspective**. No database 
 #### Implementation Modules
 
 - `RemoteCodeAgentsWeb.Plugs.RequireAuth` — Plug that checks session cookie, redirects to `/login`
+- `RemoteCodeAgentsWeb.Plugs.RequireAuthToken` — Plug that reads bearer token from `Authorization` header, verifies via `Phoenix.Token.verify/4`, returns 401 on failure. Used by the `:require_auth_token` pipeline for REST API routes.
 - `RemoteCodeAgentsWeb.AuthLive` — LiveView for the web login page (username + password form, submits via `handle_event`). The REST API login (`POST /api/login`) is handled by `AuthController` — a separate path for native clients.
-- `RemoteCodeAgentsWeb.AuthHook` — `on_mount` hook for LiveView auth checks
+- `RemoteCodeAgentsWeb.AuthController` — handles `POST /api/login` (returns Phoenix.Token for native clients) and `DELETE /logout` (clears session cookie, redirects to `/login`)
+- `RemoteCodeAgentsWeb.AuthHook` — `on_mount` hook for LiveView auth checks (used in `live_session` block in router)
 - `RemoteCodeAgents.Auth` — module that handles credential verification (bcrypt check, token fallback, credentials file I/O)
 
 #### HTTPS
@@ -1086,7 +1122,7 @@ Events carrying terminal data (`output`, `reconnected`, `input`) are sent as **b
 | C→S | `input` | binary | raw bytes | Keyboard/touch input. Max 128KB. |
 | C→S | `resize` | JSON | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane`. |
 | S→C | `output` | binary | raw bytes | Streaming terminal output. |
-| S→C | `reconnected` | binary | raw bytes | Full buffer after PaneStream crash recovery. Client should clear and re-render. |
+| S→C | `reconnected` | binary | raw bytes | Full ring buffer after pipe-pane pipeline recovery (Port crash, not GenServer crash). Client should clear terminal and re-render from this buffer. |
 | S→C | `pane_dead` | JSON | `%{}` | Pane/session ended |
 | S→C | `pane_superseded` | JSON | `%{"new_target" => string}` | Session/window renamed. Client can rejoin under new topic. |
 | S→C | `resized` | JSON | `%{"cols" => int, "rows" => int}` | Pane was resized by another viewer |
@@ -1159,7 +1195,7 @@ Mobile viewers are **passive resizers** by default:
 
 | Action | UI | tmux command |
 |--------|-----|-------------|
-| Create session | Form with name + optional command | `tmux new-session -d -s {name} [-x cols -y rows] [command]` — command is passed as a single argument to `System.cmd` (list form, no shell interpolation), so no escaping is needed. tmux passes it to the shell via `exec`. |
+| Create session | Form with name + optional command | `tmux new-session -d -s {name} [-x cols -y rows] [command]` — command is passed as a single argument to `System.cmd` (list form), so the Elixir→tmux boundary has no shell interpolation. Note: tmux itself passes the command to the user's shell via `exec`, so shell features (pipes, `&&`, env vars) work as expected. This is intentional — the user is providing a command they want to run. |
 | Kill session | Confirmation dialog per session | `tmux kill-session -t {name}` |
 | Rename session | Inline edit on session name | `tmux rename-session -t {old} {new}` (with name validation) |
 | Create window | "+" button within a session | `tmux new-window -t {session}` |
@@ -1822,7 +1858,7 @@ Extends the REST API with config endpoints:
 ```
 GET    /api/config              — returns full config as JSON
 GET    /api/quick-actions       — returns quick actions list
-POST   /api/quick-actions       — add a new quick action (returns the created action with its generated id)
+POST   /api/quick-actions       — add a new quick action (returns the full updated list including the new action with its generated id)
 PUT    /api/quick-actions/:id   — update a quick action by stable id
 DELETE /api/quick-actions/:id   — delete a quick action by stable id
 PUT    /api/quick-actions/order — reorder quick actions (body: {"ids": ["id1","id2","id3"]})
@@ -1855,29 +1891,38 @@ defmodule RemoteCodeAgentsWeb.QuickActionController do
 
   def create(conn, %{"action" => action_params}) do
     case RemoteCodeAgents.Config.upsert_action(action_params) do
-      {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
-      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      {:ok, updated} ->
+        conn |> put_status(201) |> json(%{quick_actions: updated.quick_actions})
+      {:error, :validation, message} ->
+        conn |> put_status(422) |> json(%{error: message})
+      {:error, reason} ->
+        conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
   end
 
   def update(conn, %{"id" => id, "action" => action_params}) do
     case RemoteCodeAgents.Config.upsert_action(Map.put(action_params, "id", id)) do
       {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
-      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      {:error, :validation, message} ->
+        conn |> put_status(422) |> json(%{error: message})
+      {:error, reason} ->
+        conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
   end
 
   def delete(conn, %{"id" => id}) do
     case RemoteCodeAgents.Config.delete_action(id) do
       {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
-      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      {:error, reason} ->
+        conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
   end
 
   def reorder(conn, %{"ids" => ids}) do
     case RemoteCodeAgents.Config.reorder_actions(ids) do
       {:ok, updated} -> json(conn, %{quick_actions: updated.quick_actions})
-      {:error, reason} -> conn |> put_status(500) |> json(%{error: inspect(reason)})
+      {:error, reason} ->
+        conn |> put_status(500) |> json(%{error: "Failed to write config: #{inspect(reason)}"})
     end
   end
 end
@@ -1887,6 +1932,14 @@ end
 
 ```elixir
 # router.ex
+
+pipeline :require_auth_token do
+  plug RemoteCodeAgentsWeb.Plugs.RequireAuthToken
+  # Reads bearer token from Authorization header, verifies via
+  # Phoenix.Token.verify/4. Returns 401 with {"error": "unauthorized"}
+  # on missing/invalid/expired token.
+end
+
 scope "/api", RemoteCodeAgentsWeb do
   pipe_through :api
 
@@ -1899,7 +1952,12 @@ scope "/api", RemoteCodeAgentsWeb do
   get "/sessions", SessionController, :index
   post "/sessions", SessionController, :create  # rate limited via plug RateLimit, key: :session_create
   delete "/sessions/:name", SessionController, :delete
+  put "/sessions/:name", SessionController, :update  # rename session
+  post "/sessions/:name/windows", SessionController, :create_window
+  post "/panes/:target/split", PaneController, :split
+  delete "/panes/:target", PaneController, :delete
 
+  get "/config", ConfigController, :show  # full config as JSON
   # Custom route before resources to avoid :id shadowing "order"
   put "/quick-actions/order", QuickActionController, :reorder
   resources "/quick-actions", QuickActionController, only: [:index, :create, :update, :delete]
@@ -1908,9 +1966,16 @@ end
 scope "/", RemoteCodeAgentsWeb do
   pipe_through [:browser, :require_auth]
   # :require_auth is a no-op in localhost mode (no auth configured).
-  # When auth is enabled (remote access), this protects the settings page.
+  # When auth is enabled (remote access), this protects all LiveViews.
 
-  live "/settings", SettingsLive
+  delete "/logout", AuthController, :logout
+
+  live_session :authenticated, on_mount: [RemoteCodeAgentsWeb.AuthHook] do
+    live "/", SessionListLive
+    live "/terminal/:target", TerminalLive
+    live "/sessions/:session", MultiPaneLive
+    live "/settings", SettingsLive
+  end
 end
 ```
 
