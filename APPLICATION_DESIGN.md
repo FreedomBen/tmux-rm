@@ -4,7 +4,7 @@
 
 A web application built with Elixir, Phoenix, and LiveView that runs on a host computer and provides a browser-based interface to interact with tmux sessions. This enables remote access to terminal sessions — particularly useful for monitoring and interacting with long-running processes, code agents, or development environments.
 
-The application must work well over high-latency and low-bandwidth connections, and be fully usable on mobile browsers. A native Android app is a future target, so the architecture should cleanly separate the transport/API layer from the web UI.
+The application must work well over high-latency and low-bandwidth connections, and be fully usable on mobile browsers. A native Android app is also a target, so the architecture cleanly separates the transport/API layer from the web UI.
 
 ## Goals
 
@@ -65,7 +65,7 @@ The web and native clients use different transport mechanisms but share the same
 
 1. **Web (LiveView)**: Terminal I/O flows through the existing LiveView WebSocket via `push_event` (server→client) and `handle_event` (client→server). The `TerminalHook` on the client translates between LiveView events and xterm.js. This avoids opening a second WebSocket connection from the browser.
 
-2. **Native Android (Phoenix Channel)**: Connects directly to a `TerminalChannel` via a dedicated WebSocket. Speaks a simple binary/JSON protocol. This is **future** — the Channel is not needed for the web client.
+2. **Native Android (Phoenix Channel)**: Connects directly to a `TerminalChannel` via a dedicated WebSocket. Speaks a simple binary/JSON protocol. Not used by the web client.
 
 3. **Shared backend**: Both LiveView processes and Channel processes subscribe to the same PubSub topics and call the same PaneStream API. No terminal logic is duplicated.
 
@@ -73,7 +73,7 @@ The web and native clients use different transport mechanisms but share the same
 Web browser:
   xterm.js ↔ TerminalHook ↔ LiveView push_event/handle_event ↔ PaneStream
 
-Android app (future):
+Android app:
   TerminalView ↔ TerminalChannel ↔ PaneStream
 ```
 
@@ -330,15 +330,15 @@ Example: User types "hi" then Ctrl+C
   - `handle_info({:pane_superseded, _old_target, new_target})` — session/window was renamed. Calls `PaneStream.unsubscribe(target)`, parses `new_target` by splitting on `:` and `.` (e.g., `"new-name:0.1"` → `session = "new-name"`, `window = "0"`, `pane = "1"`), then redirects to the new URL via `push_navigate(socket, to: ~p"/sessions/#{session}/#{window}/#{pane}")`. The new `TerminalLive` mount re-subscribes under the new target, receiving full history from the (new) PaneStream's ring buffer. The user sees a seamless redirect — the terminal briefly reloads with the correct URL.
   - `handle_info({:DOWN, ref, :process, _pid, _reason})` — PaneStream crashed. The viewer demonitors the old ref, then calls `PaneStream.subscribe(target)` again (which starts or finds the restarted PaneStream). If successful, pushes fresh history to the client (xterm.js `term.reset()` + `term.write(history)` via a `"reconnected"` push event) and monitors the new PID. If the pane no longer exists, transitions to the pane-dead UI. This recovery is transparent to the user — output briefly pauses, then the terminal refreshes with full history.
   - `handle_event("key_input", %{"data" => b64})` → `Base.decode64/1` with error handling (invalid base64 is logged and ignored, not crashed on) → `PaneStream.send_keys(target, bytes)`
-  - `handle_event("resize", %{"cols" => c, "rows" => r})` → Phase 1: stored in assigns for future use but no `tmux resize-pane` call is made (resize is disabled). See Resize Conflicts below for the future strategy.
+  - `handle_event("resize", %{"cols" => c, "rows" => r})` → forwards to `PaneStream` which calls `tmux resize-pane -t {pane_id} -x {cols} -y {rows}` and broadcasts `{:pane_resized, cols, rows}` to all viewers. See Resize Conflict Resolution below.
   - `terminate/2`: calls `PaneStream.unsubscribe(target)`. Note: `terminate/2` is best-effort — it does not run on node crash or hard network timeout. The real safety net is PaneStream's monitor on the viewer PID, which fires a `:DOWN` message and triggers auto-unsubscribe regardless of how the viewer process exits.
   - **LiveView crash recovery**: If the LiveView process itself crashes (or the WebSocket disconnects), Phoenix LiveView automatically reconnects and re-mounts. The `mount/3` callback re-runs the full subscribe flow (subscribe to PubSub, get-or-start PaneStream, receive history), making recovery transparent. The old LiveView PID triggers a `:DOWN` in the PaneStream (auto-unsubscribe); the new LiveView PID subscribes fresh. No special handling is needed beyond the standard mount logic.
 - Mobile: on-screen virtual keyboard toolbar (see Mobile UI section)
 - Back button / navigation header to return to session list
 
-### Phoenix Channel: `TerminalChannel` (Future — Do Not Implement in Phase 1)
+### Phoenix Channel: `TerminalChannel`
 
-For native Android client only. Not used by the web UI. The design below is documented for future reference but is explicitly out of scope for the initial implementation.
+For native Android client only. Not used by the web UI.
 
 - **Topic**: `"terminal:{session}:{window}:{pane}"` — this is the client-facing Channel join topic, not a PubSub topic. The join handler converts it to the internal PaneStream target format (`"terminal:foo:0:1"` → `"foo:0.1"`) and then calls `PaneStream.subscribe/1`, which subscribes to the canonical PubSub topic `"pane:foo:0.1"` — the same topic LiveView uses. The Channel join topic uses colons as delimiters (Phoenix Channel convention), while the internal target uses tmux's native `"session:window.pane"` format.
 - **Auth**: Token-based authentication verified in `UserSocket.connect/3` (see Auth Flow — Phoenix Channel below). Channel `join/3` does not re-verify — a valid socket implies a valid user.
@@ -369,7 +369,7 @@ For native Android client only. Not used by the web UI. The design below is docu
 | Direction | Event | Payload | Description |
 |-----------|-------|---------|-------------|
 | Client → Server | `"key_input"` | `%{"data" => base64_string}` | Keyboard/paste input. Decoded to UTF-8 bytes, sent via `send-keys -H`. Max 128KB decoded. |
-| Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Terminal dimensions after browser resize. Debounced 300ms client-side. Phase 1: stored only, no `resize-pane` call. |
+| Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Terminal dimensions after browser resize. Debounced 300ms client-side. Calls `tmux resize-pane` and broadcasts to other viewers. |
 | Client → Server | `"quick_action"` | `%{"id" => string}` | User tapped a quick action button. May trigger confirmation dialog. |
 | Client → Server | `"confirm_action"` | `%{}` | User confirmed a quick action that requires confirmation. |
 | Client → Server | `"cancel_action"` | `%{}` | User cancelled a quick action confirmation dialog. |
@@ -393,7 +393,7 @@ For native Android client only. Not used by the web UI. The design below is docu
 | `{:pane_output, bytes}` | raw binary | Streaming output from tmux pane. |
 | `{:pane_dead, target}` | target string | Pane died (Port EOF status 0). |
 | `{:pane_superseded, old_target, new_target}` | target strings | PaneStream replaced after session/window rename. |
-| `{:pane_resized, cols, rows}` | integers | Pane dimensions changed (future). |
+| `{:pane_resized, cols, rows}` | integers | Pane dimensions changed. |
 
 #### PubSub Messages (other topics)
 
@@ -402,12 +402,12 @@ For native Android client only. Not used by the web UI. The design below is docu
 | `"sessions"` | `{:sessions_changed}` | Session created or killed via `TmuxManager`. |
 | `"config"` | `{:config_changed, config}` | Config file changed (manual edit or UI save). |
 
-#### Phoenix Channel Events (TerminalChannel — future, Phase 2+)
+#### Phoenix Channel Events (TerminalChannel)
 
 | Direction | Event | Payload | Description |
 |-----------|-------|---------|-------------|
 | Client → Server | `"input"` | `%{"data" => raw_binary}` | Keyboard/touch input. Raw bytes, no base64. Max 128KB. |
-| Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane` (unlike Phase 1 LiveView, which stores only). |
+| Client → Server | `"resize"` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane`. |
 | Server → Client | `"output"` | `%{"data" => raw_binary}` | Streaming terminal output. Raw bytes, no base64. |
 | Server → Client | `"reconnected"` | `%{"data" => raw_binary}` | Full buffer after PaneStream crash recovery. Client clears and re-renders. |
 | Server → Client | `"pane_dead"` | `%{}` | Pane/session ended. |
@@ -420,11 +420,11 @@ For native Android client only. Not used by the web UI. The design below is docu
 
 1. tmux writes output → `pipe-pane` writes to FIFO
 2. `cat` Port reads from FIFO → Elixir receives `{port, {:data, bytes}}`
-3. PaneStream appends to ring buffer, broadcasts `{:pane_output, bytes}` via PubSub topic `"pane:#{target}"`. Rapid Port messages are coalesced via a short timer (default 3ms) before broadcasting — see Server-Side Output Coalescing in Bandwidth Optimization. All messages on this topic are tagged tuples — subscribers must pattern-match on the first element: `:pane_output` for streaming data, `:pane_dead` for pane death, `:pane_resized` for dimension changes (future)
+3. PaneStream appends to ring buffer, broadcasts `{:pane_output, bytes}` via PubSub topic `"pane:#{target}"`. Rapid Port messages are coalesced via a short timer (default 3ms) before broadcasting — see Server-Side Output Coalescing in Bandwidth Optimization. All messages on this topic are tagged tuples — subscribers must pattern-match on the first element: `:pane_output` for streaming data, `:pane_dead` for pane death, `:pane_resized` for dimension changes
 4. `TerminalLive` receives via `handle_info`, calls `push_event(socket, "output", %{data: Base.encode64(bytes)})`
 5. `TerminalHook` decodes base64, calls `term.write(bytes)` on xterm.js instance
 
-Note: Both input and output are base64-encoded for LiveView transport since LiveView events are JSON-serialized. Output: server encodes, client decodes. Input: client encodes (via `TextEncoder` + base64), server decodes. For the future Channel implementation, raw binary frames can be used instead.
+Note: Both input and output are base64-encoded for LiveView transport since LiveView events are JSON-serialized. Output: server encodes, client decodes. Input: client encodes (via `TextEncoder` + base64), server decodes. The Channel implementation uses raw binary frames instead (see Binary Frames on Phoenix Channel).
 
 ### Initial Attach (history)
 
@@ -484,7 +484,7 @@ Multiple viewers sharing a pane creates a conflict: resizing the tmux pane affec
 - Other viewers' xterm.js instances are resized to match via `FitAddon.fit()` or `term.resize(cols, rows)`
 - On mobile, the terminal adapts to whatever size the pane currently is rather than requesting a resize. Mobile viewers are "passive resizers" — they read the current pane dimensions on connect and fit to them.
 
-**Phase 1 (current scope)**: Resizing is disabled — the pane keeps whatever dimensions it had when created. Viewers fit xterm.js to the existing pane size. The last-writer-wins strategy described above is a future enhancement (see Feature Designs: Pane Resize Sync).
+See Pane Resize Sync below for the full implementation details including mobile behavior and conflict mitigation.
 
 ## Bandwidth Optimization
 
@@ -537,7 +537,7 @@ config :remote_code_agents,
 
 **Why this is safe on fast connections**: A 3ms window is below human perception (~13ms visual frame at 75Hz). On a LAN, it means at most 3ms additional latency on the first byte of a burst. During interactive typing (single characters), the Port typically fires one message at a time — the timer fires 3ms later with just that one message, so overhead is one timer per keystroke echo. During high-throughput output, the coalescing is purely beneficial: fewer, larger WebSocket frames are more efficient even on fast connections due to reduced framing overhead.
 
-### 4. Binary Frames on Phoenix Channel (Future)
+### 4. Binary Frames on Phoenix Channel
 
 LiveView requires JSON-serializable payloads, so terminal data is base64-encoded (~33% overhead). The Phoenix Channel for native Android clients can use raw binary payloads instead, eliminating this overhead entirely.
 
@@ -569,7 +569,7 @@ History buffer sized dynamically per pane (see Buffer Sizing), clamped between 5
 - **Copy**: xterm.js selection → `navigator.clipboard.writeText()` via the `onSelectionChange` callback. Automatically copies selected text. On mobile, long-press triggers native text selection which xterm.js supports.
 - **Paste (desktop)**: Intercept `Ctrl+Shift+V` in the hook's keydown handler. Call `navigator.clipboard.readText()`, then send content as `"key_input"` event (which flows through `send_keys -H`).
 - **Paste (mobile)**: "Paste" button in the virtual key toolbar calls `navigator.clipboard.readText()` → sends as `"key_input"` event.
-- **Permission**: Clipboard API requires a secure context (HTTPS or localhost). Phase 1 (localhost) satisfies this. Phase 2 (remote access) requires HTTPS.
+- **Permission**: Clipboard API requires a secure context (HTTPS or localhost). Localhost satisfies this; remote access requires HTTPS (see Authentication & Remote Access).
 - **Fallback**: If Clipboard API is unavailable (older browsers, non-secure context), fall back to `document.execCommand('copy')`/`document.execCommand('paste')` with a textarea shim.
 
 ## Mobile UI Considerations
@@ -625,10 +625,10 @@ A fixed bottom toolbar providing keys that don't exist on mobile keyboards:
 | Process registry   | Elixir Registry     | Built-in, lightweight process lookup by key            |
 | Process management | DynamicSupervisor   | One child per active pane stream                       |
 | Pub/Sub            | Phoenix.PubSub      | Built-in; connects PaneStreams to viewers               |
-| User config (read) | yaml_elixir 2.11+   | YAML parser for quick actions + future settings (needed for Quick Actions feature, not base scope) |
-| User config (write)| ymlr 5.0+           | YAML encoder for writing config back to file (needed for Quick Actions feature, not base scope) |
+| User config (read) | yaml_elixir 2.11+   | YAML parser for quick actions and settings                 |
+| User config (write)| ymlr 5.0+           | YAML encoder for writing config back to file               |
 | Mobile terminal    | xterm.js + toolbar  | Works in mobile browsers; virtual key toolbar for special keys |
-| Android (future)   | Phoenix Channel     | Direct WebSocket connection; native terminal renderer   |
+| Android            | Phoenix Channel     | Direct WebSocket connection; native terminal renderer   |
 
 **TERM environment variable**: xterm.js supports 256-color output and standard ANSI/xterm escape sequences. Tmux sets `TERM` inside its panes based on its `default-terminal` option, which typically defaults to `tmux-256color` or `screen-256color`. Both are compatible with xterm.js. The application does **not** override `TERM` when creating sessions — this is left to the user's tmux configuration. If users experience rendering issues (e.g., missing colors, broken line drawing), they should ensure their tmux config uses a 256-color terminal type: `set -g default-terminal "tmux-256color"`.
 
@@ -647,9 +647,9 @@ remote_code_agents/
       ring_buffer.ex                # Circular byte buffer with fixed capacity (new/1, append/2, read/1, size/1)
       pane_stream.ex                # Per-pane streaming GenServer (pipe-pane + FIFO)
       pane_stream_supervisor.ex     # DynamicSupervisor for PaneStreams
-      config.ex                     # GenServer: YAML config loader/writer with mtime polling + PubSub
+      config.ex                     # GenServer: YAML config loader/writer with mtime polling + PubSub (used by Quick Actions + Settings)
     remote_code_agents_web/
-      channels/                     # Future
+      channels/
         terminal_channel.ex         # Raw terminal I/O channel (for native clients)
         user_socket.ex              # Socket configuration
       controllers/                  # REST API (for native clients)
@@ -780,12 +780,12 @@ config :remote_code_agents,
 
 - **Authentication**: This application gives full terminal access. Must be protected:
   - Localhost mode (default): Bind to `127.0.0.1` only — no auth required
-  - Remote mode: Username+password auth required when binding to `0.0.0.0` (see Authentication & Remote Access in Feature Designs). This is a P1 feature — required for mobile use, the primary motivation.
+  - Remote mode: Username+password auth required when binding to `0.0.0.0` (see Authentication & Remote Access).
 - **Input handling**: All input sent via `send-keys -H` (hex mode) — bytes are passed directly to tmux with no shell interpretation. The user is intentionally sending arbitrary commands to a shell — access control is the real security boundary.
 - **Session name validation**: Enforced at `TmuxManager.create_session/1` — only `^[a-zA-Z0-9_-]+$` accepted. Prevents tmux target format injection.
 - **HTTPS**: Required if exposed beyond localhost; configure via Phoenix endpoint or reverse proxy. Also required for Clipboard API access.
 - **CSRF**: Phoenix's built-in CSRF protection applies to all LiveView forms (login, settings, session creation). REST API routes (`/api/*`) are exempt — they use bearer token auth via `Authorization` header, which is not vulnerable to CSRF (tokens are not auto-attached by the browser like cookies are).
-- **Channel auth**: `TerminalChannel` (future) must verify auth token on join to prevent unauthorized WebSocket connections from native apps
+- **Channel auth**: `TerminalChannel` verifies auth token on join to prevent unauthorized WebSocket connections from native apps
 - **FIFO permissions**: Created via `mkfifo -m 0600` (owner read/write only, set at creation time) to prevent other users on the host from reading terminal output
 
 ## Testing Strategy
@@ -853,7 +853,7 @@ config :remote_code_agents,
 
 5. **Clipboard → Yes**: Copy via xterm.js selection + Clipboard API. Paste via toolbar button (mobile) or Ctrl+Shift+V (desktop). Requires secure context (localhost or HTTPS). Fallback to execCommand for older browsers.
 
-6. **Web transport → LiveView push_event**: Terminal I/O on web flows through the existing LiveView WebSocket. No second WebSocket connection. Phoenix Channel is future, only for native Android client.
+6. **Web transport → LiveView push_event**: Terminal I/O on web flows through the existing LiveView WebSocket. No second WebSocket connection. Phoenix Channel is used only for the native Android client.
 
 7. **Input encoding → send-keys -H (hex)**: All input bytes converted to hex and sent via `tmux send-keys -H`. Handles printable text, control characters, and escape sequences uniformly. No branching between literal and raw modes.
 
@@ -861,7 +861,7 @@ config :remote_code_agents,
 
 9. **Process lookup → Elixir Registry**: PaneStreams registered in `RemoteCodeAgents.PaneRegistry` with key `{:pane, target}`. `subscribe/1` is a module function (not a GenServer call) that checks Registry for an existing PaneStream; if not found, starts one under DynamicSupervisor via `start_link/1`. It then makes a `GenServer.call` to register the viewer. This "get or start" logic lives inside `subscribe/1` — there is no separate public `get_or_start` function.
 
-10. **Resize conflicts → disabled**: Panes keep their existing dimensions and viewers adapt. Future: last-writer-wins with dimension broadcast to all viewers; mobile viewers are passive (read-only resize).
+10. **Resize conflicts → last-writer-wins**: Any viewer can resize the pane; the new dimensions are broadcast to all other viewers. Mobile viewers are passive resizers by default (read-only resize, with optional "Fit to screen" button).
 
 11. **Session name validation → strict**: Only `^[a-zA-Z0-9_-]+$` allowed. Prevents tmux target format breakage from colons/periods in names.
 
@@ -877,11 +877,16 @@ config :remote_code_agents,
 6. Shared PaneStream with viewer ref counting and grace period
 7. Clipboard copy/paste
 8. Mobile-responsive layout with virtual key toolbar
-9. Bind to localhost only (no auth needed)
-10. Pane death detection and user notification
-11. Error handling (tmux not installed, pane died, FIFO errors)
-12. Resize disabled — viewers adapt to existing pane dimensions
-13. Health check endpoint (`GET /healthz`)
+9. Pane death detection and user notification
+10. Error handling (tmux not installed, pane died, FIFO errors)
+11. Pane resize sync (last-writer-wins with broadcast)
+12. Health check endpoint (`GET /healthz`)
+13. Authentication & remote access (username+password, optional static token)
+14. Session management (kill, rename, create window, kill pane)
+15. Quick actions (configurable command buttons, YAML config, Settings UI, REST API)
+16. User preferences (font, theme, cursor — client-side `localStorage`)
+17. Phoenix Channel + native Android client support
+18. Multi-pane split view
 
 ## Storage Decision: No Database
 
@@ -907,7 +912,7 @@ This application is **fully stateless from a storage perspective**. No database 
 
 ---
 
-## Feature Designs
+## Detailed Feature Designs
 
 ### Authentication & Remote Access
 
@@ -936,10 +941,10 @@ This application is **fully stateless from a storage perspective**. No database 
 3. On submit, server checks:
    a. If `RCA_AUTH_TOKEN` is set and the password matches (constant-time compare), authenticate.
    b. Otherwise, verify username matches stored username and password matches stored hash via `Bcrypt.verify_pass/2`. On mismatch, call `Bcrypt.no_user_verify/0` to prevent timing attacks.
-4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; 0 = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth is P1 and must not depend on the Config GenServer, which is introduced by the Quick Actions feature).
+4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Cookie TTL is configurable (default 30 days; 0 = never expire, re-auth only on explicit logout). Configured via `config :remote_code_agents, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth settings use application config, not the YAML config file, to avoid a circular dependency on the Config GenServer during boot).
 5. All LiveView mounts check `on_mount` hook for valid session. Redirect to `/login` if missing.
 
-#### Auth Flow — Phoenix Channel (Android, future)
+#### Auth Flow — Phoenix Channel (Android)
 
 1. Android app POSTs credentials to `/api/login` — returns a signed bearer token (Phoenix.Token) on success.
 2. App stores the token in local preferences.
@@ -994,7 +999,7 @@ The `TerminalChannel` speaks a simple protocol over the Phoenix Channel WebSocke
 | Direction | Event | Payload | Notes |
 |-----------|-------|---------|-------|
 | C→S | `input` | `%{"data" => raw_binary}` | Keyboard/touch input. Raw bytes, no base64. Max 128KB. |
-| C→S | `resize` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane` (unlike Phase 1 LiveView, which stores only). |
+| C→S | `resize` | `%{"cols" => int, "rows" => int}` | Client requests pane resize. Validated: cols 1–500, rows 1–200. Calls `tmux resize-pane`. |
 | S→C | `output` | `%{"data" => raw_binary}` | Streaming terminal output. Raw bytes, no base64. |
 | S→C | `reconnected` | `%{"data" => raw_binary}` | Full buffer after PaneStream crash recovery. Client should clear and re-render. |
 | S→C | `pane_dead` | `%{}` | Pane/session ended |
@@ -1103,11 +1108,11 @@ Mobile viewers are **passive resizers** by default:
 
 #### New Module
 
-This feature introduces `RemoteCodeAgents.Config` (`lib/remote_code_agents/config.ex`) — a GenServer that holds parsed config in memory, serializes all reads and writes to `~/.config/remote_code_agents/config.yaml`, detects external file changes via mtime polling, and broadcasts updates via PubSub so LiveViews stay in sync. Not part of the base scope.
+This feature introduces `RemoteCodeAgents.Config` (`lib/remote_code_agents/config.ex`) — a GenServer that holds parsed config in memory, serializes all reads and writes to `~/.config/remote_code_agents/config.yaml`, detects external file changes via mtime polling, and broadcasts updates via PubSub so LiveViews stay in sync.
 
 #### Configuration File
 
-Quick actions are defined in a YAML configuration file at `~/.config/remote_code_agents/config.yaml`. This file is the central place for quick actions and any future non-auth settings. Auth credentials are stored separately (see Authentication & Remote Access).
+Quick actions are defined in a YAML configuration file at `~/.config/remote_code_agents/config.yaml`. This file is the central place for quick actions and other non-auth settings. Auth credentials are stored separately (see Authentication & Remote Access).
 
 ```yaml
 # ~/.config/remote_code_agents/config.yaml
@@ -1156,7 +1161,7 @@ quick_actions:
 - **Reads**: `Config.get/0` makes a `GenServer.call` returning the in-memory config. Fast — no file I/O.
 - **Writes**: `Config.update/1` takes a function `(config -> config)`, applies it to the current state, writes to disk atomically (tmp + rename), updates mtime in state, and broadcasts `{:config_changed, config}` via PubSub. The mtime is updated from the freshly-written file's stat, so the next poll cycle won't trigger a redundant reload.
 - **Validation**: On load, validate each quick action entry. Log warnings for invalid entries (missing `label`/`command`, unknown `color`) and skip them rather than crashing.
-- **Missing file**: If no config file exists, the GenServer runs with defaults — no quick actions shown, no error. The mtime is stored as `nil`; any future file creation is detected by the poll.
+- **Missing file**: If no config file exists, the GenServer runs with defaults — no quick actions shown, no error. The mtime is stored as `nil`; file creation is detected by the next poll cycle.
 - **Malformed file**: If the YAML is malformed on reload, `get/0` returns the last good config (still in GenServer state) and logs a warning. This is safer than the "fall back to defaults" approach — the user doesn't lose their action bar while fixing a typo.
 - **Auto-creation on save**: `update/1` calls `File.mkdir_p!/1` on the parent directory before writing. If a user creates their first quick action via the Settings UI and no config file exists yet, it will be created automatically.
 - **PubSub topic**: `"config"` — LiveViews subscribe on mount and update assigns on `{:config_changed, config}`.
@@ -1669,7 +1674,7 @@ quick_actions:
 
 #### REST API (for Android App)
 
-Extends the future REST API (described in Future 2) with config endpoints:
+Extends the REST API with config endpoints:
 
 ```
 GET    /api/config              — returns full config as JSON
@@ -1856,17 +1861,18 @@ CMD ["/app/bin/remote_code_agents", "start"]
 
 ---
 
-## Implementation Prioritization
+## Implementation Order
 
-The Scope section above defines the Phase 1 (initial) deliverables. The table below prioritizes features beyond Phase 1:
+Suggested build order based on dependencies and incremental progress:
 
-| Priority | Feature | Effort | Rationale |
-|----------|---------|--------|-----------|
-| P1 | Auth + remote access | Medium | Required to use from mobile — the primary motivation |
-| P2 | Pane resize sync | Small | Quality-of-life, simple to implement |
-| P3 | Session management (kill, rename) | Small | Basic lifecycle control |
-| P4 | Quick actions (command buttons) | Small | High-value for mobile; simple config + UI |
-| P5 | User preferences (font, theme) | Small | Client-side only, no server changes |
-| P6 | Phoenix Channel + Android client | Large | New client platform, significant effort |
-| P7 | Multi-pane split view | Medium | Nice-to-have, complex layout logic |
+| Order | Feature | Effort | Notes |
+|-------|---------|--------|-------|
+| 1 | Core terminal (list, create, stream, input, pane death) | Large | Foundation — everything else builds on this |
+| 2 | Auth + remote access | Medium | Required for mobile use |
+| 3 | Pane resize sync | Small | Quality-of-life, simple once core is working |
+| 4 | Session management (kill, rename) | Small | Basic lifecycle control |
+| 5 | Quick actions (command buttons) | Small | High-value for mobile; introduces Config GenServer |
+| 6 | User preferences (font, theme) | Small | Client-side only, no server changes |
+| 7 | Phoenix Channel + Android client | Large | New client platform |
+| 8 | Multi-pane split view | Medium | Complex layout logic |
 
