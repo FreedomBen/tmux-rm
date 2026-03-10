@@ -687,6 +687,7 @@ remote_code_agents/
       ring_buffer.ex                # Circular byte buffer with fixed capacity (new/1, append/2, read/1, size/1)
       pane_stream.ex                # Per-pane streaming GenServer (pipe-pane + FIFO)
       pane_stream_supervisor.ex     # DynamicSupervisor for PaneStreams
+      session_poller.ex             # GenServer: polls tmux session/pane list, broadcasts changes via PubSub
       config.ex                     # GenServer: YAML config loader/writer with mtime polling + PubSub (used by Quick Actions + Settings)
     remote_code_agents_web/
       channels/
@@ -747,13 +748,15 @@ Application
   ├── RemoteCodeAgents.PaneRegistry (Registry)
   ├── RemoteCodeAgents.PaneStreamSupervisor (DynamicSupervisor)
   ├── Phoenix.PubSub (RemoteCodeAgents.PubSub)
+  ├── RemoteCodeAgents.SessionPoller (GenServer)
   ├── RemoteCodeAgents.Config (GenServer)
   └── RemoteCodeAgentsWeb.Endpoint
 ```
 
 - `PaneRegistry` starts first — PaneStreams need it for registration
 - `PaneStreamSupervisor` starts next — ready to accept PaneStream children. Configured with `max_children: 100` to bound resource usage (FIFOs, ports, memory). If the limit is hit, `subscribe/1` returns `{:error, :max_pane_streams}`. This is configurable via `config :remote_code_agents, max_pane_streams: 100`. PaneStream children use `restart: :transient` — they are restarted on abnormal exits but not on `:normal`, `:shutdown`, or `{:shutdown, reason}` exits. All deliberate PaneStream terminations (grace period expiry, pane death, superseded) use `{:stop, :normal, state}` to avoid triggering a supervisor restart.
-- PubSub starts before Config — Config broadcasts via PubSub on config changes
+- PubSub starts before SessionPoller and Config — both broadcast via PubSub
+- `SessionPoller` polls tmux for session/pane lists every `session_poll_interval` (default 3s) via `TmuxManager.list_sessions/0`. Compares the result to the previous snapshot; if changed, broadcasts `{:sessions_updated, sessions}` on PubSub topic `"sessions"`. Exposes `SessionPoller.get/0` (GenServer.call) for synchronous reads (e.g., Channel join replies, REST API). This single process replaces per-viewer polling — `SessionListLive` and `SessionChannel` both subscribe to the `"sessions"` PubSub topic and receive updates without their own timers.
 - Config starts before Endpoint — config must be loaded before LiveViews mount
 - No TmuxManager in the tree — it's a stateless module, not a process
 
@@ -762,7 +765,7 @@ Application
 ```elixir
 # config/config.exs
 config :remote_code_agents,
-  # Polling interval (ms) for detecting external session changes in SessionListLive
+  # Polling interval (ms) for SessionPoller to check tmux for session/pane changes
   session_poll_interval: 3_000,
   # Grace period (ms) before shutting down a PaneStream with zero viewers
   pane_stream_grace_period: 30_000,
@@ -906,7 +909,7 @@ config :remote_code_agents,
 
 ### Session/Window Renamed Externally
 - If a user renames a session or window via tmux directly (e.g., `tmux rename-session`), the existing PaneStream continues working because all tmux commands (`send-keys`, `pipe-pane`, `capture-pane`) use the stable `pane_id` (e.g., `%0`), not the human-readable `target` string. Both input and output are unaffected.
-- **Display impact**: The PaneStream's `target` field and the URL still reflect the old name. The polling fallback in `SessionListLive` (every 3s) will show the updated session name. The user can navigate to the renamed pane via the new URL.
+- **Display impact**: The PaneStream's `target` field and the URL still reflect the old name. The `SessionPoller` broadcast (every 3s) will update `SessionListLive` with the new session name. The user can navigate to the renamed pane via the new URL.
 - **Stale URLs**: If a user navigates to the old URL (e.g., a bookmark), `subscribe/1` attempts to start a PaneStream for the old target name, which fails with `{:error, :pane_not_found}` since the session no longer exists under that name. The user sees the pane-not-found error UI and can navigate back to the session list to find the renamed session. No automatic redirect from old-name URLs is attempted — this is a known limitation accepted for simplicity.
 - **Stale PaneStream detection and cleanup**: When a viewer navigates to the new name, `subscribe/1` starts a new PaneStream under the new target. During init, the new PaneStream resolves `pane_id` and attempts to register `{:pane_id, pane_id}` in the Registry. This collides with the old PaneStream's registration, triggering the supersede flow:
     1. The new PaneStream sends `{:superseded, new_target}` to the old PaneStream.
@@ -1094,8 +1097,8 @@ Events carrying terminal data (`output`, `reconnected`, `input`) are sent as **b
 
 **Session management**: The Android app needs to list/create/delete sessions. Two transports are used:
 
-1. **REST API** (`/api/sessions`): For mutations (create, delete) and initial fetch. Simple, stateless, protected by bearer token auth.
-2. **`SessionChannel`**: For real-time session list updates. The Android app joins the `"sessions"` topic on connect. The server polls tmux session state (same `session_poll_interval` as the web UI, default 3s) and pushes `"sessions_updated"` events with the full session list whenever changes are detected. This avoids redundant HTTP polling and is consistent with the web UI's PubSub-driven approach.
+1. **REST API** (`/api/sessions`): For mutations (create, delete) and initial fetch. Reads from `SessionPoller.get/0` for listings. Simple, stateless, protected by bearer token auth.
+2. **`SessionChannel`**: For real-time session list updates. The Android app joins the `"sessions"` topic on connect. The `SessionChannel` subscribes to PubSub topic `"sessions"` and forwards `{:sessions_updated, sessions}` broadcasts from `SessionPoller` as `"sessions_updated"` push events to the client. No per-Channel polling — the shared `SessionPoller` handles all tmux queries.
 
 ```
 POST /api/sessions        — create session (body: {"name": "...", "command": "..."})
