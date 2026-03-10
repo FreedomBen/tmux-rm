@@ -21,7 +21,7 @@ Implement username+password authentication with bcrypt, optional static token fa
   - Otherwise: read credentials file, compare username. If no match, call `Bcrypt.no_user_verify/0` (timing attack mitigation), return `:error`. If match, verify via `Bcrypt.verify_pass/2`.
 - `auth_enabled?/0` → `true` if credentials file exists or `auth_token` is configured
 - `read_credentials/0` → `{:ok, {username, hash}}` or `{:error, :not_found}`
-- `write_credentials(username, password)` → writes `username:bcrypt_hash` to credentials file
+- `write_credentials(username, password)` → writes `username:bcrypt_hash` to credentials file. Sets file permissions to `0o600` (owner read/write only) via `File.chmod/2`. Creates parent directory with `0o700` if needed.
 
 ### 6.2 Mix Tasks
 
@@ -104,7 +104,7 @@ Implement username+password authentication with bcrypt, optional static token fa
 - Configured per-route: `plug RateLimit, key: :login` or `key: :session_create`
 - Reads limits from config: `rate_limits: %{login: {5, 60}, websocket: {10, 60}, session_create: {10, 60}}`
 - On exceed: 429 with `{"error": "rate_limited", "retry_after": seconds}` and `Retry-After` header
-- Skipped when auth not enabled (localhost mode)
+- Rate limiting is always active (even in localhost mode) to protect against accidental runaway clients or scripts
 
 ### 6.9 UserSocket
 

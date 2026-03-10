@@ -49,6 +49,8 @@ Implement the `PaneStream` GenServer — the heart of the application. This brid
 9. Write scrollback into ring buffer
 10. Set status to `:streaming`
 
+**Note on capture-pane vs pipe-pane overlap**: Steps 6 and 8 are ordered intentionally — `pipe-pane` is attached *before* `capture-pane` runs. This means any output arriving between steps 6 and 8 will be captured by both `pipe-pane` (into the FIFO → ring buffer) and `capture-pane` (into the initial scrollback). This small duplication is harmless: the ring buffer's `capture-pane` snapshot represents the pane state at step 8, and any `pipe-pane` data already in the buffer from step 6 will be overwritten by the `capture-pane` data since we write the scrollback *into* the ring buffer (replacing its contents, not appending). To ensure this, clear the ring buffer before writing the capture-pane snapshot in step 9.
+
 If any step fails, set status to `:dead` and schedule termination.
 
 **Note**: `subscribe/1` callers that arrive while status is `:starting` should receive `{:error, :not_ready}`. The caller can retry after a short delay (PaneStream startup typically completes in <100ms).
@@ -75,7 +77,7 @@ Uses the resolved `pane_id` (not the target string) for stability across session
 - `send_keys/2` — called by viewer process:
   1. Look up PaneStream via Registry
   2. `GenServer.call` to send input
-  3. GenServer handler: convert each byte to a two-char hex string, join with spaces, send as `tmux send-keys -H -t {pane_id} 41 42 43 ...` (space-separated hex values, no `0x` prefix)
+  3. GenServer handler: convert each byte to a two-char hex string, join with spaces, send as `tmux send-keys -l -H -t {pane_id} 41 42 43 ...` (space-separated hex values, no `0x` prefix). The `-l` flag ensures literal key interpretation, preventing tmux from treating hex values as key names and mitigating injection if input is ever passed via non-hex paths.
   4. Chunk large inputs into sequential `send-keys` calls, each with at most 65,536 bytes (separate `CommandRunner.run/1` invocations, sent sequentially — not atomic)
   5. Return `:ok`, `{:error, :pane_dead}`, `{:error, :not_ready}`, or `{:error, :not_found}`
 
@@ -101,12 +103,16 @@ In `handle_info({port, {:data, bytes}})`:
 
 ### 3.5 Pane Death Detection
 
-- `handle_info({port, {:exit_status, 0}})` — pane died (normal EOF):
-  - Cancel grace timer
-  - Set status to `:dead`
-  - Broadcast `{:pane_dead, target}` via PubSub
-  - Clean up FIFO
-  - Terminate normally (`{:stop, :normal, state}`)
+- `handle_info({port, {:exit_status, 0}})` — `cat` EOF (pane may or may not be dead):
+  - Verify pane still exists via `tmux display-message -p -t {pane_id} '#{pane_id}'`
+  - If pane is dead:
+    - Cancel grace timer
+    - Set status to `:dead`
+    - Broadcast `{:pane_dead, target}` via PubSub
+    - Clean up FIFO
+    - Terminate normally (`{:stop, :normal, state}`)
+  - If pane is alive: treat as pipeline failure and follow the recovery path below (new FIFO, new Port, re-attach pipe-pane)
+  - Rationale: `cat` on a FIFO returns exit code 0 on any EOF, not just pane death. The pipe-pane writer closing (e.g., due to tmux detach or pipe-pane reassignment) also produces exit code 0.
 
 - `handle_info({port, {:exit_status, n}})` where n > 0 — Port crash (pane may be alive):
   - Check pane existence via `tmux display-message -p -t {pane_id}`

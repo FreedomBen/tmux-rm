@@ -30,7 +30,7 @@ end
 
 - `list_sessions/0` — shells out to `tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_created}\t#{session_attached}'`, parses into `[%Session{}]`. Returns `{:ok, []}` if tmux returns "no server running" (exit code 1). Returns `{:error, :tmux_not_found}` if tmux binary missing.
 
-- `list_panes/1` — takes a session name, runs `tmux list-panes -t {session} -a -F '#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}\t#{pane_id}'`. Parses into a map of `%{window_index => [%Pane{}]}` grouped by window index.
+- `list_panes/1` — takes a session name, runs `tmux list-panes -s -t {session} -F '#{session_name}\t#{window_index}\t#{pane_index}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}\t#{pane_id}'`. The `-s` flag lists all panes across all windows in the target session (as opposed to `-a` which lists all panes in all sessions, making `-t` ineffective). Parses into a map of `%{window_index => [%Pane{}]}` grouped by window index.
 
 - `create_session/1` — validates name against `^[a-zA-Z0-9_-]+$`. Runs `tmux new-session -d -s {name} [-x cols -y rows] [command]`. Broadcasts `{:sessions_changed}` on PubSub topic `"sessions"` on success. Returns `{:ok, session_info}` or `{:error, reason}`.
 

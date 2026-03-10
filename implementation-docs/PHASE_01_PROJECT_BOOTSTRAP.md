@@ -87,6 +87,7 @@ Set up `Application.start/2`:
    - `RemoteCodeAgents.SessionPoller` (GenServer — stub for now)
    - `RemoteCodeAgents.Config` (GenServer — stub for now)
    - `RemoteCodeAgentsWeb.RateLimitStore` (GenServer — stub for now)
+   - `RemoteCodeAgents.LayoutPollerSupervisor` (DynamicSupervisor — used by Phase 12 for layout pollers, started early so the supervision tree doesn't need modification later)
    - `RemoteCodeAgentsWeb.Endpoint`
 
 ### 1.7 Endpoint Configuration

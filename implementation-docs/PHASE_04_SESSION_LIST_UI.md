@@ -16,7 +16,7 @@ Implement the `SessionListLive` page and the `SessionPoller` GenServer. After th
 - Polls `TmuxManager.list_sessions/0` (with panes via `list_panes/1`) every `session_poll_interval` (default 3s)
 - Compares result to previous snapshot; if changed, broadcasts `{:sessions_updated, sessions}` on PubSub topic `"sessions"`
 - Exposes `SessionPoller.get/0` — `GenServer.call` returning the last-known session list (synchronous read, no file I/O). Returns `[]` before the first poll completes.
-- Performs the first poll synchronously in `init/1` so that `get/0` has data immediately on startup (tmux list-sessions is fast, typically <50ms)
+- Performs the first poll asynchronously via `handle_continue(:initial_poll, state)` to avoid blocking the supervision tree if tmux is slow or unavailable. `get/0` returns `[]` before the first poll completes, which is acceptable (the UI shows an empty state briefly, then updates via PubSub within milliseconds).
 - Also subscribes to PubSub topic `"sessions"` to handle `{:sessions_changed}` from `TmuxManager` mutations (immediate re-poll on app-driven changes)
 - Stores the last session list in GenServer state for diffing
 - Comparison uses sorted session data (name, window count, pane list) for order-independent equality
