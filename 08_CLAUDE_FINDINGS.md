@@ -12,14 +12,9 @@
 
 **Decision**: Option (a) — added Retrofit to the tech stack table alongside OkHttp + kotlinx.serialization.
 
-## Q4: Auth session TTL `0 = never expire`
+## ~~Q4: Auth session TTL `0 = never expire`~~ — RESOLVED
 
-Using 0 to mean "infinite" is unconventional.
-
-Options:
-- **(a)** Leave it as-is (it's documented, just unusual)
-- **(b)** Change to `nil` = never expire, `0` is not a valid value
-- **(c)** Change to a negative value like `-1` = never expire
+**Decision**: Accept both `0` and `nil` as "never expire". Updated doc to say `0` or `nil`.
 
 ## Q5: Android session list — polling vs Channel push?
 
