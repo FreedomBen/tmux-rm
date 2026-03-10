@@ -2,6 +2,8 @@
 
 - Let's write up a comprehensive implementation plan.  Break into phases if necessary.  Write each phase to a seprate file in implementation-docs directory with names like PHASE_01_DO_SOMETHING.md.  Don't plan implementation for the android app quite yet.
 
+- What are our distribution options for the web app?  can we compile to a static binary for linux?
+
 - Let's go through the application and ensure that we are logging any meaningful action.
 
 # Already Run

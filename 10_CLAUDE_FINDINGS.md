@@ -2,15 +2,7 @@
 
 Issues found during review of APPLICATION_DESIGN.md that need decisions.
 
-## Q1 — Multi-pane view: window targeting
-
-Three related gaps in the multi-pane design:
-
-- **Window in URL**: The route is `/sessions/:session` with no window specifier. Should it be `/sessions/:session/windows/:window_index` so you can link to a specific window? Or default to the active window and provide a window switcher?
-- **Window switching**: There's no UI described for switching between windows in a session. Tabs? A dropdown? Should windows be part of the session list expansion instead?
-- **Layout data source**: `SessionPoller` uses `list_sessions` but the multi-pane view needs per-pane layout coordinates (`pane_left`, `pane_top`, etc.) from `list-panes`. Should `SessionPoller` be extended to include this data in its broadcast, or should `MultiPaneLive` do its own `list-panes` polling?
-
-## Q3 — WebSocket rate limiting mechanism
+## Q1 — WebSocket rate limiting mechanism
 
 The rate limit for `/socket/websocket` is described as a Plug, but WebSocket upgrades have a special path through Phoenix/cowboy. Options:
 

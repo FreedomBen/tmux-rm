@@ -1221,10 +1221,11 @@ Mobile viewers are **passive resizers** by default:
 
 #### Approach
 
-- **Session view**: A route `/sessions/:session` shows all panes in that session's current window, laid out to match tmux's actual pane layout
-- **Layout discovery**: `tmux list-panes -t {session} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'` returns pane positions and sizes
+- **Route**: `/sessions/:session/windows/:window` shows all panes in the specified window, laid out to match tmux's actual pane layout. `/sessions/:session` redirects to the session's active window (via `tmux display-message -p -t {session} '#{window_index}'`).
+- **Window tabs**: A tab bar across the top of the multi-pane view, one tab per window in the session. Tabs show the window index and name (if set). Clicking a tab navigates to that window's URL. Tabs update from `SessionPoller` broadcasts — window add/remove/rename is detected automatically.
+- **Layout discovery**: `MultiPaneLive` polls `tmux list-panes -t {session}:{window} -F '#{pane_id} #{pane_left} #{pane_top} #{pane_width} #{pane_height}'` every 2-3s to get pane positions and sizes. This is separate from `SessionPoller` — layout coordinates are only needed by this view, so `SessionPoller` stays lean (session names, window counts, pane summaries). `MultiPaneLive` also subscribes to the `"sessions"` PubSub topic to detect window add/remove for tab updates.
 - **Rendering**: CSS Grid layout with each pane mapped to a grid area based on its tmux coordinates. Each pane gets its own xterm.js instance and PaneStream subscription.
-- **Layout refresh**: Poll `list-panes` periodically (every 2-3s) to detect layout changes (user splits/closes panes via tmux commands)
+- **Layout refresh**: The `list-panes` poll (above) detects layout changes from user splits/closes/resizes via tmux commands. On change, the CSS Grid is re-rendered to match the new layout.
 
 #### Resize Behavior
 
@@ -1238,7 +1239,7 @@ In multi-pane view, all panes are **passive resizers** — they read the current
 #### Mobile Behavior
 
 - Multi-pane view is desktop/tablet only (>640px)
-- On mobile, the session view shows a list of panes — tap one to open full-viewport
+- On mobile, the session view shows window tabs at the top and a list of panes for the selected window — tap a pane to open full-viewport
 - Alternatively: horizontal swipe between panes in the same window
 
 ### Quick Actions (Command Buttons)
@@ -1988,7 +1989,8 @@ scope "/", RemoteCodeAgentsWeb do
   live_session :authenticated, on_mount: [RemoteCodeAgentsWeb.AuthHook] do
     live "/", SessionListLive
     live "/terminal/:target", TerminalLive
-    live "/sessions/:session", MultiPaneLive
+    live "/sessions/:session", MultiPaneLive  # redirects to active window
+    live "/sessions/:session/windows/:window", MultiPaneLive
     live "/settings", SettingsLive
   end
 end
