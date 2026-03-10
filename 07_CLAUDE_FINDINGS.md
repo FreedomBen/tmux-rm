@@ -31,9 +31,9 @@ REST API (`/api/*`) routes are exempt from CSRF — they use bearer token auth v
 
 No rate limiting needed. Single-user personal tool — the only sender is the authenticated user. The 128KB payload cap prevents accidental oversized payloads. Rate limiting would risk throttling legitimate fast input (key repeat, paste). No doc changes.
 
-### 6. tmux socket path
+### ~~6. tmux socket path~~ RESOLVED
 
-Should the doc address non-default tmux socket paths (`-L`/`-S` flags)? E.g., a config option like `tmux_socket_path` passed to all `CommandRunner` calls?
+Added `tmux_socket` config option. `CommandRunner` prepends `-S <path>` or `-L <name>` to all tmux commands when set. Added to CommandRunner description and config block.
 
 ### 7. Testing strategy
 

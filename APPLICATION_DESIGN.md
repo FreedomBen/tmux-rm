@@ -129,10 +129,11 @@ Android app (future):
 #### `RemoteCodeAgents.Tmux.CommandRunner`
 - **Responsibility**: Execute tmux CLI commands and return parsed output
 - **Interface**:
-  - `run/1` — takes a list of argument strings (e.g., `["list-sessions", "-F", "#{session_name}"]`), prepends the tmux binary path, executes via `System.cmd/3`. Returns `{:ok, output}` or `{:error, reason}`.
+  - `run/1` — takes a list of argument strings (e.g., `["list-sessions", "-F", "#{session_name}"]`), prepends the tmux binary path and any socket args (see below), executes via `System.cmd/3`. Returns `{:ok, output}` or `{:error, reason}`.
   - `run!/1` — same but raises on error.
 - **Rationale**: Single point of contact with the tmux CLI. Makes it easy to mock in tests and add logging/rate-limiting later.
 - **Implementation**: Uses `System.cmd/3` with stderr capture. Validates that `tmux` is available on startup.
+- **Socket path**: If `config :remote_code_agents, tmux_socket` is set, `CommandRunner` prepends `-S <path>` (absolute socket path) or `-L <name>` (named socket) to all tmux commands. This supports non-default tmux server sockets (e.g., when tmux is started with `tmux -L mysocket`). Default: `nil` (use tmux's default socket).
 - **Minimum tmux version**: 2.6+ required (`send-keys -H` was added in 2.6). `CommandRunner` checks the tmux version once on application startup (via `tmux -V`), caches the result in a persistent term (`:persistent_term.put({__MODULE__, :version_checked}, true)`), and logs an error if below 2.6. Subsequent calls skip the check.
 
 ### tmux pipe-pane Strategy
@@ -737,6 +738,10 @@ config :remote_code_agents,
   fifo_dir: "/tmp/remote-code-agents",
   # Path to tmux binary (auto-detected if nil)
   tmux_path: nil,
+  # tmux socket path (-S) or name (-L). nil = default socket.
+  # Use absolute path for -S (e.g., "/tmp/tmux-1000/mysocket")
+  # or a plain name for -L (e.g., "mysocket")
+  tmux_socket: nil,
   # Output coalescing window (ms). Collects rapid Port messages into a single
   # broadcast. 0 = disabled. Low values (2-5ms) reduce overhead on slow
   # connections without perceptible delay on fast ones.
