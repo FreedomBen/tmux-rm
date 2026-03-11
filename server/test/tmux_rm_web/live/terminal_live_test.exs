@@ -42,4 +42,44 @@ defmodule TmuxRmWeb.TerminalLiveTest do
       assert html =~ "Back to Sessions"
     end
   end
+
+  describe "mobile UI markup" do
+    test "renders terminal-page wrapper with proper classes", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/terminal/test:0.0")
+      assert html =~ "terminal-page"
+      assert html =~ "h-dvh"
+    end
+
+    test "header has terminal-header class for auto-hide", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/terminal/test:0.0")
+      assert html =~ "terminal-header"
+      assert html =~ "transition-transform"
+    end
+
+    test "terminal container has proper flex classes", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/terminal/test:0.0")
+      assert html =~ "terminal-container"
+      assert html =~ "flex-1"
+      assert html =~ "min-h-0"
+    end
+
+    test "header links have min touch target height on mobile", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/terminal/test:0.0")
+      # min-h-[48px] ensures 48px touch targets on mobile
+      assert html =~ "min-h-[48px]"
+    end
+
+    test "quick action bar has scroll snap for mobile", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/terminal/test:0.0")
+
+      # Set up config with quick actions
+      send(view.pid, {:config_changed, %{"quick_actions" => [
+        %{"id" => "a1", "label" => "Test", "command" => "echo hi"}
+      ]}})
+
+      html = render(view)
+      assert html =~ "scroll-snap-type"
+      assert html =~ "terminal-action-bar"
+    end
+  end
 end

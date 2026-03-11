@@ -186,13 +186,13 @@ server/lib/tmux_rm_web/components/core_components.ex (update — mobile-friendly
 - All breakpoints (mobile/tablet/desktop) render correctly
 
 ## Checklist
-- [ ] 9.1 Virtual Key Toolbar
-- [ ] 9.2 Soft Keyboard Handling
-- [ ] 9.3 Touch Gestures
-- [ ] 9.3a Preference Helper (Minimal)
-- [ ] 9.4 Auto-Hiding Header
-- [ ] 9.5 Mobile Terminal Resize Behavior
-- [ ] 9.6 Responsive Layout Refinements
-- [ ] 9.7 Terminal Container Sizing
-- [ ] 9.8 Paste Button (Mobile)
-- [ ] 9.9 Tests
+- [x] 9.1 Virtual Key Toolbar
+- [x] 9.2 Soft Keyboard Handling
+- [x] 9.3 Touch Gestures
+- [x] 9.3a Preference Helper (Minimal)
+- [x] 9.4 Auto-Hiding Header
+- [x] 9.5 Mobile Terminal Resize Behavior
+- [x] 9.6 Responsive Layout Refinements
+- [x] 9.7 Terminal Container Sizing
+- [x] 9.8 Paste Button (Mobile)
+- [x] 9.9 Tests

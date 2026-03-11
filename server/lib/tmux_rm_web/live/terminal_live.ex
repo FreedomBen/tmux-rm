@@ -50,24 +50,29 @@ defmodule TmuxRmWeb.TerminalLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col h-dvh bg-black">
+    <div class="terminal-page flex flex-col h-dvh bg-black">
       <meta name="channel-token" content={@channel_token} />
 
-      <header class="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-700 shrink-0">
-        <.link navigate={~p"/"} class="text-gray-400 hover:text-white text-sm">
+      <header class="terminal-header flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-700 shrink-0 transition-transform duration-300 sm:translate-y-0 z-30">
+        <.link navigate={~p"/"} class="text-gray-400 hover:text-white text-sm min-h-[48px] sm:min-h-0 flex items-center">
           <.icon name="hero-arrow-left-micro" class="size-4 inline" /> Sessions
         </.link>
         <span class="text-gray-300 text-sm font-mono">{@target}</span>
-        <.link navigate={~p"/settings"} class="text-gray-400 hover:text-white text-sm">
+        <.link navigate={~p"/settings"} class="text-gray-400 hover:text-white text-sm min-h-[48px] sm:min-h-0 flex items-center">
           <.icon name="hero-cog-6-tooth-micro" class="size-4" />
         </.link>
       </header>
 
       <%!-- Quick action bar --%>
-      <div :if={@quick_actions != [] and @show_actions} class="flex items-center gap-2 px-3 py-1.5 bg-gray-900/80 border-b border-gray-700/50 overflow-x-auto shrink-0">
+      <div
+        :if={@quick_actions != [] and @show_actions}
+        class="terminal-action-bar flex items-center gap-2 px-3 py-1.5 bg-gray-900/80 border-b border-gray-700/50 overflow-x-auto shrink-0 transition-all duration-300 sm:translate-y-0 sm:opacity-100 z-20"
+        style="scroll-snap-type: x mandatory;"
+      >
         <button
           :for={action <- @quick_actions}
-          class={"btn btn-xs #{action_color_class(action)}"}
+          class={"btn btn-xs sm:btn-xs btn-sm #{action_color_class(action)}"}
+          style="scroll-snap-align: start;"
           phx-click="quick_action"
           phx-value-id={action["id"]}
         >
@@ -80,7 +85,7 @@ defmodule TmuxRmWeb.TerminalLive do
         </button>
       </div>
 
-      <div :if={@quick_actions != [] and not @show_actions} class="flex items-center px-3 py-0.5 bg-gray-900/80 border-b border-gray-700/50 shrink-0">
+      <div :if={@quick_actions != [] and not @show_actions} class="terminal-action-bar flex items-center px-3 py-0.5 bg-gray-900/80 border-b border-gray-700/50 shrink-0 transition-all duration-300 sm:translate-y-0 sm:opacity-100 z-20">
         <button class="btn btn-ghost btn-xs text-gray-500" phx-click="toggle_actions">
           <.icon name="hero-chevron-down-micro" class="size-3" />
           <span class="text-xs">{length(@quick_actions)} actions</span>
@@ -92,7 +97,7 @@ defmodule TmuxRmWeb.TerminalLive do
         phx-hook="TerminalHook"
         phx-update="ignore"
         data-target={@target}
-        class="flex-1 min-h-0"
+        class="terminal-container flex-1 min-h-0"
       >
       </div>
 

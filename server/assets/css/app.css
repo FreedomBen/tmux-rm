@@ -103,3 +103,142 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* === Terminal page layout === */
+.terminal-page {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-container {
+  flex: 1;
+  min-height: 0;
+}
+
+/* === Virtual Key Toolbar === */
+.virtual-toolbar {
+  background: #1a1a2e;
+  border-top: 1px solid #333;
+  padding: 4px 4px 8px;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.vk-main-row,
+.vk-extended-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  padding: 2px 0;
+}
+
+.vk-extended-row {
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid #333;
+  margin-top: 4px;
+}
+
+.vk-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  background: #2a2a3e;
+  color: #d1d5db;
+  border: 1px solid #444;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+  cursor: pointer;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.1s;
+}
+
+.vk-btn:active {
+  background: #4a4a6e;
+}
+
+.vk-btn.vk-sm {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.vk-btn.vk-compact {
+  min-width: 40px;
+  min-height: 36px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.vk-btn.vk-active {
+  background: #6366f1;
+  color: white;
+  border-color: #818cf8;
+}
+
+.vk-expand-handle {
+  display: flex;
+  justify-content: center;
+  padding: 2px;
+  cursor: pointer;
+  color: #666;
+  font-size: 10px;
+  touch-action: manipulation;
+}
+
+.vk-compact-row {
+  background: #1a1a2e;
+  border-top: 1px solid #333;
+  padding: 2px 4px 4px;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.vk-hidden {
+  display: none !important;
+}
+
+/* Desktop: hide virtual toolbar */
+@media (min-width: 641px) {
+  .virtual-toolbar,
+  .vk-compact-row {
+    display: none !important;
+  }
+}
+
+/* Tablet: show toolbar but optional */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .virtual-toolbar {
+    display: flex !important;
+    flex-direction: column;
+  }
+}
+
+/* === Mobile-specific session list === */
+@media (max-width: 639px) {
+  /* Larger touch targets on session cards */
+  .card .flex.items-center.gap-3 {
+    min-height: 56px;
+  }
+
+  /* Full-width pane action buttons on mobile */
+  .card .btn-xs {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

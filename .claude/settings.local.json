@@ -30,7 +30,8 @@
       "Bash(MIX_ENV=test mix test test/tmux_rm/pane_stream_test.exs --include tmux --seed 0 --trace 2>&1 | head -80)",
       "Bash(MIX_ENV=test mix run -e \"IO.puts\\(inspect\\(Process.whereis\\(TmuxRmWeb.Endpoint\\)\\)\\)\" 2>&1 | tail -20)",
       "Bash(mix run:*)",
-      "Bash(kill 2074005 2083792 2>/dev/null; sleep 1; mix test --exclude tmux 2>&1 | tail -10)"
+      "Bash(kill 2074005 2083792 2>/dev/null; sleep 1; mix test --exclude tmux 2>&1 | tail -10)",
+      "Bash(mix assets.build 2>&1 | tail -10)"
     ]
   }
 }
