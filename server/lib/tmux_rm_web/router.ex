@@ -32,8 +32,8 @@ defmodule TmuxRmWeb.Router do
     pipe_through :browser
 
     live "/", SessionListLive, :index
+    live "/terminal/:target", TerminalLive, :show
     get "/login", PageController, :home
     get "/settings", PageController, :home
-    get "/terminal/:target", PageController, :home
   end
 end

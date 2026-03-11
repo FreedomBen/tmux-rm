@@ -263,12 +263,12 @@ server/test/tmux_rm_web/channels/terminal_channel_test.exs
 - LiveView handles only control/UI — zero terminal data passes through LiveView
 
 ## Checklist
-- [ ] 5.1 TerminalHook (JavaScript)
-- [ ] 5.2 Register Hook and UserSocket in app.js
-- [ ] 5.3 TerminalLive (Server)
-- [ ] 5.4 Terminal View Template
-- [ ] 5.9 Hybrid LiveView + Channel Architecture
-- [ ] 5.5 Route Configuration
-- [ ] 5.6 Resize Handling
-- [ ] 5.7 Mobile Layout
-- [ ] 5.8 Tests
+- [x] 5.1 TerminalHook (JavaScript)
+- [x] 5.2 Register Hook and UserSocket in app.js
+- [x] 5.3 TerminalLive (Server)
+- [x] 5.4 Terminal View Template
+- [x] 5.9 Hybrid LiveView + Channel Architecture
+- [x] 5.5 Route Configuration
+- [x] 5.6 Resize Handling
+- [x] 5.7 Mobile Layout
+- [x] 5.8 Tests

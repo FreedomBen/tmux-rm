@@ -1,7 +1,7 @@
 defmodule TmuxRmWeb.UserSocket do
   use Phoenix.Socket
 
-  # Channels will be added in later phases
+  channel "terminal:*", TmuxRmWeb.TerminalChannel
 
   @impl true
   def connect(_params, socket, _connect_info) do

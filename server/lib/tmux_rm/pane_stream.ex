@@ -62,6 +62,17 @@ defmodule TmuxRm.PaneStream do
     end
   end
 
+  @doc "Resize the pane. Validates bounds and calls tmux resize-pane."
+  def resize(target, cols, rows) when is_integer(cols) and is_integer(rows) do
+    cols = cols |> max(1) |> min(500)
+    rows = rows |> max(1) |> min(200)
+
+    case lookup(target) do
+      {:ok, pid} -> GenServer.call(pid, {:resize, cols, rows})
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
   # --- GenServer Implementation ---
 
   def child_spec(target) do
@@ -171,6 +182,22 @@ defmodule TmuxRm.PaneStream do
     else
       result = send_hex_keys(state.pane_id, data)
       {:reply, result, state}
+    end
+  end
+
+  def handle_call({:resize, _cols, _rows}, _from, %{status: status} = state)
+      when status in [:dead, :starting] do
+    {:reply, {:error, status}, state}
+  end
+
+  def handle_call({:resize, cols, rows}, _from, state) do
+    case command_runner().run(["resize-pane", "-t", state.pane_id, "-x", to_string(cols), "-y", to_string(rows)]) do
+      {:ok, _} ->
+        Phoenix.PubSub.broadcast(TmuxRm.PubSub, "pane:#{state.target}", {:pane_resized, cols, rows})
+        {:reply, :ok, state}
+
+      {:error, {msg, _}} ->
+        {:reply, {:error, msg}, state}
     end
   end
 
