@@ -35,7 +35,8 @@
       "Bash(mix assets.build 2>&1 | tail -5)",
       "Bash(mix format:*)",
       "Bash(chmod +x /home/ben/gitclone/tmux-rm/bin/build-release.sh)",
-      "Bash(MIX_ENV=prod mix release --overwrite 2>&1 | tail -10)"
+      "Bash(MIX_ENV=prod mix release --overwrite 2>&1 | tail -10)",
+      "mcp__plugin_context-mode_context-mode__ctx_index"
     ]
   }
 }
