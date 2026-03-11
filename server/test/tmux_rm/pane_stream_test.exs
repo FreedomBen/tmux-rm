@@ -85,7 +85,6 @@ defmodule TmuxRm.PaneStreamTest do
 
       # Send some text — actual newline byte
       assert :ok = PaneStream.send_keys(target, "echo hello\n")
-      Process.sleep(100)
     end
 
     test "returns error for nonexistent pane" do
@@ -99,14 +98,11 @@ defmodule TmuxRm.PaneStreamTest do
 
       {:ok, _history, _pid} = PaneStream.subscribe(target)
 
-      # Small delay to ensure pipe-pane is fully attached
-      Process.sleep(100)
-
       # Send a command that produces output
       PaneStream.send_keys(target, "echo pane_stream_test_output\n")
 
       # Wait for output to arrive via PubSub
-      assert_receive {:pane_output, ^target, _data}, 5000
+      assert_receive {:pane_output, ^target, _data}, 2000
     end
   end
 
@@ -120,8 +116,8 @@ defmodule TmuxRm.PaneStreamTest do
 
       PaneStream.unsubscribe(target)
 
-      # Should terminate after ~1s grace period
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 3000
+      # Grace period is 100ms in test config
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 1000
     end
 
     test "re-subscribe during grace period keeps PaneStream alive", %{session: session} do
@@ -130,13 +126,13 @@ defmodule TmuxRm.PaneStreamTest do
       {:ok, _history, pid} = PaneStream.subscribe(target)
       PaneStream.unsubscribe(target)
 
-      # Re-subscribe before grace period expires
-      Process.sleep(200)
+      # Re-subscribe before grace period (100ms) expires
+      Process.sleep(50)
       {:ok, _history, pid2} = PaneStream.subscribe(target)
       assert pid == pid2
 
       # Should still be alive after original grace period would have expired
-      Process.sleep(1200)
+      Process.sleep(200)
       assert Process.alive?(pid)
     end
   end
@@ -148,15 +144,12 @@ defmodule TmuxRm.PaneStreamTest do
       {:ok, _history, pid} = PaneStream.subscribe(target)
       ref = Process.monitor(pid)
 
-      # Small delay to ensure pipeline is fully set up
-      Process.sleep(100)
-
       # Kill the session (which kills all its panes)
       System.cmd("tmux", ["kill-session", "-t", session])
 
       # Should receive pane_dead and PaneStream should terminate
-      assert_receive {:pane_dead, ^target}, 10_000
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 5000
+      assert_receive {:pane_dead, ^target}, 3000
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2000
     end
   end
 end

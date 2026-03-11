@@ -1,6 +1,3 @@
-ExUnit.start(exclude: [:skip])
+ExUnit.start(exclude: [:skip, :tmux])
 
-# Exclude tmux integration tests if tmux not installed
-unless System.find_executable("tmux") do
-  ExUnit.configure(exclude: [:tmux])
-end
+# To run tmux integration tests: mix test --include tmux

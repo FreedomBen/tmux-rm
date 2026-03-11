@@ -1,5 +1,5 @@
 defmodule TmuxRmWeb.ConfigControllerTest do
-  use TmuxRmWeb.ConnCase, async: false
+  use TmuxRmWeb.ConnCase, async: true
 
   describe "GET /api/config" do
     test "returns config as JSON", %{conn: conn} do

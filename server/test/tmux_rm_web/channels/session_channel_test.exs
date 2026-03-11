@@ -1,5 +1,5 @@
 defmodule TmuxRmWeb.SessionChannelTest do
-  use TmuxRmWeb.ChannelCase, async: false
+  use TmuxRmWeb.ChannelCase, async: true
 
   describe "join" do
     test "returns current session list on join" do

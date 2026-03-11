@@ -1,5 +1,5 @@
 defmodule TmuxRmWeb.TerminalLiveTest do
-  use TmuxRmWeb.ConnCase, async: false
+  use TmuxRmWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 

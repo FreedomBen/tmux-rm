@@ -1,5 +1,5 @@
 defmodule TmuxRmWeb.HealthControllerTest do
-  use TmuxRmWeb.ConnCase, async: false
+  use TmuxRmWeb.ConnCase, async: true
 
   describe "GET /healthz" do
     test "returns 200 with JSON body", %{conn: conn} do

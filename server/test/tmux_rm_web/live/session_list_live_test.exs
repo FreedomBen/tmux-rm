@@ -125,9 +125,9 @@ defmodule TmuxRmWeb.SessionListLiveTest do
 
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
-      # Give poller time to pick up
+      # Force poller to pick up the new session
       TmuxRm.SessionPoller.force_poll()
-      Process.sleep(200)
+      Process.sleep(50)
 
       {:ok, view, _html} = live(conn, "/")
 

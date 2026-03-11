@@ -24,9 +24,7 @@ defmodule TmuxRm.SessionPollerTest do
   describe "force_poll/0" do
     test "triggers a re-poll without crashing" do
       assert :ok = SessionPoller.force_poll()
-      # Give the cast time to process
-      Process.sleep(100)
-      # Should still be alive
+      # Synchronous call confirms the cast was processed
       assert is_list(SessionPoller.get())
     end
   end
@@ -36,8 +34,7 @@ defmodule TmuxRm.SessionPollerTest do
       Phoenix.PubSub.subscribe(TmuxRm.PubSub, "sessions:state")
       SessionPoller.force_poll()
       # The broadcast may or may not fire depending on whether state changed.
-      # We just verify no crash occurred.
-      Process.sleep(200)
+      # Synchronous call confirms the cast was processed.
       assert is_list(SessionPoller.get())
     end
   end

@@ -37,7 +37,9 @@
       "Bash(chmod +x /home/ben/gitclone/tmux-rm/bin/build-release.sh)",
       "Bash(MIX_ENV=prod mix release --overwrite 2>&1 | tail -10)",
       "mcp__plugin_context-mode_context-mode__ctx_index",
-      "Bash(tmux list-sessions:*)"
+      "Bash(tmux list-sessions:*)",
+      "Bash(git stash:*)",
+      "Bash(grep -l \"async: true\" test/tmux_rm_web/live/*_test.exs test/tmux_rm_web/channels/*_test.exs test/tmux_rm_web/controllers/*_test.exs test/tmux_rm_web/plugs/*_test.exs test/tmux_rm/*_test.exs 2>/dev/null)"
     ]
   }
 }

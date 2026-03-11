@@ -1,5 +1,5 @@
 defmodule TmuxRm.TelemetryTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   test "pane_stream_count emits telemetry event" do
     ref = make_ref()

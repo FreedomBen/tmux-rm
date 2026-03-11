@@ -1,5 +1,5 @@
 defmodule TmuxRmWeb.TerminalChannelTest do
-  use TmuxRmWeb.ChannelCase, async: false
+  use TmuxRmWeb.ChannelCase, async: true
 
   describe "join" do
     test "returns error when pane not found" do
