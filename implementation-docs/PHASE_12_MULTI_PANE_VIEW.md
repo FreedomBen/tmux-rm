@@ -182,13 +182,13 @@ server/test/tmux_rm_web/live/multi_pane_live_test.exs
 - `/sessions/:session` redirects to the active window
 
 ## Checklist
-- [ ] 12.1 MultiPaneLive
-- [ ] 12.2 Window Tabs
-- [ ] 12.3 CSS Grid Layout
-- [ ] 12.4 Multiple TerminalHook Instances
-- [ ] 12.5 Resize Behavior
-- [ ] 12.6 Single-Pane Navigation
-- [ ] 12.7 Mobile Behavior
-- [ ] 12.8 LayoutPoller GenServer
-- [ ] 12.9 Layout Refresh
-- [ ] 12.10 Tests
+- [x] 12.1 MultiPaneLive
+- [x] 12.2 Window Tabs
+- [x] 12.3 CSS Grid Layout
+- [x] 12.4 Multiple TerminalHook Instances
+- [x] 12.5 Resize Behavior
+- [x] 12.6 Single-Pane Navigation
+- [x] 12.7 Mobile Behavior
+- [x] 12.8 LayoutPoller GenServer
+- [x] 12.9 Layout Refresh
+- [x] 12.10 Tests

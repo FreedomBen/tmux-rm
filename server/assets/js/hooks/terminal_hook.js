@@ -66,14 +66,15 @@ const TerminalHook = {
     this.term.open(this.el);
     this.fitAddon.fit();
 
-    // Track mobile state
+    // Track mobile state and multi-pane mode
     this._isMobile = isMobile();
+    this._isMultiPane = this.el.dataset.mode === "multi";
 
     // Connect companion Channel for binary I/O
     this._connectChannel(target);
 
-    // Send initial resize to server (only if not mobile — mobile is passive)
-    if (!this._isMobile) {
+    // Send initial resize to server (only if not mobile and not multi-pane — both are passive)
+    if (!this._isMobile && !this._isMultiPane) {
       this.pushEvent("resize", { cols: this.term.cols, rows: this.term.rows });
     }
 
@@ -121,11 +122,8 @@ const TerminalHook = {
     this._resizeObserver = new ResizeObserver(() => {
       clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => {
-        if (this._isMobile) {
-          // Mobile: passive resize — fit terminal but don't notify server
-          this.fitAddon.fit();
-        } else {
-          this.fitAddon.fit();
+        this.fitAddon.fit();
+        if (!this._isMobile && !this._isMultiPane) {
           this.pushEvent("resize", {
             cols: this.term.cols,
             rows: this.term.rows,
@@ -148,14 +146,14 @@ const TerminalHook = {
       }
     });
 
-    // --- Mobile features ---
-    this._setupVirtualToolbar();
-    this._setupSoftKeyboard();
-    this._setupTouchGestures();
-    this._setupAutoHidingHeader();
-
-    // --- Preferences panel (gear icon) ---
-    this._setupPreferencesPanel();
+    // --- Mobile features (skip in multi-pane mode) ---
+    if (!this._isMultiPane) {
+      this._setupVirtualToolbar();
+      this._setupSoftKeyboard();
+      this._setupTouchGestures();
+      this._setupAutoHidingHeader();
+      this._setupPreferencesPanel();
+    }
   },
 
   // --- Preferences Panel ---

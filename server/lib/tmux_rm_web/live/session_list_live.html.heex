@@ -202,6 +202,13 @@
           >
             Open
           </.link>
+          <.link
+            navigate={"/sessions/#{session.name}/windows/#{pane.window_index}"}
+            class="btn btn-ghost btn-xs text-gray-400 hover:text-white hidden sm:inline-flex"
+            title="View all panes in this window"
+          >
+            <.icon name="hero-rectangle-group-micro" class="size-3" />
+          </.link>
 
           <div class="dropdown dropdown-end">
             <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
