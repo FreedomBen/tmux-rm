@@ -5,8 +5,7 @@
     <p class="font-semibold">tmux is not installed or not in PATH</p>
     <p class="text-sm mt-1">
       Install tmux via your package manager
-      (e.g., <code class="bg-base-300 px-1 rounded">apt install tmux</code>,
-      <code class="bg-base-300 px-1 rounded">brew install tmux</code>)
+      (e.g., <code class="bg-base-300 px-1 rounded">apt install tmux</code>, <code class="bg-base-300 px-1 rounded">brew install tmux</code>)
       and restart the application.
     </p>
   </div>
@@ -33,15 +32,18 @@
       class="btn btn-primary btn-sm"
       phx-click="toggle_new_session_form"
     >
-      <.icon name="hero-plus-micro" class="size-4" />
-      New Session
+      <.icon name="hero-plus-micro" class="size-4" /> New Session
     </button>
   </:actions>
 </.header>
 
 <%!-- New session form --%>
 <div :if={@show_new_session_form} class="card bg-base-200 p-4 mb-6">
-  <form phx-submit="create_session" phx-change="validate_session_name" class="flex gap-3 items-end">
+  <form
+    phx-submit="create_session"
+    phx-change="validate_session_name"
+    class="flex gap-3 items-end"
+  >
     <div class="flex-1">
       <label class="label mb-1" for="new-session-name">Session name</label>
       <input
@@ -70,7 +72,10 @@
 </div>
 
 <%!-- Empty state --%>
-<div :if={@sessions == [] and @tmux_status not in [:not_found]} class="flex flex-col items-center justify-center py-16 text-base-content/60">
+<div
+  :if={@sessions == [] and @tmux_status not in [:not_found]}
+  class="flex flex-col items-center justify-center py-16 text-base-content/60"
+>
   <.icon name="hero-command-line" class="size-12 mb-4" />
   <p class="text-lg font-medium mb-2">No tmux sessions</p>
   <p class="text-sm mb-6">Create a session to get started.</p>
@@ -79,8 +84,7 @@
     class="btn btn-primary"
     phx-click="toggle_new_session_form"
   >
-    <.icon name="hero-plus-micro" class="size-4" />
-    Create Session
+    <.icon name="hero-plus-micro" class="size-4" /> Create Session
   </button>
 </div>
 
@@ -97,7 +101,11 @@
       phx-value-name={session.name}
     >
       <.icon
-        name={if session_expanded?(@expanded, session.name), do: "hero-chevron-down-micro", else: "hero-chevron-right-micro"}
+        name={
+          if session_expanded?(@expanded, session.name),
+            do: "hero-chevron-down-micro",
+            else: "hero-chevron-right-micro"
+        }
         class="size-4 text-base-content/50"
       />
       <div class="flex-1 min-w-0">
@@ -124,7 +132,11 @@
                 phx-keydown="cancel_rename"
                 phx-key="Escape"
               />
-              <button type="submit" class="btn btn-ghost btn-xs btn-success" disabled={@rename_error != nil}>
+              <button
+                type="submit"
+                class="btn btn-ghost btn-xs btn-success"
+                disabled={@rename_error != nil}
+              >
                 <.icon name="hero-check-micro" class="size-4" />
               </button>
               <button type="button" class="btn btn-ghost btn-xs" phx-click="cancel_rename">
@@ -138,8 +150,9 @@
           <% end %>
         </div>
         <div class="text-xs text-base-content/50 mt-0.5">
-          {session.windows} window{if session.windows != 1, do: "s", else: ""}
-          &middot; {total_panes(session)} pane{if total_panes(session) != 1, do: "s", else: ""}
+          {session.windows} window{if session.windows != 1, do: "s", else: ""} &middot; {total_panes(
+            session
+          )} pane{if total_panes(session) != 1, do: "s", else: ""}
           <span :if={session.created}>&middot; {format_created(session.created)}</span>
         </div>
       </div>
@@ -149,7 +162,10 @@
         <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
           <.icon name="hero-ellipsis-vertical-micro" class="size-4" />
         </div>
-        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-48 p-2 shadow-lg">
+        <ul
+          tabindex="0"
+          class="dropdown-content menu bg-base-100 rounded-box z-10 w-48 p-2 shadow-lg"
+        >
           <li>
             <button phx-click="start_rename" phx-value-name={session.name}>
               <.icon name="hero-pencil-micro" class="size-4" /> Rename
@@ -163,7 +179,10 @@
           <li>
             <button
               class="text-error"
-              phx-click={JS.push("request_kill_session", value: %{name: session.name}) |> TmuxRmWeb.CoreComponents.show_modal("confirm-modal")}
+              phx-click={
+                JS.push("request_kill_session", value: %{name: session.name})
+                |> TmuxRmWeb.CoreComponents.show_modal("confirm-modal")
+              }
             >
               <.icon name="hero-trash-micro" class="size-4" /> Kill Session
             </button>
@@ -214,7 +233,10 @@
             <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
               <.icon name="hero-ellipsis-vertical-micro" class="size-3" />
             </div>
-            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-44 p-2 shadow-lg">
+            <ul
+              tabindex="0"
+              class="dropdown-content menu bg-base-100 rounded-box z-10 w-44 p-2 shadow-lg"
+            >
               <li>
                 <button
                   phx-click="split_pane"
@@ -237,10 +259,12 @@
                 <button
                   class="text-error"
                   phx-click={
-                    JS.push("request_kill_pane", value: %{
-                      target: "#{session.name}:#{pane.window_index}.#{pane.index}",
-                      "pane-count": total_panes(session)
-                    })
+                    JS.push("request_kill_pane",
+                      value: %{
+                        target: "#{session.name}:#{pane.window_index}.#{pane.index}",
+                        "pane-count": total_panes(session)
+                      }
+                    )
                     |> TmuxRmWeb.CoreComponents.show_modal("confirm-modal")
                   }
                 >

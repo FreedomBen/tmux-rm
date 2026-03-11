@@ -30,7 +30,9 @@ defmodule TmuxRmWeb.AuthLive do
 
           <div :if={not @auth_enabled} role="alert" class="alert alert-info mb-4">
             <.icon name="hero-information-circle" class="size-5" />
-            <span class="text-sm">Auth is not configured. Run <code>mix rca.setup</code> to enable.</span>
+            <span class="text-sm">
+              Auth is not configured. Run <code>mix rca.setup</code> to enable.
+            </span>
           </div>
 
           <form phx-submit="login" class="space-y-4">

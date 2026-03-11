@@ -19,10 +19,11 @@ defmodule TmuxRmWeb.MultiPaneLive do
     end
 
     # Fetch layout and window list
-    layout = case LayoutPoller.get(session, window) do
-      {:ok, panes} -> panes
-      {:error, _} -> []
-    end
+    layout =
+      case LayoutPoller.get(session, window) do
+        {:ok, panes} -> panes
+        {:error, _} -> []
+      end
 
     windows = fetch_windows(session)
 
@@ -124,7 +125,7 @@ defmodule TmuxRmWeb.MultiPaneLive do
         <div
           :for={pane <- @panes}
           class="pointer-events-auto"
-          style={"position: absolute; display: none;"}
+          style="position: absolute; display: none;"
           id={"focus-btn-#{pane.target}"}
         >
           <.link
@@ -239,7 +240,11 @@ defmodule TmuxRmWeb.MultiPaneLive do
 
   defp get_active_window(session) do
     case command_runner().run([
-           "display-message", "-p", "-t", session, "\#{window_index}"
+           "display-message",
+           "-p",
+           "-t",
+           session,
+           "\#{window_index}"
          ]) do
       {:ok, output} -> String.trim(output)
       {:error, _} -> "0"

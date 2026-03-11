@@ -54,11 +54,17 @@ defmodule TmuxRmWeb.TerminalLive do
       <meta name="channel-token" content={@channel_token} />
 
       <header class="terminal-header flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-700 shrink-0 transition-transform duration-300 sm:translate-y-0 z-30">
-        <.link navigate={~p"/"} class="text-gray-400 hover:text-white text-sm min-h-[48px] sm:min-h-0 flex items-center">
+        <.link
+          navigate={~p"/"}
+          class="text-gray-400 hover:text-white text-sm min-h-[48px] sm:min-h-0 flex items-center"
+        >
           <.icon name="hero-arrow-left-micro" class="size-4 inline" /> Sessions
         </.link>
         <span class="text-gray-300 text-sm font-mono">{@target}</span>
-        <button class="terminal-prefs-btn text-gray-400 hover:text-white text-sm min-h-[48px] sm:min-h-0 flex items-center" aria-label="Terminal preferences">
+        <button
+          class="terminal-prefs-btn text-gray-400 hover:text-white text-sm min-h-[48px] sm:min-h-0 flex items-center"
+          aria-label="Terminal preferences"
+        >
           <.icon name="hero-cog-6-tooth-micro" class="size-4" />
         </button>
       </header>
@@ -85,7 +91,10 @@ defmodule TmuxRmWeb.TerminalLive do
         </button>
       </div>
 
-      <div :if={@quick_actions != [] and not @show_actions} class="terminal-action-bar flex items-center px-3 py-0.5 bg-gray-900/80 border-b border-gray-700/50 shrink-0 transition-all duration-300 sm:translate-y-0 sm:opacity-100 z-20">
+      <div
+        :if={@quick_actions != [] and not @show_actions}
+        class="terminal-action-bar flex items-center px-3 py-0.5 bg-gray-900/80 border-b border-gray-700/50 shrink-0 transition-all duration-300 sm:translate-y-0 sm:opacity-100 z-20"
+      >
         <button class="btn btn-ghost btn-xs text-gray-500" phx-click="toggle_actions">
           <.icon name="hero-chevron-down-micro" class="size-3" />
           <span class="text-xs">{length(@quick_actions)} actions</span>

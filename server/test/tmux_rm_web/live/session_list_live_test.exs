@@ -22,7 +22,11 @@ defmodule TmuxRmWeb.SessionListLiveTest do
       html = view |> element("button", "New Session") |> render_click()
       assert html =~ "Session name"
 
-      html = view |> element(~s(button[phx-click="toggle_new_session_form"]), "Cancel") |> render_click()
+      html =
+        view
+        |> element(~s(button[phx-click="toggle_new_session_form"]), "Cancel")
+        |> render_click()
+
       refute html =~ ~s(id="new-session-name")
     end
 
@@ -56,14 +60,18 @@ defmodule TmuxRmWeb.SessionListLiveTest do
     test "kill pane last pane warning", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      html = render_click(view, "request_kill_pane", %{"target" => "test:0.0", "pane-count" => "1"})
+      html =
+        render_click(view, "request_kill_pane", %{"target" => "test:0.0", "pane-count" => "1"})
+
       assert html =~ "last pane"
     end
 
     test "kill pane normal message", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      html = render_click(view, "request_kill_pane", %{"target" => "test:0.1", "pane-count" => "3"})
+      html =
+        render_click(view, "request_kill_pane", %{"target" => "test:0.1", "pane-count" => "3"})
+
       assert html =~ "Kill this pane"
     end
   end
@@ -71,7 +79,10 @@ defmodule TmuxRmWeb.SessionListLiveTest do
   describe "event handlers - stub" do
     test "split pane handles error gracefully", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
-      html = render_click(view, "split_pane", %{"target" => "test:0.0", "direction" => "horizontal"})
+
+      html =
+        render_click(view, "split_pane", %{"target" => "test:0.0", "direction" => "horizontal"})
+
       assert html =~ "Sessions"
     end
 
@@ -135,7 +146,9 @@ defmodule TmuxRmWeb.SessionListLiveTest do
 
       {:ok, view, _html} = live(conn, "/")
 
-      html = render_click(view, "split_pane", %{"target" => "#{name}:0.0", "direction" => "horizontal"})
+      html =
+        render_click(view, "split_pane", %{"target" => "#{name}:0.0", "direction" => "horizontal"})
+
       assert html =~ "Sessions"
 
       TmuxRm.TmuxManager.kill_session(name)
@@ -170,6 +183,7 @@ defmodule TmuxRmWeb.SessionListLiveTest do
   describe "health endpoint" do
     test "returns health status", %{conn: conn} do
       conn = get(conn, "/healthz")
+
       assert json_response(conn, 200)["status"] in ["ok", "error"] or
                json_response(conn, 503)["status"] == "error"
     end

@@ -9,8 +9,11 @@ config :tmux_rm, TmuxRmWeb.Endpoint,
 
 config :tmux_rm,
   command_runner: TmuxRm.StubCommandRunner,
-  pane_stream_grace_period: 1_000,
-  fifo_dir: "/tmp/tmux-rm-test"
+  pane_stream_grace_period: 100,
+  fifo_dir: "/tmp/tmux-rm-test",
+  session_poll_interval: 500,
+  config_poll_interval: 500,
+  output_coalesce_ms: 0
 
 # Print only warnings and errors during test
 config :logger, level: :warning

@@ -4,8 +4,26 @@ defmodule TmuxRmWeb.MultiPaneLiveTest do
   import Phoenix.LiveViewTest
 
   @test_panes [
-    %{pane_id: "%0", target: "test:0.0", left: 0, top: 0, width: 80, height: 24, index: 0, command: "bash"},
-    %{pane_id: "%1", target: "test:0.1", left: 81, top: 0, width: 80, height: 24, index: 1, command: "vim"}
+    %{
+      pane_id: "%0",
+      target: "test:0.0",
+      left: 0,
+      top: 0,
+      width: 80,
+      height: 24,
+      index: 0,
+      command: "bash"
+    },
+    %{
+      pane_id: "%1",
+      target: "test:0.1",
+      left: 81,
+      top: 0,
+      width: 80,
+      height: 24,
+      index: 1,
+      command: "vim"
+    }
   ]
 
   describe "mount with window" do
@@ -99,8 +117,26 @@ defmodule TmuxRmWeb.MultiPaneLiveTest do
       {:ok, view, _html} = live(conn, "/sessions/test/windows/0")
 
       stacked = [
-        %{pane_id: "%0", target: "t:0.0", left: 0, top: 0, width: 120, height: 20, index: 0, command: "bash"},
-        %{pane_id: "%1", target: "t:0.1", left: 0, top: 21, width: 120, height: 20, index: 1, command: "bash"}
+        %{
+          pane_id: "%0",
+          target: "t:0.0",
+          left: 0,
+          top: 0,
+          width: 120,
+          height: 20,
+          index: 0,
+          command: "bash"
+        },
+        %{
+          pane_id: "%1",
+          target: "t:0.1",
+          left: 0,
+          top: 21,
+          width: 120,
+          height: 20,
+          index: 1,
+          command: "bash"
+        }
       ]
 
       send(view.pid, {:layout_updated, stacked})

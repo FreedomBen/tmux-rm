@@ -11,8 +11,7 @@
       class="btn btn-primary btn-sm"
       phx-click="new_action"
     >
-      <.icon name="hero-plus-micro" class="size-4" />
-      Add Action
+      <.icon name="hero-plus-micro" class="size-4" /> Add Action
     </button>
   </div>
 
@@ -44,11 +43,16 @@
           id="action-command"
           name="action[command]"
           placeholder="e.g., git push origin main"
-          class={["textarea textarea-bordered w-full font-mono text-sm", @form_errors["command"] && "textarea-error"]}
+          class={[
+            "textarea textarea-bordered w-full font-mono text-sm",
+            @form_errors["command"] && "textarea-error"
+          ]}
           rows="2"
           phx-debounce="300"
         >{@form_data["command"]}</textarea>
-        <p :if={@form_errors["command"]} class="text-error text-sm mt-1">{@form_errors["command"]}</p>
+        <p :if={@form_errors["command"]} class="text-error text-sm mt-1">
+          {@form_errors["command"]}
+        </p>
       </div>
 
       <div class="flex gap-4 flex-wrap">
@@ -71,8 +75,12 @@
             <option value="play" selected={@form_data["icon"] == "play"}>▶ Play</option>
             <option value="stop" selected={@form_data["icon"] == "stop"}>⏹ Stop</option>
             <option value="trash" selected={@form_data["icon"] == "trash"}>🗑 Trash</option>
-            <option value="arrow-up" selected={@form_data["icon"] == "arrow-up"}>↑ Arrow Up</option>
-            <option value="terminal" selected={@form_data["icon"] == "terminal"}>⌨ Terminal</option>
+            <option value="arrow-up" selected={@form_data["icon"] == "arrow-up"}>
+              ↑ Arrow Up
+            </option>
+            <option value="terminal" selected={@form_data["icon"] == "terminal"}>
+              ⌨ Terminal
+            </option>
           </select>
         </div>
 
@@ -98,10 +106,15 @@
   </div>
 
   <%!-- Action list --%>
-  <div :if={@quick_actions == [] and @editing == nil} class="text-base-content/50 text-center py-8">
+  <div
+    :if={@quick_actions == [] and @editing == nil}
+    class="text-base-content/50 text-center py-8"
+  >
     <.icon name="hero-bolt" class="size-8 mx-auto mb-2" />
     <p>No quick actions configured.</p>
-    <p class="text-sm mt-1">Add buttons that appear above the terminal for one-tap command execution.</p>
+    <p class="text-sm mt-1">
+      Add buttons that appear above the terminal for one-tap command execution.
+    </p>
   </div>
 
   <div :if={@quick_actions != []} class="space-y-2">
@@ -113,17 +126,25 @@
         <button class="btn btn-ghost btn-xs px-0" phx-click="move_up" phx-value-id={action["id"]}>
           <.icon name="hero-chevron-up-micro" class="size-3" />
         </button>
-        <button class="btn btn-ghost btn-xs px-0" phx-click="move_down" phx-value-id={action["id"]}>
+        <button
+          class="btn btn-ghost btn-xs px-0"
+          phx-click="move_down"
+          phx-value-id={action["id"]}
+        >
           <.icon name="hero-chevron-down-micro" class="size-3" />
         </button>
       </div>
 
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
-          <span class={"badge badge-sm #{action_badge_class(action["color"])}"}>{action["label"]}</span>
+          <span class={"badge badge-sm #{action_badge_class(action["color"])}"}>
+            {action["label"]}
+          </span>
           <span :if={action["confirm"]} class="text-warning text-xs">⚠ confirm</span>
         </div>
-        <code class="text-xs text-base-content/50 block truncate mt-0.5">{action["command"]}</code>
+        <code class="text-xs text-base-content/50 block truncate mt-0.5">
+          {action["command"]}
+        </code>
       </div>
 
       <div class="flex gap-1">

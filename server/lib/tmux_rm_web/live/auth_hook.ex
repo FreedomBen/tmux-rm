@@ -13,7 +13,10 @@ defmodule TmuxRmWeb.AuthHook do
           ttl_days = Application.get_env(:tmux_rm, :auth_session_ttl_days, 30)
 
           if ttl_days && session_expired?(timestamp, ttl_days) do
-            {:halt, socket |> put_flash(:error, "Session expired. Please log in again.") |> redirect(to: "/login")}
+            {:halt,
+             socket
+             |> put_flash(:error, "Session expired. Please log in again.")
+             |> redirect(to: "/login")}
           else
             {:cont, assign(socket, :authenticated_at, timestamp)}
           end

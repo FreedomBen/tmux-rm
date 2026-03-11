@@ -239,14 +239,14 @@ server/test/tmux_rm_web/plugs/rate_limit_test.exs
 - Release builds successfully in CI on tags
 
 ## Checklist
-- [ ] 13.1 Test Infrastructure
-- [ ] 13.2 Unit Tests (No tmux Required)
-- [ ] 13.3 Integration Tests (Require tmux)
-- [ ] 13.4 LiveView Tests
-- [ ] 13.5 Controller Tests
-- [ ] 13.6 Channel Tests
-- [ ] 13.7 Plug Tests
+- [x] 13.1 Test Infrastructure
+- [x] 13.2 Unit Tests (No tmux Required)
+- [x] 13.3 Integration Tests (Require tmux)
+- [x] 13.4 LiveView Tests
+- [x] 13.5 Controller Tests
+- [x] 13.6 Channel Tests
+- [x] 13.7 Plug Tests
 - [ ] 13.8 E2E Tests (Optional)
-- [ ] 13.9 GitHub Actions CI
-- [ ] 13.10 Test Tags and Exclusions
-- [ ] 13.11 Code Quality
+- [x] 13.9 GitHub Actions CI
+- [x] 13.10 Test Tags and Exclusions
+- [x] 13.11 Code Quality

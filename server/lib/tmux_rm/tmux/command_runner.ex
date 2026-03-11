@@ -58,9 +58,7 @@ defmodule TmuxRm.Tmux.CommandRunner do
               :ok
 
             {major, minor} ->
-              Logger.warning(
-                "tmux version #{major}.#{minor} detected, minimum required is 3.1"
-              )
+              Logger.warning("tmux version #{major}.#{minor} detected, minimum required is 3.1")
 
             :error ->
               Logger.warning("Could not parse tmux version: #{version}")

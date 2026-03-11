@@ -70,9 +70,14 @@ defmodule TmuxRmWeb.SessionListLive do
   def handle_event("validate_session_name", %{"name" => name}, socket) do
     error =
       cond do
-        name == "" -> nil
-        not TmuxManager.valid_session_name?(name) -> "Invalid name. Use only letters, numbers, hyphens, and underscores."
-        true -> nil
+        name == "" ->
+          nil
+
+        not TmuxManager.valid_session_name?(name) ->
+          "Invalid name. Use only letters, numbers, hyphens, and underscores."
+
+        true ->
+          nil
       end
 
     {:noreply,
@@ -112,7 +117,10 @@ defmodule TmuxRmWeb.SessionListLive do
      socket
      |> assign(:confirm_action, :kill_session)
      |> assign(:confirm_target, name)
-     |> assign(:confirm_message, "Kill session \"#{name}\"? This will terminate all processes in the session.")}
+     |> assign(
+       :confirm_message,
+       "Kill session \"#{name}\"? This will terminate all processes in the session."
+     )}
   end
 
   def handle_event("request_kill_pane", %{"target" => target, "pane-count" => count_str}, socket) do
@@ -174,9 +182,14 @@ defmodule TmuxRmWeb.SessionListLive do
   def handle_event("validate_rename", %{"name" => name}, socket) do
     error =
       cond do
-        name == "" -> "Name cannot be empty."
-        not TmuxManager.valid_session_name?(name) -> "Invalid name. Use only letters, numbers, hyphens, and underscores."
-        true -> nil
+        name == "" ->
+          "Name cannot be empty."
+
+        not TmuxManager.valid_session_name?(name) ->
+          "Invalid name. Use only letters, numbers, hyphens, and underscores."
+
+        true ->
+          nil
       end
 
     {:noreply,
@@ -249,14 +262,18 @@ defmodule TmuxRmWeb.SessionListLive do
 
   # --- Helpers ---
 
-  defp execute_confirmed_action(%{assigns: %{confirm_action: :kill_session, confirm_target: name}} = socket) do
+  defp execute_confirmed_action(
+         %{assigns: %{confirm_action: :kill_session, confirm_target: name}} = socket
+       ) do
     case TmuxManager.kill_session(name) do
       :ok -> put_flash(socket, :info, "Session \"#{name}\" killed.")
       {:error, msg} -> put_flash(socket, :error, "Failed to kill session: #{msg}")
     end
   end
 
-  defp execute_confirmed_action(%{assigns: %{confirm_action: :kill_pane, confirm_target: target}} = socket) do
+  defp execute_confirmed_action(
+         %{assigns: %{confirm_action: :kill_pane, confirm_target: target}} = socket
+       ) do
     case TmuxManager.kill_pane(target) do
       :ok -> put_flash(socket, :info, "Pane killed.")
       {:error, msg} -> put_flash(socket, :error, "Failed to kill pane: #{msg}")

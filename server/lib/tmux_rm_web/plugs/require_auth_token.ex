@@ -10,7 +10,8 @@ defmodule TmuxRmWeb.Plugs.RequireAuthToken do
       max_age = Application.get_env(:tmux_rm, :auth_token_max_age, 604_800)
 
       with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
-           {:ok, _data} <- Phoenix.Token.verify(TmuxRmWeb.Endpoint, "api_token", token, max_age: max_age) do
+           {:ok, _data} <-
+             Phoenix.Token.verify(TmuxRmWeb.Endpoint, "api_token", token, max_age: max_age) do
         conn
       else
         _ ->

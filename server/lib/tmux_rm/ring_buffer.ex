@@ -97,7 +97,6 @@ defmodule TmuxRm.RingBuffer do
           else
             trim(%__MODULE__{buf | chunks: rest, size: new_size})
           end
-
         else
           trim(%__MODULE__{buf | chunks: rest, size: new_size})
         end

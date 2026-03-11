@@ -19,7 +19,9 @@ defmodule TmuxRm.Auth do
     # Check static token first
     case Application.get_env(:tmux_rm, :auth_token) do
       token when is_binary(token) and token != "" ->
-        if Plug.Crypto.secure_compare(password, token), do: :ok, else: check_file(username, password)
+        if Plug.Crypto.secure_compare(password, token),
+          do: :ok,
+          else: check_file(username, password)
 
       _ ->
         check_file(username, password)

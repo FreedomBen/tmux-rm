@@ -147,7 +147,8 @@ defmodule TmuxRm.TmuxManager do
   end
 
   @doc "Split a pane. Direction is :horizontal or :vertical."
-  @spec split_pane(String.t(), :horizontal | :vertical) :: {:ok, String.t()} | {:error, String.t()}
+  @spec split_pane(String.t(), :horizontal | :vertical) ::
+          {:ok, String.t()} | {:error, String.t()}
   def split_pane(target, direction \\ :horizontal) do
     flag = if direction == :vertical, do: "-v", else: "-h"
 
@@ -213,7 +214,15 @@ defmodule TmuxRm.TmuxManager do
         }
 
       _ ->
-        %Pane{session_name: "", window_index: 0, index: 0, width: 80, height: 24, command: "", pane_id: ""}
+        %Pane{
+          session_name: "",
+          window_index: 0,
+          index: 0,
+          width: 80,
+          height: 24,
+          command: "",
+          pane_id: ""
+        }
     end
   end
 

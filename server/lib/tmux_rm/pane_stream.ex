@@ -191,9 +191,22 @@ defmodule TmuxRm.PaneStream do
   end
 
   def handle_call({:resize, cols, rows}, _from, state) do
-    case command_runner().run(["resize-pane", "-t", state.pane_id, "-x", to_string(cols), "-y", to_string(rows)]) do
+    case command_runner().run([
+           "resize-pane",
+           "-t",
+           state.pane_id,
+           "-x",
+           to_string(cols),
+           "-y",
+           to_string(rows)
+         ]) do
       {:ok, _} ->
-        Phoenix.PubSub.broadcast(TmuxRm.PubSub, "pane:#{state.target}", {:pane_resized, cols, rows})
+        Phoenix.PubSub.broadcast(
+          TmuxRm.PubSub,
+          "pane:#{state.target}",
+          {:pane_resized, cols, rows}
+        )
+
         {:reply, :ok, state}
 
       {:error, {msg, _}} ->
@@ -238,7 +251,11 @@ defmodule TmuxRm.PaneStream do
       # Pane alive — attempt pipeline recovery
       case attempt_recovery(state) do
         {:ok, state} ->
-          broadcast(state.target, {:pane_reconnected, state.target, RingBuffer.read(state.buffer)})
+          broadcast(
+            state.target,
+            {:pane_reconnected, state.target, RingBuffer.read(state.buffer)}
+          )
+
           {:noreply, state}
 
         {:error, _reason} ->
@@ -343,12 +360,14 @@ defmodule TmuxRm.PaneStream do
 
   defp start_cat_port(fifo_path) do
     try do
-      port = Port.open({:spawn_executable, "/usr/bin/cat"}, [
-        {:args, [fifo_path]},
-        :binary,
-        :stream,
-        :exit_status
-      ])
+      port =
+        Port.open({:spawn_executable, "/usr/bin/cat"}, [
+          {:args, [fifo_path]},
+          :binary,
+          :stream,
+          :exit_status
+        ])
+
       {:ok, port}
     rescue
       e -> {:error, {:port_failed, Exception.message(e)}}
@@ -364,34 +383,41 @@ defmodule TmuxRm.PaneStream do
 
   defp capture_scrollback(runner, pane_id) do
     # Query pane dimensions for buffer sizing
-    buffer = case runner.run(["display-message", "-p", "-t", pane_id,
-                              "\#{history_limit}\t\#{pane_width}"]) do
-      {:ok, dims} ->
-        case String.split(String.trim(dims), "\t") do
-          [hist, width] ->
-            history_limit = parse_int(hist, 2000)
-            pane_width = parse_int(width, 120)
-            capacity = history_limit * pane_width
-            RingBuffer.new(capacity)
+    buffer =
+      case runner.run([
+             "display-message",
+             "-p",
+             "-t",
+             pane_id,
+             "\#{history_limit}\t\#{pane_width}"
+           ]) do
+        {:ok, dims} ->
+          case String.split(String.trim(dims), "\t") do
+            [hist, width] ->
+              history_limit = parse_int(hist, 2000)
+              pane_width = parse_int(width, 120)
+              capacity = history_limit * pane_width
+              RingBuffer.new(capacity)
 
-          _ ->
-            RingBuffer.new()
-        end
+            _ ->
+              RingBuffer.new()
+          end
 
-      _ ->
-        RingBuffer.new()
-    end
+        _ ->
+          RingBuffer.new()
+      end
 
     # Capture existing scrollback with ANSI escapes
-    buffer = case runner.run(["capture-pane", "-p", "-e", "-S", "-32768", "-t", pane_id]) do
-      {:ok, scrollback} ->
-        buffer
-        |> RingBuffer.clear()
-        |> RingBuffer.append(scrollback)
+    buffer =
+      case runner.run(["capture-pane", "-p", "-e", "-S", "-32768", "-t", pane_id]) do
+        {:ok, scrollback} ->
+          buffer
+          |> RingBuffer.clear()
+          |> RingBuffer.append(scrollback)
 
-      {:error, _} ->
-        buffer
-    end
+        {:error, _} ->
+          buffer
+      end
 
     {:ok, buffer}
   end
@@ -408,12 +434,7 @@ defmodule TmuxRm.PaneStream do
       Process.cancel_timer(state.coalesce_timer)
     end
 
-    %{state |
-      buffer: buffer,
-      coalesce_acc: [],
-      coalesce_timer: nil,
-      coalesce_bytes: 0
-    }
+    %{state | buffer: buffer, coalesce_acc: [], coalesce_timer: nil, coalesce_bytes: 0}
   end
 
   defp send_hex_keys(pane_id, data) do
@@ -438,6 +459,7 @@ defmodule TmuxRm.PaneStream do
 
   defp chunk_binary(<<>>, _size), do: []
   defp chunk_binary(data, size) when byte_size(data) <= size, do: [data]
+
   defp chunk_binary(data, size) do
     <<chunk::binary-size(size), rest::binary>> = data
     [chunk | chunk_binary(rest, size)]
@@ -456,7 +478,7 @@ defmodule TmuxRm.PaneStream do
 
     # Reset window if expired
     recovery =
-      if recovery.window_start && (now - recovery.window_start) > @recovery_window_ms do
+      if recovery.window_start && now - recovery.window_start > @recovery_window_ms do
         %{attempts: 0, window_start: nil}
       else
         recovery

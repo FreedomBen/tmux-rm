@@ -62,7 +62,9 @@ defmodule TmuxRm.TmuxManagerTest do
       expect(TmuxRm.MockCommandRunner, :run, fn args ->
         assert "-s" in args
         assert "-t" in args
-        {:ok, "dev\t0\t0\t120\t40\tbash\t%0\ndev\t0\t1\t60\t40\tvim\t%1\ndev\t1\t0\t120\t40\thtop\t%2"}
+
+        {:ok,
+         "dev\t0\t0\t120\t40\tbash\t%0\ndev\t0\t1\t60\t40\tvim\t%1\ndev\t1\t0\t120\t40\thtop\t%2"}
       end)
 
       assert {:ok, panes} = TmuxManager.list_panes("dev")
@@ -71,7 +73,10 @@ defmodule TmuxRm.TmuxManagerTest do
       assert length(panes[1]) == 1
 
       [p0, p1] = panes[0]
-      assert %Pane{session_name: "dev", window_index: 0, index: 0, command: "bash", pane_id: "%0"} = p0
+
+      assert %Pane{session_name: "dev", window_index: 0, index: 0, command: "bash", pane_id: "%0"} =
+               p0
+
       assert %Pane{window_index: 0, index: 1, command: "vim", pane_id: "%1"} = p1
     end
 

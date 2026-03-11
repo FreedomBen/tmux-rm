@@ -32,7 +32,8 @@
       "Bash(mix run:*)",
       "Bash(kill 2074005 2083792 2>/dev/null; sleep 1; mix test --exclude tmux 2>&1 | tail -10)",
       "Bash(mix assets.build 2>&1 | tail -10)",
-      "Bash(mix assets.build 2>&1 | tail -5)"
+      "Bash(mix assets.build 2>&1 | tail -5)",
+      "Bash(mix format:*)"
     ]
   }
 }

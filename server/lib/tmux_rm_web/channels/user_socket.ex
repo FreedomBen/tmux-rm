@@ -17,8 +17,12 @@ defmodule TmuxRmWeb.UserSocket do
 
         {:error, _reason} ->
           # Also try api_token for API clients
-          case Phoenix.Token.verify(TmuxRmWeb.Endpoint, "api_token", params["token"], max_age: max_age) do
-            {:ok, _data} -> {:ok, socket}
+          case Phoenix.Token.verify(TmuxRmWeb.Endpoint, "api_token", params["token"],
+                 max_age: max_age
+               ) do
+            {:ok, _data} ->
+              {:ok, socket}
+
             {:error, _} ->
               ip = extract_ip(connect_info)
               Logger.info("WebSocket auth failed from #{ip}")

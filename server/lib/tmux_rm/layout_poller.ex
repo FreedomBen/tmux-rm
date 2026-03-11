@@ -134,7 +134,10 @@ defmodule TmuxRm.LayoutPoller do
 
   def handle_info(:grace_period_expired, state) do
     if state.subscriber_count == 0 do
-      Logger.info("LayoutPoller shutting down for #{state.session}:#{state.window} (grace period)")
+      Logger.info(
+        "LayoutPoller shutting down for #{state.session}:#{state.window} (grace period)"
+      )
+
       {:stop, :normal, state}
     else
       {:noreply, %{state | grace_timer_ref: nil}}

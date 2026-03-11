@@ -47,7 +47,9 @@ defmodule TmuxRm.Application do
 
   defp check_auth_warning do
     unless TmuxRm.Auth.auth_enabled?() do
-      http_config = Application.get_env(:tmux_rm, TmuxRmWeb.Endpoint, []) |> Keyword.get(:http, [])
+      http_config =
+        Application.get_env(:tmux_rm, TmuxRmWeb.Endpoint, []) |> Keyword.get(:http, [])
+
       ip = Keyword.get(http_config, :ip)
 
       if ip in [{0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}] do

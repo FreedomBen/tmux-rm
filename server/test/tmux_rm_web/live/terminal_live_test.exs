@@ -73,9 +73,15 @@ defmodule TmuxRmWeb.TerminalLiveTest do
       {:ok, view, _html} = live(conn, "/terminal/test:0.0")
 
       # Set up config with quick actions
-      send(view.pid, {:config_changed, %{"quick_actions" => [
-        %{"id" => "a1", "label" => "Test", "command" => "echo hi"}
-      ]}})
+      send(
+        view.pid,
+        {:config_changed,
+         %{
+           "quick_actions" => [
+             %{"id" => "a1", "label" => "Test", "command" => "echo hi"}
+           ]
+         }}
+      )
 
       html = render(view)
       assert html =~ "scroll-snap-type"

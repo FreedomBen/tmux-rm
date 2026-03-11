@@ -41,7 +41,13 @@ defmodule TmuxRm.AuthTest do
     setup do
       original = Application.get_env(:tmux_rm, :auth_token)
       Application.put_env(:tmux_rm, :auth_token, "test-token-123")
-      on_exit(fn -> if original, do: Application.put_env(:tmux_rm, :auth_token, original), else: Application.delete_env(:tmux_rm, :auth_token) end)
+
+      on_exit(fn ->
+        if original,
+          do: Application.put_env(:tmux_rm, :auth_token, original),
+          else: Application.delete_env(:tmux_rm, :auth_token)
+      end)
+
       :ok
     end
 
@@ -66,7 +72,12 @@ defmodule TmuxRm.AuthTest do
     test "returns true when token is set" do
       original = Application.get_env(:tmux_rm, :auth_token)
       Application.put_env(:tmux_rm, :auth_token, "some-token")
-      on_exit(fn -> if original, do: Application.put_env(:tmux_rm, :auth_token, original), else: Application.delete_env(:tmux_rm, :auth_token) end)
+
+      on_exit(fn ->
+        if original,
+          do: Application.put_env(:tmux_rm, :auth_token, original),
+          else: Application.delete_env(:tmux_rm, :auth_token)
+      end)
 
       assert Auth.auth_enabled?()
     end

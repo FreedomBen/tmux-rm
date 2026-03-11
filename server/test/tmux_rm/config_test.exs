@@ -45,19 +45,26 @@ defmodule TmuxRm.ConfigTest do
       {:ok, config} = Config.upsert_action(%{"label" => "Test", "command" => "make test"})
       id = hd(config["quick_actions"])["id"]
 
-      {:ok, config} = Config.upsert_action(%{"id" => id, "label" => "Test Updated", "command" => "make test-all"})
+      {:ok, config} =
+        Config.upsert_action(%{
+          "id" => id,
+          "label" => "Test Updated",
+          "command" => "make test-all"
+        })
+
       assert length(config["quick_actions"]) == 1
       assert hd(config["quick_actions"])["label"] == "Test Updated"
     end
 
     test "normalizes action fields" do
-      {:ok, config} = Config.upsert_action(%{
-        "label" => "Test",
-        "command" => "cmd",
-        "color" => "invalid",
-        "icon" => "invalid",
-        "confirm" => false
-      })
+      {:ok, config} =
+        Config.upsert_action(%{
+          "label" => "Test",
+          "command" => "cmd",
+          "color" => "invalid",
+          "icon" => "invalid",
+          "confirm" => false
+        })
 
       action = hd(config["quick_actions"])
       assert action["color"] == "default"

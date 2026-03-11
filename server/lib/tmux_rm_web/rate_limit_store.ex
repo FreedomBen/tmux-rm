@@ -21,7 +21,8 @@ defmodule TmuxRmWeb.RateLimitStore do
   Check and increment rate limit counter.
   Returns :ok or {:error, :rate_limited, retry_after_seconds}.
   """
-  @spec check(String.t(), atom(), {pos_integer(), pos_integer()}) :: :ok | {:error, :rate_limited, non_neg_integer()}
+  @spec check(String.t(), atom(), {pos_integer(), pos_integer()}) ::
+          :ok | {:error, :rate_limited, non_neg_integer()}
   def check(ip, key, {max_requests, window_seconds}) do
     window = System.system_time(:second) |> div(window_seconds)
     ets_key = {ip, key, window}

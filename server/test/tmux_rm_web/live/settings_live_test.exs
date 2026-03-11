@@ -54,9 +54,10 @@ defmodule TmuxRmWeb.SettingsLiveTest do
 
       render_click(view, "new_action")
 
-      html = render_click(view, "save_action", %{
-        "action" => %{"label" => "Test Action", "command" => "echo test", "color" => "green"}
-      })
+      html =
+        render_click(view, "save_action", %{
+          "action" => %{"label" => "Test Action", "command" => "echo test", "color" => "green"}
+        })
 
       # After save, the form should be gone and action should appear in list
       refute html =~ "New Quick Action"

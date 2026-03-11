@@ -130,11 +130,16 @@ defmodule TmuxRm.Config do
     case read_config(state.path) do
       {:ok, config, mtime} ->
         config = ensure_action_ids(config)
-        Logger.info("Config loaded from #{state.path} (#{length(config["quick_actions"] || [])} quick actions)")
+
+        Logger.info(
+          "Config loaded from #{state.path} (#{length(config["quick_actions"] || [])} quick actions)"
+        )
+
         %{state | config: config, mtime: mtime}
 
       {:error, :enoent} ->
         Logger.info("Config file not found, creating defaults at #{state.path}")
+
         case write_config(state.path, @default_config) do
           {:ok, mtime} -> %{state | config: @default_config, mtime: mtime}
           {:error, _} -> %{state | config: @default_config}
@@ -289,6 +294,7 @@ defmodule TmuxRm.Config do
         path = config_path()
         write_config(path, config)
       end)
+
       config
     else
       config
