@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- /init for each thing
+
 - What are our distribution options for the web app?  can we compile to a static binary for linux?
 
 - Let's go through the application and ensure that we are logging any meaningful action.
