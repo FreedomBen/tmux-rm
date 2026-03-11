@@ -23,14 +23,12 @@ defmodule TmuxRmWeb.SessionControllerTest do
     @tag :tmux
     test "creates a session with valid name", %{conn: conn} do
       name = "test-api-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
 
       conn = post(conn, "/api/sessions", %{name: name})
       resp = json_response(conn, 201)
       assert resp["name"] == name
       assert resp["status"] == "created"
-
-      # Cleanup
-      TmuxRm.TmuxManager.kill_session(name)
     end
   end
 
@@ -56,23 +54,27 @@ defmodule TmuxRmWeb.SessionControllerTest do
     test "renames a session", %{conn: conn} do
       old_name = "test-rename-#{:rand.uniform(100_000)}"
       new_name = "test-renamed-#{:rand.uniform(100_000)}"
+
+      on_exit(fn ->
+        TmuxRm.TmuxManager.kill_session(old_name)
+        TmuxRm.TmuxManager.kill_session(new_name)
+      end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(old_name)
 
       conn = put(conn, "/api/sessions/#{old_name}", %{new_name: new_name})
       assert %{"name" => ^new_name, "status" => "renamed"} = json_response(conn, 200)
-
-      TmuxRm.TmuxManager.kill_session(new_name)
     end
 
     @tag :tmux
     test "rejects invalid new name", %{conn: conn} do
       name = "test-rename2-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       conn = put(conn, "/api/sessions/#{name}", %{new_name: "bad:name"})
       assert %{"error" => "invalid_name"} = json_response(conn, 400)
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
   end
 
@@ -80,12 +82,12 @@ defmodule TmuxRmWeb.SessionControllerTest do
     @tag :tmux
     test "creates a window in existing session", %{conn: conn} do
       name = "test-win-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       conn = post(conn, "/api/sessions/#{name}/windows")
       assert %{"status" => "created"} = json_response(conn, 201)
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
   end
 

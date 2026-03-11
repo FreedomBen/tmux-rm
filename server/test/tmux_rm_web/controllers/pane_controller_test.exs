@@ -16,23 +16,23 @@ defmodule TmuxRmWeb.PaneControllerTest do
     @tag :tmux
     test "splits a pane horizontally", %{conn: conn} do
       name = "test-split-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       conn = post(conn, "/api/panes/#{name}:0.0/split", %{direction: "horizontal"})
       assert %{"status" => "created"} = json_response(conn, 201)
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
 
     @tag :tmux
     test "splits a pane vertically", %{conn: conn} do
       name = "test-splitv-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       conn = post(conn, "/api/panes/#{name}:0.0/split", %{direction: "vertical"})
       assert %{"status" => "created"} = json_response(conn, 201)
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
 
     test "returns error for non-existent pane", %{conn: conn} do
@@ -45,6 +45,8 @@ defmodule TmuxRmWeb.PaneControllerTest do
     @tag :tmux
     test "kills a pane", %{conn: conn} do
       name = "test-killpane-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       # Split first so we have a pane to kill without ending the session
@@ -52,8 +54,6 @@ defmodule TmuxRmWeb.PaneControllerTest do
 
       conn = delete(conn, "/api/panes/#{name}:0.1")
       assert %{"status" => "ok"} = json_response(conn, 200)
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
   end
 end

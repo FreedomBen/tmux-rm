@@ -108,15 +108,21 @@ defmodule TmuxRmWeb.SessionListLiveTest do
       view |> element("button", "New Session") |> render_click()
 
       name = "test-lv-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       html = render_click(view, "create_session", %{"name" => name})
       refute html =~ ~s(id="new-session-name")
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
 
     test "rename session", %{conn: conn} do
       name = "test-ren-#{:rand.uniform(100_000)}"
       new_name = "test-ren2-#{:rand.uniform(100_000)}"
+
+      on_exit(fn ->
+        TmuxRm.TmuxManager.kill_session(name)
+        TmuxRm.TmuxManager.kill_session(new_name)
+      end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       # Give poller time to pick up
@@ -136,12 +142,12 @@ defmodule TmuxRmWeb.SessionListLiveTest do
       html = render_click(view, "submit_rename", %{"name" => new_name})
       # rename_session assign should be nil on success
       refute html =~ "Invalid name"
-
-      TmuxRm.TmuxManager.kill_session(new_name)
     end
 
     test "split pane", %{conn: conn} do
       name = "test-splitlv-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       {:ok, view, _html} = live(conn, "/")
@@ -150,12 +156,12 @@ defmodule TmuxRmWeb.SessionListLiveTest do
         render_click(view, "split_pane", %{"target" => "#{name}:0.0", "direction" => "horizontal"})
 
       assert html =~ "Sessions"
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
 
     test "kill session via confirm flow", %{conn: conn} do
       name = "test-kill-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
 
       {:ok, view, _html} = live(conn, "/")
@@ -167,6 +173,8 @@ defmodule TmuxRmWeb.SessionListLiveTest do
 
     test "kill pane via confirm flow", %{conn: conn} do
       name = "test-killp-#{:rand.uniform(100_000)}"
+      on_exit(fn -> TmuxRm.TmuxManager.kill_session(name) end)
+
       {:ok, _} = TmuxRm.TmuxManager.create_session(name)
       TmuxRm.TmuxManager.split_pane("#{name}:0.0", :horizontal)
 
@@ -175,8 +183,6 @@ defmodule TmuxRmWeb.SessionListLiveTest do
       render_click(view, "request_kill_pane", %{"target" => "#{name}:0.1", "pane-count" => "2"})
       html = render_click(view, "confirm_action")
       assert html =~ "Sessions"
-
-      TmuxRm.TmuxManager.kill_session(name)
     end
   end
 
