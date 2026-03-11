@@ -4,6 +4,7 @@ defmodule TmuxRmWeb.UserSocket do
   require Logger
 
   channel "terminal:*", TmuxRmWeb.TerminalChannel
+  channel "sessions", TmuxRmWeb.SessionChannel
 
   @impl true
   def connect(params, socket, connect_info) do

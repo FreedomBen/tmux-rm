@@ -160,9 +160,9 @@ server/test/tmux_rm_web/channels/session_channel_test.exs
 - All channel tests pass
 
 ## Checklist
-- [ ] 11.1 TerminalChannel
-- [ ] 11.2 SessionChannel
-- [ ] 11.3 UserSocket Channel Registration
-- [ ] 11.4 Binary Frame Support
-- [ ] 11.5 Channel-Specific Behaviors
-- [ ] 11.6 Tests
+- [x] 11.1 TerminalChannel
+- [x] 11.2 SessionChannel
+- [x] 11.3 UserSocket Channel Registration
+- [x] 11.4 Binary Frame Support
+- [x] 11.5 Channel-Specific Behaviors
+- [x] 11.6 Tests
