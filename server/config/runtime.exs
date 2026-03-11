@@ -24,6 +24,11 @@ if cors_origin = System.get_env("RCA_CORS_ORIGIN") do
   config :tmux_rm, cors_origin: cors_origin
 end
 
+# Optional metrics endpoint token
+if metrics_token = System.get_env("RCA_METRICS_TOKEN") do
+  config :tmux_rm, metrics_token: metrics_token
+end
+
 # Configurable log level (default: :info in prod, :debug in dev)
 if log_level = System.get_env("LOGGER_LEVEL") do
   config :logger, level: String.to_existing_atom(log_level)

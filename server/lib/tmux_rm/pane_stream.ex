@@ -113,6 +113,13 @@ defmodule TmuxRm.PaneStream do
     case setup_pipeline(state) do
       {:ok, state} ->
         Logger.info("PaneStream started: #{state.target} (pane_id: #{state.pane_id})")
+
+        :telemetry.execute(
+          [:tmux_rm, :pane_stream, :start],
+          %{system_time: System.system_time()},
+          %{target: state.target, pane_id: state.pane_id}
+        )
+
         {:noreply, %{state | status: :streaming}}
 
       {:error, reason} ->
@@ -146,6 +153,12 @@ defmodule TmuxRm.PaneStream do
 
     if new_count != old_count do
       Logger.info("PaneStream #{state.target}: viewers #{old_count} → #{new_count}")
+
+      :telemetry.execute(
+        [:tmux_rm, :pane_stream, :viewer_change],
+        %{count: new_count},
+        %{target: state.target}
+      )
     end
 
     history = RingBuffer.read(state.buffer)
@@ -181,6 +194,15 @@ defmodule TmuxRm.PaneStream do
       {:reply, {:error, :input_too_large}, state}
     else
       result = send_hex_keys(state.pane_id, data)
+
+      if result == :ok do
+        :telemetry.execute(
+          [:tmux_rm, :pane_stream, :input],
+          %{bytes: byte_size(data)},
+          %{target: state.target}
+        )
+      end
+
       {:reply, result, state}
     end
   end
@@ -303,7 +325,13 @@ defmodule TmuxRm.PaneStream do
   end
 
   @impl true
-  def terminate(_reason, state) do
+  def terminate(reason, state) do
+    :telemetry.execute(
+      [:tmux_rm, :pane_stream, :stop],
+      %{system_time: System.system_time()},
+      %{target: state.target, reason: reason}
+    )
+
     state = flush_output(state)
     cleanup_pipeline(%{state | status: :shutting_down})
     :ok
@@ -430,6 +458,12 @@ defmodule TmuxRm.PaneStream do
     buffer = RingBuffer.append(state.buffer, data)
     broadcast(state.target, {:pane_output, state.target, data})
 
+    :telemetry.execute(
+      [:tmux_rm, :pane_stream, :output],
+      %{bytes: byte_size(data)},
+      %{target: state.target}
+    )
+
     if state.coalesce_timer do
       Process.cancel_timer(state.coalesce_timer)
     end
@@ -494,6 +528,12 @@ defmodule TmuxRm.PaneStream do
       }
 
       Logger.warning("PaneStream #{state.target}: recovery attempt #{recovery.attempts}")
+
+      :telemetry.execute(
+        [:tmux_rm, :pane_stream, :recovery],
+        %{attempt: recovery.attempts},
+        %{target: state.target}
+      )
 
       fifo_dir = Application.get_env(:tmux_rm, :fifo_dir)
       fifo_path = fifo_path(fifo_dir, state.pane_id)

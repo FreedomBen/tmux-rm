@@ -204,11 +204,11 @@ server/test/tmux_rm_web/controllers/metrics_controller_test.exs
 - All telemetry tests pass
 
 ## Checklist
-- [ ] 15.1 Telemetry Event Definitions
-- [ ] 15.2 Telemetry Module
-- [ ] 15.3 Metrics Endpoint
-- [ ] 15.4 Structured Logging
-- [ ] 15.5 Emit Telemetry in Existing Modules
-- [ ] 15.6 Health Check Enhancement
-- [ ] 15.7 Supervision Tree
-- [ ] 15.8 Tests
+- [x] 15.1 Telemetry Event Definitions
+- [x] 15.2 Telemetry Module
+- [x] 15.3 Metrics Endpoint
+- [x] 15.4 Structured Logging
+- [x] 15.5 Emit Telemetry in Existing Modules
+- [x] 15.6 Health Check Enhancement
+- [x] 15.7 Supervision Tree
+- [x] 15.8 Tests

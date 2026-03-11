@@ -92,25 +92,39 @@ defmodule TmuxRm.SessionPoller do
   # --- Private ---
 
   defp do_poll(state) do
-    case TmuxRm.TmuxManager.list_sessions() do
-      {:ok, sessions} ->
-        sessions_with_panes = fetch_panes(sessions)
-        new_tmux_status = :ok
+    start_time = System.monotonic_time(:millisecond)
 
-        state = maybe_broadcast_tmux_status(state, new_tmux_status)
-        state = maybe_broadcast_sessions(state, sessions_with_panes)
+    result =
+      case TmuxRm.TmuxManager.list_sessions() do
+        {:ok, sessions} ->
+          sessions_with_panes = fetch_panes(sessions)
+          new_tmux_status = :ok
 
-        %{state | sessions: sessions_with_panes, tmux_status: new_tmux_status}
+          state = maybe_broadcast_tmux_status(state, new_tmux_status)
+          state = maybe_broadcast_sessions(state, sessions_with_panes)
 
-      {:error, :tmux_not_found} ->
-        state = maybe_broadcast_tmux_status(state, :not_found)
-        %{state | tmux_status: :not_found}
+          %{state | sessions: sessions_with_panes, tmux_status: new_tmux_status}
 
-      {:error, reason} ->
-        new_status = {:error, to_string(reason)}
-        state = maybe_broadcast_tmux_status(state, new_status)
-        %{state | tmux_status: new_status}
-    end
+        {:error, :tmux_not_found} ->
+          state = maybe_broadcast_tmux_status(state, :not_found)
+          %{state | tmux_status: :not_found}
+
+        {:error, reason} ->
+          new_status = {:error, to_string(reason)}
+          state = maybe_broadcast_tmux_status(state, new_status)
+          %{state | tmux_status: new_status}
+      end
+
+    duration = System.monotonic_time(:millisecond) - start_time
+    session_count = length(result.sessions)
+
+    :telemetry.execute(
+      [:tmux_rm, :session_poller, :poll],
+      %{duration_ms: duration, session_count: session_count},
+      %{}
+    )
+
+    result
   end
 
   defp fetch_panes(sessions) do

@@ -26,10 +26,11 @@ defmodule TmuxRmWeb.Router do
     plug TmuxRmWeb.Plugs.RateLimit, key: :login
   end
 
-  # Health check — unauthenticated
+  # Health check & metrics — unauthenticated
   scope "/", TmuxRmWeb do
     pipe_through :api
     get "/healthz", HealthController, :healthz
+    get "/metrics", MetricsController, :index
   end
 
   # API - public

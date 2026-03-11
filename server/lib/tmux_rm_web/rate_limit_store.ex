@@ -33,6 +33,12 @@ defmodule TmuxRmWeb.RateLimitStore do
       end
 
     if count > max_requests do
+      :telemetry.execute(
+        [:tmux_rm, :auth, :rate_limited],
+        %{},
+        %{ip: ip, endpoint_key: key}
+      )
+
       retry_after = window_seconds - rem(System.system_time(:second), window_seconds)
       {:error, :rate_limited, retry_after}
     else

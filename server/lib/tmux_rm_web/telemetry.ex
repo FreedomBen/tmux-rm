@@ -9,11 +9,7 @@ defmodule TmuxRmWeb.Telemetry do
   @impl true
   def init(_arg) do
     children = [
-      # Telemetry poller will execute the given period measurements
-      # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
       {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
-      # Add reporters as children of your supervision tree.
-      # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -32,10 +28,6 @@ defmodule TmuxRmWeb.Telemetry do
         tags: [:route],
         unit: {:native, :millisecond}
       ),
-      summary("phoenix.router_dispatch.exception.duration",
-        tags: [:route],
-        unit: {:native, :millisecond}
-      ),
       summary("phoenix.router_dispatch.stop.duration",
         tags: [:route],
         unit: {:native, :millisecond}
@@ -43,7 +35,6 @@ defmodule TmuxRmWeb.Telemetry do
       summary("phoenix.socket_connected.duration",
         unit: {:native, :millisecond}
       ),
-      sum("phoenix.socket_drain.count"),
       summary("phoenix.channel_joined.duration",
         unit: {:native, :millisecond}
       ),
@@ -52,19 +43,56 @@ defmodule TmuxRmWeb.Telemetry do
         unit: {:native, :millisecond}
       ),
 
+      # PaneStream
+      counter("tmux_rm.pane_stream.start.total"),
+      counter("tmux_rm.pane_stream.stop.total"),
+      sum("tmux_rm.pane_stream.output.bytes"),
+      sum("tmux_rm.pane_stream.input.bytes"),
+      last_value("tmux_rm.pane_stream.viewer_change.count"),
+      counter("tmux_rm.pane_stream.recovery.total"),
+
+      # Auth
+      counter("tmux_rm.auth.login.success.total"),
+      counter("tmux_rm.auth.login.failure.total"),
+      counter("tmux_rm.auth.rate_limited.total"),
+
+      # SessionPoller
+      summary("tmux_rm.session_poller.poll.duration_ms"),
+      last_value("tmux_rm.session_poller.poll.session_count"),
+
+      # Periodic measurements
+      last_value("tmux_rm.pane_streams.active"),
+      last_value("tmux_rm.rate_limit_store.size"),
+
       # VM Metrics
-      summary("vm.memory.total", unit: {:byte, :kilobyte}),
-      summary("vm.total_run_queue_lengths.total"),
-      summary("vm.total_run_queue_lengths.cpu"),
-      summary("vm.total_run_queue_lengths.io")
+      last_value("vm.memory.total"),
+      last_value("vm.memory.processes"),
+      last_value("vm.memory.binary"),
+      last_value("vm.total_run_queue_lengths.total"),
+      last_value("vm.system_counts.process_count")
     ]
   end
 
   defp periodic_measurements do
     [
-      # A module, function and arguments to be invoked periodically.
-      # This function must call :telemetry.execute/3 and a metric must be added above.
-      # {TmuxRmWeb, :count_users, []}
+      {__MODULE__, :pane_stream_count, []},
+      {__MODULE__, :rate_limit_table_size, []}
     ]
+  end
+
+  def pane_stream_count do
+    count = DynamicSupervisor.count_children(TmuxRm.PaneStreamSupervisor)[:active] || 0
+    :telemetry.execute([:tmux_rm, :pane_streams], %{active: count}, %{})
+  end
+
+  def rate_limit_table_size do
+    size =
+      try do
+        :ets.info(:rate_limit_store, :size) || 0
+      rescue
+        _ -> 0
+      end
+
+    :telemetry.execute([:tmux_rm, :rate_limit_store], %{size: size}, %{})
   end
 end

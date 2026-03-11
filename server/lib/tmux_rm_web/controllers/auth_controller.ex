@@ -10,6 +10,13 @@ defmodule TmuxRmWeb.AuthController do
     case Auth.verify_credentials(username, password) do
       :ok ->
         Logger.info("Login success: #{username} from #{format_ip(conn)}")
+
+        :telemetry.execute(
+          [:tmux_rm, :auth, :login, :success],
+          %{},
+          %{username: username, ip: format_ip(conn)}
+        )
+
         max_age = Application.get_env(:tmux_rm, :auth_token_max_age, 604_800)
         token = Phoenix.Token.sign(TmuxRmWeb.Endpoint, "api_token", %{username: username})
 
@@ -17,6 +24,12 @@ defmodule TmuxRmWeb.AuthController do
 
       :error ->
         Logger.info("Login failure: #{username} from #{format_ip(conn)}")
+
+        :telemetry.execute(
+          [:tmux_rm, :auth, :login, :failure],
+          %{},
+          %{username: username, ip: format_ip(conn)}
+        )
 
         conn
         |> put_status(401)
@@ -30,12 +43,24 @@ defmodule TmuxRmWeb.AuthController do
       :ok ->
         Logger.info("Web login success: #{username} from #{format_ip(conn)}")
 
+        :telemetry.execute(
+          [:tmux_rm, :auth, :login, :success],
+          %{},
+          %{username: username, ip: format_ip(conn)}
+        )
+
         conn
         |> put_session("authenticated_at", System.system_time(:second))
         |> redirect(to: "/")
 
       :error ->
         Logger.info("Web login failure: #{username} from #{format_ip(conn)}")
+
+        :telemetry.execute(
+          [:tmux_rm, :auth, :login, :failure],
+          %{},
+          %{username: username, ip: format_ip(conn)}
+        )
 
         conn
         |> put_flash(:error, "Invalid username or password.")
