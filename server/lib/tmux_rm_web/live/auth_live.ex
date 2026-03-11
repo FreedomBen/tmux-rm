@@ -33,7 +33,7 @@ defmodule TmuxRmWeb.AuthLive do
           <h2 class="card-title text-center mb-4">Log in to tmux-rm</h2>
 
           <form action="/login" method="post" class="space-y-4">
-            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
             <div>
               <label class="label" for="username">Username</label>
               <input
