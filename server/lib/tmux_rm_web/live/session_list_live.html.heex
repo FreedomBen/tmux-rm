@@ -158,21 +158,25 @@
       </div>
 
       <%!-- Session action menu (kebab) --%>
-      <div class="dropdown dropdown-end" onclick="event.stopPropagation()">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
-          <.icon name="hero-ellipsis-vertical-micro" class="size-4" />
-        </div>
-        <ul
-          tabindex="0"
-          class="dropdown-content menu bg-base-100 rounded-box z-10 w-48 p-2 shadow-lg"
+      <details class="dropdown dropdown-end" phx-click-away={JS.remove_attribute("open", to: "details.dropdown")}>
+        <summary
+          class="btn btn-ghost btn-xs"
+          onclick="event.stopPropagation()"
         >
+          <.icon name="hero-ellipsis-vertical-micro" class="size-4" />
+        </summary>
+        <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-48 p-2 shadow-lg">
           <li>
-            <button phx-click="start_rename" phx-value-name={session.name}>
+            <button
+              phx-click={JS.remove_attribute("open", to: "details.dropdown") |> JS.push("start_rename", value: %{name: session.name})}
+            >
               <.icon name="hero-pencil-micro" class="size-4" /> Rename
             </button>
           </li>
           <li>
-            <button phx-click="create_window" phx-value-session={session.name}>
+            <button
+              phx-click={JS.remove_attribute("open", to: "details.dropdown") |> JS.push("create_window", value: %{session: session.name})}
+            >
               <.icon name="hero-window-micro" class="size-4" /> New Window
             </button>
           </li>
@@ -180,7 +184,8 @@
             <button
               class="text-error"
               phx-click={
-                JS.push("request_kill_session", value: %{name: session.name})
+                JS.remove_attribute("open", to: "details.dropdown")
+                |> JS.push("request_kill_session", value: %{name: session.name})
                 |> TmuxRmWeb.CoreComponents.show_modal("confirm-modal")
               }
             >
@@ -188,7 +193,7 @@
             </button>
           </li>
         </ul>
-      </div>
+      </details>
     </div>
 
     <%!-- Expanded pane list --%>
@@ -229,28 +234,27 @@
             <.icon name="hero-rectangle-group-micro" class="size-3" />
           </.link>
 
-          <div class="dropdown dropdown-end">
-            <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
+          <details class="dropdown dropdown-end" phx-click-away={JS.remove_attribute("open", to: "details.dropdown")}>
+            <summary class="btn btn-ghost btn-xs">
               <.icon name="hero-ellipsis-vertical-micro" class="size-3" />
-            </div>
-            <ul
-              tabindex="0"
-              class="dropdown-content menu bg-base-100 rounded-box z-10 w-44 p-2 shadow-lg"
-            >
+            </summary>
+            <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-44 p-2 shadow-lg">
               <li>
                 <button
-                  phx-click="split_pane"
-                  phx-value-target={"#{session.name}:#{pane.window_index}.#{pane.index}"}
-                  phx-value-direction="horizontal"
+                  phx-click={
+                    JS.remove_attribute("open", to: "details.dropdown")
+                    |> JS.push("split_pane", value: %{target: "#{session.name}:#{pane.window_index}.#{pane.index}", direction: "horizontal"})
+                  }
                 >
                   <.icon name="hero-bars-3-micro" class="size-4 rotate-90" /> Split │
                 </button>
               </li>
               <li>
                 <button
-                  phx-click="split_pane"
-                  phx-value-target={"#{session.name}:#{pane.window_index}.#{pane.index}"}
-                  phx-value-direction="vertical"
+                  phx-click={
+                    JS.remove_attribute("open", to: "details.dropdown")
+                    |> JS.push("split_pane", value: %{target: "#{session.name}:#{pane.window_index}.#{pane.index}", direction: "vertical"})
+                  }
                 >
                   <.icon name="hero-bars-3-micro" class="size-4" /> Split ─
                 </button>
@@ -259,7 +263,8 @@
                 <button
                   class="text-error"
                   phx-click={
-                    JS.push("request_kill_pane",
+                    JS.remove_attribute("open", to: "details.dropdown")
+                    |> JS.push("request_kill_pane",
                       value: %{
                         target: "#{session.name}:#{pane.window_index}.#{pane.index}",
                         "pane-count": total_panes(session)
@@ -272,7 +277,7 @@
                 </button>
               </li>
             </ul>
-          </div>
+          </details>
         </div>
       </div>
     </div>
