@@ -88,7 +88,10 @@ defmodule TmuxRm.MixProject do
         "esbuild tmux_rm --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
+      "rca.setup": ["rca.setup"],
+      "rca.reset": ["rca.reset"],
+      "rca.passwd": ["rca.change_password"]
     ]
   end
 end
