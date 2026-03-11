@@ -9,9 +9,40 @@ defmodule TmuxRm.Config do
   @header_comment """
   # tmux-rm configuration
   # Edit this file directly or use the web UI at /settings
+  # Changes are detected automatically within a few seconds.
   #
-  # Quick actions appear as buttons above the terminal.
-  # Fields: label (required), command (required), confirm, color, icon
+  # --- quick_actions ---
+  # Quick actions appear as buttons above the terminal view.
+  # Each action sends its command to the active pane.
+  #
+  # Fields:
+  #   label:    (required) Button text displayed in the UI
+  #   command:  (required) Shell command to send to the pane (max 4096 bytes)
+  #             A newline is appended automatically when executed.
+  #   confirm:  (optional, default: false) If true, show a confirmation dialog
+  #             before running. Recommended for destructive commands.
+  #   color:    (optional, default: "default") Button color.
+  #             Options: default, green, red, yellow, blue
+  #   icon:     (optional) Icon shown before the label.
+  #             Options: rocket, play, stop, trash, arrow-up, terminal
+  #
+  # Example:
+  #
+  # quick_actions:
+  #   - label: "Deploy"
+  #     command: "bash deploy.sh"
+  #     confirm: true
+  #     color: green
+  #     icon: rocket
+  #   - label: "Restart"
+  #     command: "sudo systemctl restart myapp"
+  #     confirm: true
+  #     color: yellow
+  #     icon: play
+  #   - label: "Logs"
+  #     command: "tail -f /var/log/myapp.log"
+  #     color: blue
+  #     icon: terminal
   """
 
   # --- Public API ---
