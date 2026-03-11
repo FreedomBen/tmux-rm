@@ -32,7 +32,7 @@ defmodule Mix.Tasks.Rca.Setup do
 
     case TmuxRm.Auth.write_credentials(username, password) do
       :ok ->
-        Mix.shell().info("Credentials saved to #{TmuxRm.Auth.credentials_file()}")
+        Mix.shell().info("Credentials saved to #{TmuxRm.Auth.config_path()}")
 
       {:error, reason} ->
         Mix.shell().error("Failed to write credentials: #{inspect(reason)}")

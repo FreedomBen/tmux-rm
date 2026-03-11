@@ -2,16 +2,17 @@ defmodule TmuxRm.Auth do
   @moduledoc """
   Single-user authentication module.
 
-  Credentials are stored in ~/.config/tmux_rm/credentials as `username:salt$hash`.
+  Credentials are stored in the `auth` section of config.yaml.
   Uses PBKDF2-HMAC-SHA256 via Erlang :crypto. Supports RCA_AUTH_TOKEN env var as fallback.
   """
 
   require Logger
 
-  @credentials_dir Path.expand("~/.config/tmux_rm")
-  @credentials_file Path.join(@credentials_dir, "credentials")
+  @legacy_credentials_dir Path.expand("~/.config/tmux_rm")
+  @legacy_credentials_file Path.join(@legacy_credentials_dir, "credentials")
   @iterations 100_000
   @key_length 32
+  @default_session_ttl_hours 168
 
   @doc "Verify credentials. Returns :ok or :error."
   @spec verify_credentials(String.t(), String.t()) :: :ok | :error
@@ -28,48 +29,87 @@ defmodule TmuxRm.Auth do
     end
   end
 
-  @doc "Returns true if auth is configured (credentials file exists or token set)."
+  @doc "Returns true if auth is configured (auth section in config or token set)."
   @spec auth_enabled?() :: boolean()
   def auth_enabled? do
     case Application.get_env(:tmux_rm, :auth_token) do
-      token when is_binary(token) and token != "" -> true
-      _ -> File.exists?(@credentials_file)
+      token when is_binary(token) and token != "" ->
+        true
+
+      _ ->
+        case read_auth() do
+          {:ok, %{"username" => u, "password_hash" => h}}
+          when is_binary(u) and u != "" and is_binary(h) and h != "" ->
+            true
+
+          _ ->
+            false
+        end
     end
   end
 
-  @doc "Read stored credentials."
+  @doc "Read stored credentials. Returns {:ok, {username, hash}} or {:error, :not_found}."
   @spec read_credentials() :: {:ok, {String.t(), String.t()}} | {:error, :not_found}
   def read_credentials do
-    case File.read(@credentials_file) do
-      {:ok, content} ->
-        case String.split(String.trim(content), ":", parts: 2) do
-          [username, hash] when hash != "" -> {:ok, {username, hash}}
-          _ -> {:error, :not_found}
-        end
+    case read_auth() do
+      {:ok, %{"username" => username, "password_hash" => hash}}
+      when is_binary(username) and username != "" and is_binary(hash) and hash != "" ->
+        {:ok, {username, hash}}
 
-      {:error, _} ->
+      _ ->
         {:error, :not_found}
     end
   end
 
-  @doc "Write credentials to file."
-  @spec write_credentials(String.t(), String.t()) :: :ok | {:error, term()}
-  def write_credentials(username, password) do
+  @doc "Write credentials to config.yaml auth section."
+  @spec write_credentials(String.t(), String.t(), pos_integer()) :: :ok | {:error, term()}
+  def write_credentials(username, password, session_ttl_hours \\ @default_session_ttl_hours) do
     hash = hash_password(password)
 
-    with :ok <- File.mkdir_p(@credentials_dir),
-         :ok <- File.chmod(@credentials_dir, 0o700),
-         :ok <- File.write(@credentials_file, "#{username}:#{hash}"),
-         :ok <- File.chmod(@credentials_file, 0o600) do
-      :ok
+    auth_data = %{
+      "username" => username,
+      "password_hash" => hash,
+      "session_ttl_hours" => session_ttl_hours
+    }
+
+    write_auth_section(auth_data)
+  end
+
+  @doc "Returns session TTL in hours from config."
+  def session_ttl_hours do
+    case read_auth() do
+      {:ok, %{"session_ttl_hours" => hours}} when is_number(hours) and hours > 0 ->
+        hours
+
+      _ ->
+        @default_session_ttl_hours
     end
   end
 
-  @doc "Returns the credentials directory path."
-  def credentials_dir, do: @credentials_dir
+  @doc "Returns session TTL in seconds."
+  def session_ttl_seconds do
+    trunc(session_ttl_hours() * 3600)
+  end
 
-  @doc "Returns the credentials file path."
-  def credentials_file, do: @credentials_file
+  @doc "Update just the session TTL (hours)."
+  def update_session_ttl(hours) when is_number(hours) and hours > 0 do
+    case read_auth() do
+      {:ok, auth} ->
+        write_auth_section(Map.put(auth, "session_ttl_hours", hours))
+
+      {:error, _} ->
+        {:error, :no_auth_configured}
+    end
+  end
+
+  @doc "Returns the default session TTL in hours."
+  def default_session_ttl_hours, do: @default_session_ttl_hours
+
+  @doc "Returns the config file path."
+  def config_path do
+    System.get_env("RCA_CONFIG_PATH") ||
+      Path.join([System.user_home!(), ".config", "tmux_rm", "config.yaml"])
+  end
 
   @doc "Hash a password with a random salt using PBKDF2-HMAC-SHA256."
   def hash_password(password) do
@@ -96,6 +136,105 @@ defmodule TmuxRm.Auth do
   end
 
   # --- Private ---
+
+  defp read_auth do
+    path = config_path()
+
+    result =
+      with {:ok, content} <- File.read(path),
+           {:ok, parsed} when is_map(parsed) <- YamlElixir.read_from_string(content) do
+        case parsed["auth"] do
+          auth when is_map(auth) and map_size(auth) > 0 ->
+            {:ok, auth}
+
+          _ ->
+            {:error, :not_found}
+        end
+      else
+        _ -> {:error, :not_found}
+      end
+
+    case result do
+      {:ok, _} = ok -> ok
+      {:error, :not_found} -> check_legacy_credentials()
+    end
+  end
+
+  defp check_legacy_credentials do
+    case File.read(@legacy_credentials_file) do
+      {:ok, content} ->
+        case String.split(String.trim(content), ":", parts: 2) do
+          [username, hash] when hash != "" ->
+            auth = %{
+              "username" => username,
+              "password_hash" => hash,
+              "session_ttl_hours" => @default_session_ttl_hours
+            }
+
+            case write_auth_section(auth) do
+              :ok ->
+                File.rm(@legacy_credentials_file)
+                Logger.info("Migrated credentials from legacy file to config.yaml")
+
+              _ ->
+                :ok
+            end
+
+            {:ok, auth}
+
+          _ ->
+            {:error, :not_found}
+        end
+
+      {:error, _} ->
+        {:error, :not_found}
+    end
+  end
+
+  defp write_auth_section(auth_data) do
+    if GenServer.whereis(TmuxRm.Config) do
+      case TmuxRm.Config.update(fn config ->
+             Map.put(config, "auth", auth_data)
+           end) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      write_auth_direct(auth_data)
+    end
+  end
+
+  defp write_auth_direct(auth_data) do
+    path = config_path()
+    dir = Path.dirname(path)
+
+    existing =
+      case File.read(path) do
+        {:ok, content} ->
+          case YamlElixir.read_from_string(content) do
+            {:ok, parsed} when is_map(parsed) -> parsed
+            _ -> %{}
+          end
+
+        _ ->
+          %{}
+      end
+
+    updated = Map.put(existing, "auth", auth_data)
+
+    yaml =
+      case Ymlr.document(updated) do
+        {:ok, doc} -> doc
+        doc when is_binary(doc) -> doc
+      end
+
+    with :ok <- File.mkdir_p(dir),
+         :ok <- File.chmod(dir, 0o700),
+         :ok <- File.write(path, yaml),
+         :ok <- File.chmod(path, 0o600) do
+      :ok
+    end
+  end
 
   defp check_file(username, password) do
     case read_credentials() do

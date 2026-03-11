@@ -17,7 +17,7 @@ defmodule TmuxRmWeb.AuthController do
           %{username: username, ip: format_ip(conn)}
         )
 
-        max_age = Application.get_env(:tmux_rm, :auth_token_max_age, 604_800)
+        max_age = TmuxRm.Auth.session_ttl_seconds()
         token = Phoenix.Token.sign(TmuxRmWeb.Endpoint, "api_token", %{username: username})
 
         json(conn, %{token: token, expires_in: max_age})

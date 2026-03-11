@@ -26,7 +26,10 @@ defmodule Mix.Tasks.Rca.ChangePassword do
               exit({:shutdown, 1})
             end
 
-            case TmuxRm.Auth.write_credentials(username, new_password) do
+            # Preserve existing session TTL
+            ttl = TmuxRm.Auth.session_ttl_hours()
+
+            case TmuxRm.Auth.write_credentials(username, new_password, ttl) do
               :ok -> Mix.shell().info("Password changed successfully.")
               {:error, reason} -> Mix.shell().error("Failed: #{inspect(reason)}")
             end

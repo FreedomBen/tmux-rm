@@ -49,6 +49,15 @@ defmodule TmuxRm.Config do
   # Edit this file directly or use the web UI at /settings
   # Changes are detected automatically within a few seconds.
   #
+  # --- auth ---
+  # Authentication settings. Managed via /setup or /settings.
+  # Do not edit password_hash manually — use the UI or `mix rca.change_password`.
+  #
+  #   username:           Your login username
+  #   password_hash:      Hashed password (auto-generated)
+  #   session_ttl_hours:  How long sessions stay valid before requiring
+  #                       re-authentication (default: 168 = 1 week)
+  #
   # --- quick_actions ---
   # Quick actions appear as buttons above the terminal view.
   # Each action sends its command to the active pane.
@@ -124,9 +133,17 @@ defmodule TmuxRm.Config do
     end)
   end
 
-  @doc "Reset config to defaults."
+  @doc "Reset config to defaults (preserves auth section)."
   def reset do
-    update(fn _config -> @default_config end)
+    update(fn config ->
+      case config["auth"] do
+        auth when is_map(auth) and map_size(auth) > 0 ->
+          Map.put(@default_config, "auth", auth)
+
+        _ ->
+          @default_config
+      end
+    end)
   end
 
   @doc "Reorder quick actions by list of IDs."
@@ -311,6 +328,16 @@ defmodule TmuxRm.Config do
 
     clean_config = %{"quick_actions" => clean_actions}
 
+    # Include auth section if present
+    clean_config =
+      case config["auth"] do
+        auth when is_map(auth) and map_size(auth) > 0 ->
+          Map.put(clean_config, "auth", auth)
+
+        _ ->
+          clean_config
+      end
+
     yaml_body =
       case Ymlr.document(clean_config) do
         {:ok, doc} -> doc
@@ -330,10 +357,39 @@ defmodule TmuxRm.Config do
           []
       end
 
-    %{"quick_actions" => actions}
+    config = %{"quick_actions" => actions}
+
+    case parsed["auth"] do
+      auth when is_map(auth) and map_size(auth) > 0 ->
+        Map.put(config, "auth", normalize_auth_section(auth))
+
+      _ ->
+        config
+    end
   end
 
   defp normalize_config(_), do: @default_config
+
+  defp normalize_auth_section(auth) do
+    result = %{}
+
+    result =
+      if is_binary(auth["username"]) and auth["username"] != "",
+        do: Map.put(result, "username", auth["username"]),
+        else: result
+
+    result =
+      if is_binary(auth["password_hash"]) and auth["password_hash"] != "",
+        do: Map.put(result, "password_hash", auth["password_hash"]),
+        else: result
+
+    result =
+      if is_number(auth["session_ttl_hours"]) and auth["session_ttl_hours"] > 0,
+        do: Map.put(result, "session_ttl_hours", auth["session_ttl_hours"]),
+        else: result
+
+    result
+  end
 
   defp normalize_action(action) when is_map(action) do
     %{

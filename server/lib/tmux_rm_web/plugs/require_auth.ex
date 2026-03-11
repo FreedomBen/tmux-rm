@@ -1,5 +1,5 @@
 defmodule TmuxRmWeb.Plugs.RequireAuth do
-  @moduledoc "Redirects to /login if no auth session cookie is present."
+  @moduledoc "Redirects to /login if no auth session cookie is present or session has expired."
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2]
 
@@ -11,8 +11,14 @@ defmodule TmuxRmWeb.Plugs.RequireAuth do
         nil ->
           conn |> redirect(to: "/login") |> halt()
 
-        _timestamp ->
-          conn
+        timestamp ->
+          max_age = TmuxRm.Auth.session_ttl_seconds()
+
+          if System.system_time(:second) - timestamp > max_age do
+            conn |> clear_session() |> redirect(to: "/login") |> halt()
+          else
+            conn
+          end
       end
     else
       conn |> redirect(to: "/setup") |> halt()

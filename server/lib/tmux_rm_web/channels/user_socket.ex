@@ -9,7 +9,7 @@ defmodule TmuxRmWeb.UserSocket do
   @impl true
   def connect(params, socket, connect_info) do
     if TmuxRm.Auth.auth_enabled?() do
-      max_age = Application.get_env(:tmux_rm, :auth_token_max_age, 604_800)
+      max_age = TmuxRm.Auth.session_ttl_seconds()
 
       case Phoenix.Token.verify(TmuxRmWeb.Endpoint, "channel", params["token"], max_age: max_age) do
         {:ok, _data} ->

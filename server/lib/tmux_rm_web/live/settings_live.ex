@@ -1,6 +1,7 @@
 defmodule TmuxRmWeb.SettingsLive do
   use TmuxRmWeb, :live_view
 
+  alias TmuxRm.Auth
   alias TmuxRm.Config
 
   require Logger
@@ -19,6 +20,7 @@ defmodule TmuxRmWeb.SettingsLive do
     socket =
       socket
       |> assign(:quick_actions, config["quick_actions"] || [])
+      |> assign(:session_ttl_hours, Auth.session_ttl_hours())
       |> assign(:editing, nil)
       |> assign(:form_data, default_form())
       |> assign(:form_errors, %{})
@@ -29,7 +31,12 @@ defmodule TmuxRmWeb.SettingsLive do
 
   @impl true
   def handle_info({:config_changed, config}, socket) do
-    {:noreply, assign(socket, :quick_actions, config["quick_actions"] || [])}
+    ttl = get_in(config, ["auth", "session_ttl_hours"]) || Auth.default_session_ttl_hours()
+
+    {:noreply,
+     socket
+     |> assign(:quick_actions, config["quick_actions"] || [])
+     |> assign(:session_ttl_hours, ttl)}
   end
 
   @impl true
@@ -135,6 +142,25 @@ defmodule TmuxRmWeb.SettingsLive do
 
       _ ->
         {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_ttl", %{"session_ttl_hours" => hours_str}, socket) do
+    case Integer.parse(hours_str) do
+      {hours, _} when hours > 0 ->
+        case Auth.update_session_ttl(hours) do
+          :ok ->
+            {:noreply,
+             socket
+             |> assign(:session_ttl_hours, hours)
+             |> put_flash(:info, "Session duration updated.")}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to update: #{inspect(reason)}")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Invalid session duration.")}
     end
   end
 

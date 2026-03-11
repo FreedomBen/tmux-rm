@@ -14,6 +14,7 @@ defmodule TmuxRmWeb.SetupLive do
         |> assign(:username, "")
         |> assign(:password, "")
         |> assign(:password_confirm, "")
+        |> assign(:session_ttl_hours, "168")
         |> assign(:error, nil)
         |> assign(:page_title, "Setup")
 
@@ -65,6 +66,25 @@ defmodule TmuxRmWeb.SetupLive do
                 autocomplete="new-password"
               />
             </div>
+            <div>
+              <label class="label" for="session_ttl_hours">Session Duration</label>
+              <select
+                id="session_ttl_hours"
+                name="session_ttl_hours"
+                class="select select-bordered w-full"
+              >
+                <option value="1">1 hour</option>
+                <option value="8">8 hours</option>
+                <option value="24">1 day</option>
+                <option value="72">3 days</option>
+                <option value="168" selected>1 week</option>
+                <option value="720">30 days</option>
+                <option value="8760">1 year</option>
+              </select>
+              <p class="text-xs text-base-content/60 mt-1">
+                How long before you need to log in again.
+              </p>
+            </div>
             <p :if={@error} class="text-error text-sm">{@error}</p>
             <button type="submit" class="btn btn-primary w-full">Create Account</button>
           </form>
@@ -98,7 +118,9 @@ defmodule TmuxRmWeb.SetupLive do
         {:noreply, push_navigate(socket, to: "/login")}
 
       true ->
-        case Auth.write_credentials(username, password) do
+        session_ttl_hours = String.to_integer(params["session_ttl_hours"] || "168")
+
+        case Auth.write_credentials(username, password, session_ttl_hours) do
           :ok ->
             {:noreply,
              socket

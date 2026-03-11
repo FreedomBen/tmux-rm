@@ -7,7 +7,7 @@ defmodule TmuxRmWeb.Plugs.RequireAuthToken do
 
   def call(conn, _opts) do
     if TmuxRm.Auth.auth_enabled?() do
-      max_age = Application.get_env(:tmux_rm, :auth_token_max_age, 604_800)
+      max_age = TmuxRm.Auth.session_ttl_seconds()
 
       with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
            {:ok, _data} <-

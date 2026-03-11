@@ -165,6 +165,28 @@
 </div>
 
 <div class="mb-8">
+  <h2 class="text-base font-semibold mb-2">Authentication</h2>
+  <form phx-submit="update_ttl" class="flex items-end gap-3">
+    <div>
+      <label class="label mb-1" for="session-ttl">Session Duration</label>
+      <select id="session-ttl" name="session_ttl_hours" class="select select-bordered select-sm">
+        <option value="1" selected={@session_ttl_hours == 1}>1 hour</option>
+        <option value="8" selected={@session_ttl_hours == 8}>8 hours</option>
+        <option value="24" selected={@session_ttl_hours == 24}>1 day</option>
+        <option value="72" selected={@session_ttl_hours == 72}>3 days</option>
+        <option value="168" selected={@session_ttl_hours == 168}>1 week</option>
+        <option value="720" selected={@session_ttl_hours == 720}>30 days</option>
+        <option value="8760" selected={@session_ttl_hours == 8760}>1 year</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  </form>
+  <p class="text-sm text-base-content/60 mt-2">
+    How long sessions remain valid before requiring re-authentication.
+  </p>
+</div>
+
+<div class="mb-8">
   <h2 class="text-base font-semibold mb-2">Config File</h2>
   <p class="text-sm text-base-content/60 mb-3">
     Config is stored in <code class="bg-base-300 px-1 rounded text-xs">~/.config/tmux_rm/config.yaml</code>.
