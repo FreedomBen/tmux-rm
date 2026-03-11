@@ -4,6 +4,8 @@
 
 - Let's go through the application and ensure that we are logging any meaningful action.
 
+- Would adding support to this server for MCP provide any value?  Can you think of any situations where an AI agent may want to use it?
+
 # Already Run
 
 - Let's write up a comprehensive implementation plan.  Break into phases if necessary.  Write each phase to a separate file in implementation-docs directory with names like PHASE_01_DO_SOMETHING.md.  Don't plan implementation for the android app quite yet, but do the entire server.  Make sure all features from APPLICATION_DESIGN.md are planned, and make sure we implement the tech stack from TECH_STACK.md.  
