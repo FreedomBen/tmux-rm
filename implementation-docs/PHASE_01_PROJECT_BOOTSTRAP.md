@@ -251,3 +251,19 @@ test/support/tmux_helpers.ex
 - Tailwind CSS 4 + Tailwind Plus styles rendering
 - xterm.js npm packages installed
 - Placeholder page at `/` renders with the app shell layout
+
+## Checklist
+- [x] 1.1 Generate Phoenix Project
+- [x] 1.2 Add Dependencies to `mix.exs`
+- [x] 1.3 Configure Tailwind CSS 4
+- [x] 1.4 Install npm Dependencies
+- [x] 1.5 Application Configuration
+- [x] 1.6 Supervision Tree
+- [x] 1.7 Endpoint Configuration
+- [x] 1.8 Router Skeleton
+- [x] 1.9 Layout & Core Components
+- [x] 1.10 CommandRunner Behaviour & Implementation
+- [x] 1.11 Test Infrastructure
+- [x] 1.12 tmux Startup Check
+- [x] 1.13 Logging
+- [x] 1.14 Verify Boot

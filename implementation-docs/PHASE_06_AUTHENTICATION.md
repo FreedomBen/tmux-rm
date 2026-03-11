@@ -209,3 +209,18 @@ test/tmux_rm_web/live/auth_live_test.exs
 - `RCA_AUTH_TOKEN` env var works as password fallback
 - Localhost mode: auth disabled, all pages accessible without login
 - Startup warning logged when bound to 0.0.0.0 without auth
+
+## Checklist
+- [ ] 6.1 Auth Module
+- [ ] 6.2 Mix Tasks
+- [ ] 6.3 Login Page (Web)
+- [ ] 6.4 Auth Hook (LiveView)
+- [ ] 6.5 RequireAuth Plug (HTTP)
+- [ ] 6.6 RequireAuthToken Plug (REST API)
+- [ ] 6.7 Auth Controller (REST API)
+- [ ] 6.8 Rate Limiting
+- [ ] 6.9 UserSocket (Update Existing)
+- [ ] 6.10 Router Updates
+- [ ] 6.11 Logging
+- [ ] 6.12 Startup Warning
+- [ ] 6.13 Tests

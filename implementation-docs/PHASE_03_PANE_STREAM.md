@@ -187,3 +187,15 @@ test/support/tmux_helpers.ex
 - Output coalescing reduces broadcast frequency during high throughput
 - Multiple viewers share a single PaneStream
 - All integration tests pass (tagged `@tag :tmux`)
+
+## Checklist
+- [ ] 3.1 PaneStream GenServer
+- [ ] 3.2 Public API (Module Functions)
+- [ ] 3.3 Output Handling (Coalescing)
+- [ ] 3.4 Viewer Lifecycle
+- [ ] 3.5 Pane Death Detection
+- [ ] 3.6 Shutdown Sequence
+- [ ] 3.7 Supersede Flow
+- [ ] 3.8 Logging
+- [ ] 3.9 PaneStreamSupervisor
+- [ ] 3.10 Integration Tests

@@ -261,3 +261,14 @@ test/tmux_rm_web/channels/terminal_channel_test.exs
 - Multiple browser tabs on same pane share the PaneStream (each has its own Channel)
 - PaneStream crash → Channel receives `:DOWN`, re-subscribes, pushes fresh history
 - LiveView handles only control/UI — zero terminal data passes through LiveView
+
+## Checklist
+- [ ] 5.1 TerminalHook (JavaScript)
+- [ ] 5.2 Register Hook and UserSocket in app.js
+- [ ] 5.3 TerminalLive (Server)
+- [ ] 5.4 Terminal View Template
+- [ ] 5.9 Hybrid LiveView + Channel Architecture
+- [ ] 5.5 Route Configuration
+- [ ] 5.6 Resize Handling
+- [ ] 5.7 Mobile Layout
+- [ ] 5.8 Tests

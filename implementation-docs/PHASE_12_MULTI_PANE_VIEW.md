@@ -180,3 +180,15 @@ test/tmux_rm_web/live/multi_pane_live_test.exs
 - "Focus" button per pane opens single-pane full-viewport view
 - Mobile: list view with tap-to-open instead of grid
 - `/sessions/:session` redirects to the active window
+
+## Checklist
+- [ ] 12.1 MultiPaneLive
+- [ ] 12.2 Window Tabs
+- [ ] 12.3 CSS Grid Layout
+- [ ] 12.4 Multiple TerminalHook Instances
+- [ ] 12.5 Resize Behavior
+- [ ] 12.6 Single-Pane Navigation
+- [ ] 12.7 Mobile Behavior
+- [ ] 12.8 LayoutPoller GenServer
+- [ ] 12.9 Layout Refresh
+- [ ] 12.10 Tests

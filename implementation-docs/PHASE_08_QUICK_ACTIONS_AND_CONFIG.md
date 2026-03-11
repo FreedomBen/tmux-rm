@@ -177,3 +177,16 @@ test/tmux_rm_web/controllers/quick_action_controller_test.exs
 - REST API: full CRUD for quick actions
 - Config changes broadcast to all connected viewers
 - Malformed YAML keeps last good config, logs warning
+
+## Checklist
+- [ ] 8.1 Config GenServer
+- [ ] 8.2 Quick Action Schema
+- [ ] 8.3 YAML Serialization
+- [ ] 8.4 Quick Action Bar in Terminal View
+- [ ] 8.5 Quick Action Execution
+- [ ] 8.6 Confirmation Modal
+- [ ] 8.7 Settings LiveView
+- [ ] 8.8 REST API for Quick Actions
+- [ ] 8.9 Router Updates
+- [ ] 8.10 Logging
+- [ ] 8.11 Tests

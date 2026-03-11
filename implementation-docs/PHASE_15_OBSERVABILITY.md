@@ -202,3 +202,13 @@ test/tmux_rm_web/controllers/metrics_controller_test.exs
 - `telemetry_poller` periodically measures active PaneStreams and rate limit table size
 - VM metrics (memory, process count, run queue) available via metrics endpoint
 - All telemetry tests pass
+
+## Checklist
+- [ ] 15.1 Telemetry Event Definitions
+- [ ] 15.2 Telemetry Module
+- [ ] 15.3 Metrics Endpoint
+- [ ] 15.4 Structured Logging
+- [ ] 15.5 Emit Telemetry in Existing Modules
+- [ ] 15.6 Health Check Enhancement
+- [ ] 15.7 Supervision Tree
+- [ ] 15.8 Tests

@@ -236,3 +236,16 @@ test/tmux_rm_web/plugs/rate_limit_test.exs
 - `mix format --check-formatted` passes
 - `mix compile --warnings-as-errors` passes
 - Release builds successfully in CI on tags
+
+## Checklist
+- [ ] 13.1 Test Infrastructure
+- [ ] 13.2 Unit Tests (No tmux Required)
+- [ ] 13.3 Integration Tests (Require tmux)
+- [ ] 13.4 LiveView Tests
+- [ ] 13.5 Controller Tests
+- [ ] 13.6 Channel Tests
+- [ ] 13.7 Plug Tests
+- [ ] 13.8 E2E Tests (Optional)
+- [ ] 13.9 GitHub Actions CI
+- [ ] 13.10 Test Tags and Exclusions
+- [ ] 13.11 Code Quality

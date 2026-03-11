@@ -167,3 +167,13 @@ Note: Phase 8's `settings_live.ex` is NOT modified by this phase. The gear icon 
 - Pinch-to-zoom persists the font size change
 - Scrollback limit applied correctly
 - Virtual toolbar show/hide preference works
+
+## Checklist
+- [ ] 10.1 Preference Schema
+- [ ] 10.2 Preference Loading in TerminalHook
+- [ ] 10.3 Preferences Panel (Client-Side, Separate from Settings Page)
+- [ ] 10.4 Live Preview
+- [ ] 10.5 Theme Definitions
+- [ ] 10.6 Per-Device Behavior
+- [ ] 10.7 Pinch-to-Zoom Integration
+- [ ] 10.8 Implementation Approach

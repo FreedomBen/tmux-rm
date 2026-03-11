@@ -184,3 +184,15 @@ lib/tmux_rm_web/components/core_components.ex (update — mobile-friendly compon
 - Mobile viewers don't send resize events on viewport change
 - Session list is single-column with large touch targets on mobile
 - All breakpoints (mobile/tablet/desktop) render correctly
+
+## Checklist
+- [ ] 9.1 Virtual Key Toolbar
+- [ ] 9.2 Soft Keyboard Handling
+- [ ] 9.3 Touch Gestures
+- [ ] 9.3a Preference Helper (Minimal)
+- [ ] 9.4 Auto-Hiding Header
+- [ ] 9.5 Mobile Terminal Resize Behavior
+- [ ] 9.6 Responsive Layout Refinements
+- [ ] 9.7 Terminal Container Sizing
+- [ ] 9.8 Paste Button (Mobile)
+- [ ] 9.9 Tests

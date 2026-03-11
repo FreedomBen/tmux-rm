@@ -146,3 +146,13 @@ test/tmux_rm_web/live/session_list_live_test.exs
 - Mobile layout: full-width cards, large touch targets
 - Empty state renders when no sessions exist
 - `/healthz` returns correct status
+
+## Checklist
+- [ ] 4.1 SessionPoller GenServer
+- [ ] 4.2 SessionListLive
+- [ ] 4.3 Responsive Layout
+- [ ] 4.4 Tailwind Plus Components
+- [ ] 4.5 Error States & tmux Degradation
+- [ ] 4.6 Logging
+- [ ] 4.7 Health Check Endpoint
+- [ ] 4.8 Tests

@@ -158,3 +158,11 @@ test/tmux_rm_web/channels/session_channel_test.exs
 - PaneStream crash recovery works via Channel (re-subscribe, push fresh history)
 - Multiple channels can share a single PaneStream
 - All channel tests pass
+
+## Checklist
+- [ ] 11.1 TerminalChannel
+- [ ] 11.2 SessionChannel
+- [ ] 11.3 UserSocket Channel Registration
+- [ ] 11.4 Binary Frame Support
+- [ ] 11.5 Channel-Specific Behaviors
+- [ ] 11.6 Tests

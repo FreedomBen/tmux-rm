@@ -177,3 +177,14 @@ test/tmux_rm_web/controllers/pane_controller_test.exs
 - Last-pane guard shows "Kill session instead?" prompt
 - REST API endpoints work for all mutations
 - Session list updates reflect all changes within seconds
+
+## Checklist
+- [ ] 7.1 TmuxManager Mutations (verify/complete)
+- [ ] 7.2 Session List UI Enhancements
+- [ ] 7.3 Confirmation Dialogs
+- [ ] 7.4 Inline Rename
+- [ ] 7.5 Session List Event Handlers
+- [ ] 7.6 Pane Death During Session Management
+- [ ] 7.7 Safety Guards
+- [ ] 7.8 REST API for Session Management
+- [ ] 7.9 Tests

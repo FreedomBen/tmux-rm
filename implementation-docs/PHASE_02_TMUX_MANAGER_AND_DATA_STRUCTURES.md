@@ -101,3 +101,10 @@ test/tmux_rm/ring_buffer_test.exs
 - Session name validation rejects `"bad:name"`, `"bad.name"`, accepts `"good-name_1"`
 - RingBuffer passes all unit tests (append, read, overflow, size)
 - All unit tests pass with mocked CommandRunner
+
+## Checklist
+- [ ] 2.1 Data Structures
+- [ ] 2.2 TmuxManager Module
+- [ ] 2.3 Session Name Validation
+- [ ] 2.4 RingBuffer Module
+- [ ] 2.5 Unit Tests
