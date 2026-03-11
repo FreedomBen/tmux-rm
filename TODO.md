@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- In the UI, clicking on a pane should cause the tmux focus to be shifted to that pane.
+
 - /init for each thing
 
 - What are our distribution options for the web app?  can we compile to a static binary for linux?
