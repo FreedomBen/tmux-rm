@@ -138,6 +138,21 @@ defmodule TmuxRmWeb.SettingsLive do
     end
   end
 
+  def handle_event("reset_config", _params, socket) do
+    case Config.reset() do
+      {:ok, _config} ->
+        {:noreply,
+         socket
+         |> assign(:editing, nil)
+         |> assign(:form_data, default_form())
+         |> assign(:form_errors, %{})
+         |> put_flash(:info, "Config reset to defaults.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to reset: #{inspect(reason)}")}
+    end
+  end
+
   # --- Private ---
 
   defp default_form do

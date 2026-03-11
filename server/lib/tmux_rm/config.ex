@@ -124,6 +124,11 @@ defmodule TmuxRm.Config do
     end)
   end
 
+  @doc "Reset config to defaults."
+  def reset do
+    update(fn _config -> @default_config end)
+  end
+
   @doc "Reorder quick actions by list of IDs."
   def reorder_actions(ids) when is_list(ids) do
     update(fn config ->

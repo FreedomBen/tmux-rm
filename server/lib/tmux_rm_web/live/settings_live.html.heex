@@ -166,11 +166,24 @@
 
 <div class="mb-8">
   <h2 class="text-base font-semibold mb-2">Config File</h2>
-  <p class="text-sm text-base-content/60">
+  <p class="text-sm text-base-content/60 mb-3">
     Config is stored in <code class="bg-base-300 px-1 rounded text-xs">~/.config/tmux_rm/config.yaml</code>.
     Changes made to the file are picked up automatically within 2 seconds.
   </p>
+  <button
+    class="btn btn-outline btn-warning btn-sm"
+    phx-click={TmuxRmWeb.CoreComponents.show_modal("reset-confirm-modal")}
+  >
+    <.icon name="hero-arrow-path-micro" class="size-4" /> Reset to Defaults
+  </button>
 </div>
+
+<.modal id="reset-confirm-modal" on_confirm={JS.push("reset_config")} confirm_variant="btn-warning">
+  <:title>Reset configuration?</:title>
+  This will replace all your quick actions with the defaults. This cannot be undone.
+  <:confirm>Reset</:confirm>
+  <:cancel>Cancel</:cancel>
+</.modal>
 
 <div>
   <.link navigate={~p"/"} class="btn btn-ghost btn-sm">
