@@ -26,7 +26,8 @@ config :tmux_rm,
   output_coalesce_ms: 3,
   output_coalesce_max_bytes: 32_768,
   auth_session_ttl_days: 30,
-  auth_token_max_age: 604_800
+  auth_token_max_age: 604_800,
+  rate_limits: %{login: {5, 60}, session_create: {10, 60}, websocket: {10, 60}}
 
 # Configure the endpoint
 config :tmux_rm, TmuxRmWeb.Endpoint,

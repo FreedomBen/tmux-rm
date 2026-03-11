@@ -33,6 +33,9 @@ defmodule TmuxRm.Application do
     # Non-blocking tmux availability check
     check_tmux_availability()
 
+    # Warn if exposed without auth
+    check_auth_warning()
+
     result
   end
 
@@ -40,6 +43,20 @@ defmodule TmuxRm.Application do
   def config_change(changed, _new, removed) do
     TmuxRmWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp check_auth_warning do
+    unless TmuxRm.Auth.auth_enabled?() do
+      http_config = Application.get_env(:tmux_rm, TmuxRmWeb.Endpoint, []) |> Keyword.get(:http, [])
+      ip = Keyword.get(http_config, :ip)
+
+      if ip in [{0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}] do
+        Logger.warning(
+          "Listening on 0.0.0.0 with no authentication configured. " <>
+            "Set up auth via `cd server && mix rca.setup` or set RCA_AUTH_TOKEN."
+        )
+      end
+    end
   end
 
   defp check_tmux_availability do

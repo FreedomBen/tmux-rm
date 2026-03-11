@@ -28,7 +28,8 @@
       "Bash(rm -f /tmp/tmux-rm-test-debug.fifo)",
       "Bash(tmux kill-session:*)",
       "Bash(MIX_ENV=test mix test test/tmux_rm/pane_stream_test.exs --include tmux --seed 0 --trace 2>&1 | head -80)",
-      "Bash(MIX_ENV=test mix run -e \"IO.puts\\(inspect\\(Process.whereis\\(TmuxRmWeb.Endpoint\\)\\)\\)\" 2>&1 | tail -20)"
+      "Bash(MIX_ENV=test mix run -e \"IO.puts\\(inspect\\(Process.whereis\\(TmuxRmWeb.Endpoint\\)\\)\\)\" 2>&1 | tail -20)",
+      "Bash(mix run:*)"
     ]
   }
 }

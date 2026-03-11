@@ -1,13 +1,40 @@
 defmodule TmuxRmWeb.UserSocket do
   use Phoenix.Socket
 
+  require Logger
+
   channel "terminal:*", TmuxRmWeb.TerminalChannel
 
   @impl true
-  def connect(_params, socket, _connect_info) do
-    {:ok, socket}
+  def connect(params, socket, connect_info) do
+    if TmuxRm.Auth.auth_enabled?() do
+      max_age = Application.get_env(:tmux_rm, :auth_token_max_age, 604_800)
+
+      case Phoenix.Token.verify(TmuxRmWeb.Endpoint, "channel", params["token"], max_age: max_age) do
+        {:ok, _data} ->
+          {:ok, socket}
+
+        {:error, _reason} ->
+          # Also try api_token for API clients
+          case Phoenix.Token.verify(TmuxRmWeb.Endpoint, "api_token", params["token"], max_age: max_age) do
+            {:ok, _data} -> {:ok, socket}
+            {:error, _} ->
+              ip = extract_ip(connect_info)
+              Logger.info("WebSocket auth failed from #{ip}")
+              :error
+          end
+      end
+    else
+      {:ok, socket}
+    end
   end
 
   @impl true
   def id(_socket), do: nil
+
+  defp extract_ip(%{peer_data: %{address: addr}}) do
+    addr |> :inet.ntoa() |> to_string()
+  end
+
+  defp extract_ip(_), do: "unknown"
 end
