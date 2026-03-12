@@ -27,6 +27,7 @@ defmodule TmuxRmWeb.TerminalChannel do
     case PaneStream.subscribe(target) do
       {:ok, history, pid} ->
         ref = Process.monitor(pid)
+        Logger.info("Terminal channel joined: #{target}")
 
         socket =
           socket
@@ -37,9 +38,11 @@ defmodule TmuxRmWeb.TerminalChannel do
         {:ok, %{history: Base.encode64(history)}, socket}
 
       {:error, :not_ready} ->
+        Logger.warning("Terminal channel join failed (not ready): #{target}")
         {:error, %{reason: "pane_not_ready"}}
 
       {:error, reason} ->
+        Logger.warning("Terminal channel join failed: #{target}, reason=#{reason}")
         {:error, %{reason: to_string(reason)}}
     end
   end
@@ -142,6 +145,7 @@ defmodule TmuxRmWeb.TerminalChannel do
   @impl true
   def terminate(_reason, socket) do
     if target = socket.assigns[:target] do
+      Logger.info("Terminal channel left: #{target}")
       PaneStream.unsubscribe(target)
     end
 

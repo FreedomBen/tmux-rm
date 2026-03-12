@@ -92,6 +92,8 @@ defmodule TmuxRmWeb.SettingsLive do
 
       case Config.upsert_action(action) do
         {:ok, _config} ->
+          Logger.info("Quick action saved: #{action["label"]}")
+
           {:noreply,
            socket
            |> assign(:editing, nil)
@@ -110,6 +112,7 @@ defmodule TmuxRmWeb.SettingsLive do
   def handle_event("delete_action", %{"id" => id}, socket) do
     case Config.delete_action(id) do
       {:ok, _config} ->
+        Logger.info("Quick action deleted: #{id}")
         {:noreply, put_flash(socket, :info, "Quick action deleted.")}
 
       {:error, reason} ->
@@ -150,6 +153,8 @@ defmodule TmuxRmWeb.SettingsLive do
       {hours, _} when hours > 0 ->
         case Auth.update_session_ttl(hours) do
           :ok ->
+            Logger.info("Session TTL updated to #{hours}h")
+
             {:noreply,
              socket
              |> assign(:session_ttl_hours, hours)
@@ -167,6 +172,8 @@ defmodule TmuxRmWeb.SettingsLive do
   def handle_event("reset_config", _params, socket) do
     case Config.reset() do
       {:ok, _config} ->
+        Logger.info("Config reset to defaults")
+
         {:noreply,
          socket
          |> assign(:editing, nil)

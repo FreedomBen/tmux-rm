@@ -85,10 +85,12 @@ defmodule TmuxRm.TmuxManager do
 
       case command_runner().run(args) do
         {:ok, _} ->
+          Logger.info("Session created: #{name}")
           broadcast_sessions_changed()
           {:ok, %{name: name}}
 
         {:error, {msg, _code}} ->
+          Logger.warning("Failed to create session #{name}: #{msg}")
           {:error, msg}
       end
     end
@@ -99,10 +101,12 @@ defmodule TmuxRm.TmuxManager do
   def kill_session(name) do
     case command_runner().run(["kill-session", "-t", name]) do
       {:ok, _} ->
+        Logger.info("Session killed: #{name}")
         broadcast_sessions_changed()
         :ok
 
       {:error, {msg, _code}} ->
+        Logger.warning("Failed to kill session #{name}: #{msg}")
         {:error, msg}
     end
   end
@@ -124,10 +128,12 @@ defmodule TmuxRm.TmuxManager do
     else
       case command_runner().run(["rename-session", "-t", old_name, new_name]) do
         {:ok, _} ->
+          Logger.info("Session renamed: #{old_name} -> #{new_name}")
           broadcast_sessions_changed()
           :ok
 
         {:error, {msg, _code}} ->
+          Logger.warning("Failed to rename session #{old_name} -> #{new_name}: #{msg}")
           {:error, msg}
       end
     end
@@ -138,10 +144,12 @@ defmodule TmuxRm.TmuxManager do
   def create_window(session_name) do
     case command_runner().run(["new-window", "-t", session_name]) do
       {:ok, _} ->
+        Logger.info("Window created in session: #{session_name}")
         broadcast_sessions_changed()
         :ok
 
       {:error, {msg, _code}} ->
+        Logger.warning("Failed to create window in #{session_name}: #{msg}")
         {:error, msg}
     end
   end
@@ -154,10 +162,12 @@ defmodule TmuxRm.TmuxManager do
 
     case command_runner().run(["split-window", flag, "-t", target]) do
       {:ok, output} ->
+        Logger.info("Pane split #{direction} on #{target}")
         broadcast_sessions_changed()
         {:ok, output}
 
       {:error, {msg, _code}} ->
+        Logger.warning("Failed to split pane #{target} #{direction}: #{msg}")
         {:error, msg}
     end
   end
@@ -167,10 +177,12 @@ defmodule TmuxRm.TmuxManager do
   def kill_pane(target) do
     case command_runner().run(["kill-pane", "-t", target]) do
       {:ok, _} ->
+        Logger.info("Pane killed: #{target}")
         broadcast_sessions_changed()
         :ok
 
       {:error, {msg, _code}} ->
+        Logger.warning("Failed to kill pane #{target}: #{msg}")
         {:error, msg}
     end
   end
