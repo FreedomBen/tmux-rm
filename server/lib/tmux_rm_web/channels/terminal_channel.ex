@@ -21,13 +21,17 @@ defmodule TmuxRmWeb.TerminalChannel do
   @max_rows 200
 
   @impl true
-  def join("terminal:" <> target_raw, _params, socket) do
+  def join("terminal:" <> target_raw, params, socket) do
     target = parse_target(target_raw)
 
     case PaneStream.subscribe(target) do
       {:ok, history, pid} ->
         ref = Process.monitor(pid)
         Logger.info("Terminal channel joined: #{target}")
+
+        # Resize pane to client dimensions before sending history,
+        # so captured content matches the browser terminal size.
+        history = maybe_resize_and_recapture(target, params, history)
 
         socket =
           socket
@@ -151,6 +155,24 @@ defmodule TmuxRmWeb.TerminalChannel do
 
     :ok
   end
+
+  defp maybe_resize_and_recapture(target, %{"cols" => cols, "rows" => rows}, _old_history) do
+    cols = to_int(cols)
+    rows = to_int(rows)
+
+    if cols && rows &&
+         cols >= @min_cols && cols <= @max_cols &&
+         rows >= @min_rows && rows <= @max_rows do
+      case PaneStream.resize_and_capture(target, cols, rows) do
+        {:ok, history} -> history
+        {:error, _} -> _old_history
+      end
+    else
+      _old_history
+    end
+  end
+
+  defp maybe_resize_and_recapture(_target, _params, history), do: history
 
   # "session:window:pane" -> "session:window.pane"
   defp parse_target(raw) do

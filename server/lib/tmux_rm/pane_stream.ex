@@ -73,6 +73,17 @@ defmodule TmuxRm.PaneStream do
     end
   end
 
+  @doc "Resize the pane and re-capture scrollback. Used on initial join so history matches client dimensions."
+  def resize_and_capture(target, cols, rows) when is_integer(cols) and is_integer(rows) do
+    cols = cols |> max(1) |> min(500)
+    rows = rows |> max(1) |> min(200)
+
+    case lookup(target) do
+      {:ok, pid} -> GenServer.call(pid, {:resize_and_capture, cols, rows})
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
   # --- GenServer Implementation ---
 
   def child_spec(target) do
@@ -212,7 +223,42 @@ defmodule TmuxRm.PaneStream do
     {:reply, {:error, status}, state}
   end
 
+  def handle_call({:resize_and_capture, _cols, _rows}, _from, %{status: status} = state)
+      when status in [:dead, :starting] do
+    {:reply, {:error, status}, state}
+  end
+
   def handle_call({:resize, cols, rows}, _from, state) do
+    case do_resize(state, cols, rows) do
+      {:ok, state} -> {:reply, :ok, state}
+      {:error, msg} -> {:reply, {:error, msg}, state}
+    end
+  end
+
+  def handle_call({:resize_and_capture, cols, rows}, _from, state) do
+    case do_resize(state, cols, rows) do
+      {:ok, state} ->
+        runner = command_runner()
+
+        case runner.run(["capture-pane", "-p", "-e", "-S", "-32768", "-t", state.pane_id]) do
+          {:ok, scrollback} ->
+            buffer =
+              state.buffer
+              |> RingBuffer.clear()
+              |> RingBuffer.append(scrollback)
+
+            {:reply, {:ok, scrollback}, %{state | buffer: buffer}}
+
+          {:error, _} ->
+            {:reply, {:ok, RingBuffer.read(state.buffer)}, state}
+        end
+
+      {:error, msg} ->
+        {:reply, {:error, msg}, state}
+    end
+  end
+
+  defp do_resize(state, cols, rows) do
     case command_runner().run([
            "resize-pane",
            "-t",
@@ -229,10 +275,10 @@ defmodule TmuxRm.PaneStream do
           {:pane_resized, cols, rows}
         )
 
-        {:reply, :ok, state}
+        {:ok, state}
 
       {:error, {msg, _}} ->
-        {:reply, {:error, msg}, state}
+        {:error, msg}
     end
   end
 

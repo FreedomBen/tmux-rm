@@ -73,10 +73,8 @@ const TerminalHook = {
     // Connect companion Channel for binary I/O
     this._connectChannel(target);
 
-    // Send initial resize to server (only if not mobile and not multi-pane — both are passive)
-    if (!this._isMobile && !this._isMultiPane) {
-      this.pushEvent("resize", { cols: this.term.cols, rows: this.term.rows });
-    }
+    // Note: initial resize is sent via channel join params so the pane is
+    // resized before history is captured, avoiding wonky formatting.
 
     // Input handling: buffer keystrokes and flush periodically
     this._inputBuffer = [];
@@ -496,7 +494,12 @@ const TerminalHook = {
       window.userSocket.connect();
     }
 
-    this.channel = window.userSocket.channel(topic, {});
+    const joinParams = {};
+    if (!this._isMobile && !this._isMultiPane) {
+      joinParams.cols = this.term.cols;
+      joinParams.rows = this.term.rows;
+    }
+    this.channel = window.userSocket.channel(topic, joinParams);
     this.channel
       .join()
       .receive("ok", (reply) => {
