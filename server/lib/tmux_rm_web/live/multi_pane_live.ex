@@ -27,6 +27,7 @@ defmodule TmuxRmWeb.MultiPaneLive do
       end
 
     windows = fetch_windows(session)
+    channel_token = Phoenix.Token.sign(socket, "channel", %{session: session})
 
     socket =
       socket
@@ -36,6 +37,7 @@ defmodule TmuxRmWeb.MultiPaneLive do
       |> assign(:grid, compute_grid(layout))
       |> assign(:windows, windows)
       |> assign(:maximized, nil)
+      |> assign(:channel_token, channel_token)
       |> assign(:page_title, "#{session}:#{window}")
 
     {:ok, socket, layout: false}
@@ -53,6 +55,8 @@ defmodule TmuxRmWeb.MultiPaneLive do
   def render(assigns) do
     ~H"""
     <div class="flex flex-col h-dvh bg-black">
+      <meta name="channel-token" content={@channel_token} />
+
       <%!-- Header bar --%>
       <div class="terminal-header-bar">
         <.link
