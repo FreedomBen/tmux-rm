@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- When split in the UI, Let's make the panes resizable by click and dragging on the divider.  This should also work on mobile.
+
 - Where did the quick action buttons go?  Let's also add one for Ctrl+d, Ctrl+c, 
 
 - Write a Makefile and include a build command, clean, and install.  The install should build and copy the server binary in place, and copy the systemd service file in place as well.
