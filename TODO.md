@@ -10,9 +10,9 @@
 
 - Let's add an direct edit for the settings config file to the settings page so users can optionally open the file in a text editor (inside the application's UI) and make direct changes to the file.
 
-- Would adding support to this server for MCP provide any value?  Can you think of any situations where an AI agent may want to use it?
-
 # Already Run
+
+- Would adding support to this server for MCP provide any value?  Can you think of any situations where an AI agent may want to use it?
 
 - When split in the UI, Let's make the panes resizable by click and dragging on the divider.  This should also work on mobile.
 
