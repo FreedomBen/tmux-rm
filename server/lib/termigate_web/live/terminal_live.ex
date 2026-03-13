@@ -103,6 +103,25 @@ defmodule TermigateWeb.TerminalLive do
         </div>
       </header>
 
+      <%!-- Control signal bar --%>
+      <div class="control-signal-bar">
+        <button class="ctl-btn" phx-click="send_control" phx-value-key="c" title="Send SIGINT (Ctrl+C)">
+          <kbd>^C</kbd>
+        </button>
+        <button class="ctl-btn" phx-click="send_control" phx-value-key="d" title="Send EOF (Ctrl+D)">
+          <kbd>^D</kbd>
+        </button>
+        <button class="ctl-btn" phx-click="send_control" phx-value-key="z" title="Suspend (Ctrl+Z)">
+          <kbd>^Z</kbd>
+        </button>
+        <button class="ctl-btn" phx-click="send_control" phx-value-key="l" title="Clear screen (Ctrl+L)">
+          <kbd>^L</kbd>
+        </button>
+        <button class="ctl-btn ctl-btn-danger" phx-click="send_control" phx-value-key="\\" title="Send SIGQUIT (Ctrl+\\)">
+          <kbd>^\</kbd>
+        </button>
+      </div>
+
       <%!-- Quick action bar --%>
       <div
         :if={@quick_actions != [] and @show_actions}
@@ -229,6 +248,25 @@ defmodule TermigateWeb.TerminalLive do
       {:noreply, assign(socket, :last_resize_at, now)}
     else
       {:noreply, socket}
+    end
+  end
+
+  @control_keys %{
+    "c" => "\x03",
+    "d" => "\x04",
+    "z" => "\x1a",
+    "l" => "\x0c",
+    "\\" => "\x1c"
+  }
+
+  def handle_event("send_control", %{"key" => key}, socket) do
+    case Map.get(@control_keys, key) do
+      nil ->
+        {:noreply, socket}
+
+      char ->
+        PaneStream.send_keys(socket.assigns.target, char)
+        {:noreply, socket}
     end
   end
 

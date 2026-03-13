@@ -122,6 +122,19 @@ defmodule TermigateWeb.MultiPaneLive do
         </div>
       </div>
 
+      <%!-- Control signal bar --%>
+      <div class="control-signal-bar">
+        <button
+          :for={{label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]}
+          class={"ctl-btn #{if key == "\\", do: "ctl-btn-danger"}"}
+          phx-click="send_control"
+          phx-value-key={key}
+          disabled={@active_pane == nil}
+        >
+          <kbd>{label}</kbd>
+        </button>
+      </div>
+
       <%!-- Quick action bar --%>
       <div
         :if={@quick_actions != [] and @show_actions}
@@ -412,6 +425,28 @@ defmodule TermigateWeb.MultiPaneLive do
 
   def handle_event("pane_focused", %{"target" => target}, socket) do
     {:noreply, assign(socket, :active_pane, target)}
+  end
+
+  @control_keys %{
+    "c" => "\x03",
+    "d" => "\x04",
+    "z" => "\x1a",
+    "l" => "\x0c",
+    "\\" => "\x1c"
+  }
+
+  def handle_event("send_control", %{"key" => key}, socket) do
+    case {Map.get(@control_keys, key), socket.assigns.active_pane} do
+      {nil, _} ->
+        {:noreply, socket}
+
+      {_, nil} ->
+        {:noreply, socket}
+
+      {char, target} ->
+        PaneStream.send_keys(target, char)
+        {:noreply, socket}
+    end
   end
 
   def handle_event("quick_action", params, socket) do

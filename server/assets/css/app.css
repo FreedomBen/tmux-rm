@@ -328,6 +328,87 @@ body {
   background: oklch(100% 0 0 / 8%);
 }
 
+/* === Control signal bar === */
+.control-signal-bar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 0.75rem;
+  background: oklch(11% 0.005 260);
+  border-bottom: 1px solid oklch(22% 0.008 260);
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.ctl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  min-height: 30px;
+  background: oklch(18% 0.006 260);
+  color: oklch(68% 0.01 80);
+  border: 1px solid oklch(26% 0.008 260);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.ctl-btn kbd {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.ctl-btn:hover {
+  background: oklch(24% 0.01 260);
+  border-color: oklch(34% 0.012 260);
+  color: oklch(85% 0.01 80);
+}
+
+.ctl-btn:active {
+  background: oklch(30% 0.015 260);
+  border-color: oklch(40% 0.015 260);
+  transform: scale(0.96);
+}
+
+.ctl-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+.ctl-btn-danger {
+  color: oklch(65% 0.12 25);
+  border-color: oklch(30% 0.04 25);
+}
+
+.ctl-btn-danger:hover {
+  background: oklch(22% 0.04 25);
+  border-color: oklch(40% 0.08 25);
+  color: oklch(75% 0.15 25);
+}
+
+.ctl-btn-danger:active {
+  background: oklch(28% 0.06 25);
+}
+
+@media (max-width: 639px) {
+  .ctl-btn {
+    min-height: 40px;
+    min-width: 44px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+
 /* === Quick action bar === */
 .quick-action-bar {
   display: flex;
