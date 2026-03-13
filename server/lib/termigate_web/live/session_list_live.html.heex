@@ -159,7 +159,7 @@
         <%!-- Session action menu (kebab) — positioned over the card --%>
         <div class="session-menu-overlay">
           <details class="dropdown dropdown-end" phx-click-away={JS.remove_attribute("open", to: "details.dropdown")}>
-            <summary class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); event.preventDefault();">
+            <summary class="btn btn-ghost btn-xs" onclick="event.stopPropagation();">
               <.icon name="hero-ellipsis-vertical-micro" class="size-5" />
             </summary>
             <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-48 p-2 shadow-lg">

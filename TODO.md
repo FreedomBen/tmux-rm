@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- Bug:  When I ran tmux split-window in a running pane, it seemed to work, but all the typed input went into the top pane (which was the original) instead of the bottom pane.  After I sent Ctrl+d to the top pane to close them, it began double registering key presses.
+
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
 - Let's add support for getting a TLS certificate from Let's Encrypt.  For this the user needs to enter the domain name or select to get an IP address certificate.
