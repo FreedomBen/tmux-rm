@@ -176,6 +176,10 @@ defmodule Termigate.LayoutPoller do
       {:error, _reason} ->
         state
     end
+  rescue
+    e ->
+      Logger.warning("LayoutPoller poll error for #{state.session}:#{state.window}: #{inspect(e)}")
+      state
   end
 
   defp fetch_layout(session, window) do

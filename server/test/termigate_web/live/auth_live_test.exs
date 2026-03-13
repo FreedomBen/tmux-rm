@@ -4,7 +4,7 @@ defmodule TermigateWeb.AuthLiveTest do
   import Phoenix.LiveViewTest
 
   describe "login page" do
-    test "renders login form when not authenticated", %{conn: conn} do
+    test "renders login form when not authenticated", %{conn: _conn} do
       # Build a conn with auth enabled but no authenticated session
       conn =
         Phoenix.ConnTest.build_conn()

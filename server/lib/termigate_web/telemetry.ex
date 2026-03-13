@@ -81,7 +81,13 @@ defmodule TermigateWeb.Telemetry do
   end
 
   def pane_stream_count do
-    count = DynamicSupervisor.count_children(Termigate.PaneStreamSupervisor)[:active] || 0
+    count =
+      try do
+        DynamicSupervisor.count_children(Termigate.PaneStreamSupervisor)[:active] || 0
+      catch
+        :exit, _ -> 0
+      end
+
     :telemetry.execute([:termigate, :pane_streams], %{active: count}, %{})
   end
 

@@ -156,7 +156,7 @@ defmodule TermigateWeb.TerminalChannel do
     :ok
   end
 
-  defp maybe_resize_and_recapture(target, %{"cols" => cols, "rows" => rows}, _old_history) do
+  defp maybe_resize_and_recapture(target, %{"cols" => cols, "rows" => rows}, old_history) do
     cols = to_int(cols)
     rows = to_int(rows)
 
@@ -172,11 +172,11 @@ defmodule TermigateWeb.TerminalChannel do
 
         {:error, reason} ->
           Logger.warning("resize_and_capture failed: #{inspect(reason)}")
-          _old_history
+          old_history
       end
     else
       Logger.warning("Invalid join dimensions: cols=#{inspect(cols)} rows=#{inspect(rows)}")
-      _old_history
+      old_history
     end
   end
 

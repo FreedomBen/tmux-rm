@@ -4,7 +4,6 @@ defmodule Termigate.AuthTest do
   alias Termigate.Auth
 
   @test_dir "/tmp/termigate-test-auth"
-  @test_creds_file Path.join(@test_dir, "credentials")
 
   setup do
     # Override credentials path for testing

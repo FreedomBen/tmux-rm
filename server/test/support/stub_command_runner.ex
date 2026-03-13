@@ -13,7 +13,6 @@ defmodule Termigate.StubCommandRunner do
   @impl true
   def run!(args) do
     case run(args) do
-      {:ok, output} -> output
       {:error, {msg, _}} -> raise "StubCommandRunner: #{msg}"
     end
   end
