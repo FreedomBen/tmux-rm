@@ -1,6 +1,6 @@
 # Not Run Yet
 
-- Right up a README.md file for this repo
+- write up a README.md file for this repo
 
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
