@@ -2,6 +2,8 @@
 
 - write up a README.md file for this repo
 
+- Let's add an actions button row for sending control signals, especially Ctrl+C and Ctrl+D
+
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
 - Let's add support for getting a TLS certificate from Let's Encrypt.  For this the user needs to enter the domain name or select to get an IP address certificate.
