@@ -29,6 +29,7 @@ PaneStream already receives all pane output via pipe-pane → FIFO → Port. We 
 %{
   # existing fields...
   idle_timer_ref: nil,           # Process.send_after ref
+  idle_threshold_ms: 10_000,     # from Config, updated on {:config_changed, _}
   last_output_at: nil,           # monotonic timestamp of last output
   had_recent_activity: false,    # true after output, false after idle broadcast
   marker_partial: <<>>           # incomplete OSC marker from previous chunk (shell integration)
@@ -37,15 +38,16 @@ PaneStream already receives all pane output via pipe-pane → FIFO → Port. We 
 
 **Idle detection logic in PaneStream:**
 
-- In `flush_output/1`: set `last_output_at = System.monotonic_time(:millisecond)`, set `had_recent_activity = true`, cancel existing `idle_timer_ref`, start new timer via `Process.send_after(self(), :idle_timeout, idle_threshold_ms)`.
+- In `flush_output/1`: set `last_output_at = System.monotonic_time(:millisecond)`, set `had_recent_activity = true`, cancel existing `idle_timer_ref`, start new timer via `Process.send_after(self(), :idle_timeout, state.idle_threshold_ms)`.
 - New `handle_info(:idle_timeout, state)`: if `had_recent_activity` is true, broadcast `{:pane_idle, target, elapsed_ms}`, set `had_recent_activity = false`.
-- Idle tracking always runs in PaneStream with a hardcoded 10-second threshold. The threshold is not dynamically synced from config — PaneStream uses a fixed value to avoid bidirectional config plumbing. The user-configurable `idle_threshold` setting controls only the *display* threshold: the LiveView compares the reported `idle_ms` against the configured threshold before forwarding to the JS hook. If `idle_ms < configured_threshold`, the event is suppressed. This means the PaneStream always fires at 10s, but the LiveView gates delivery. For thresholds >10s, the LiveView simply waits for an idle event whose `idle_ms` exceeds the configured value (PaneStream continues to report elapsed time from last output, so subsequent idle checks will have larger values). This avoids complex bidirectional config sync between PaneStream and the client.
+- New `handle_info({:config_changed, config}, state)`: read `config["notifications"]["idle_threshold"]`, convert to ms, update `idle_threshold_ms` in state. If an `idle_timer_ref` is active, cancel it and reschedule with the new threshold (adjusted for time already elapsed since `last_output_at`).
+- PaneStream reads the idle threshold from `Config.get()` on init and subscribes to the `"config"` PubSub topic. When a `{:config_changed, config}` message arrives, PaneStream updates its `idle_threshold_ms` field and reschedules the idle timer if one is active. The LiveView decides whether to forward idle events to the JS hook based on the notification mode. This keeps the timer accurate to the user's setting while the LiveView still gates on mode.
 
 **Pros:** No user setup. Portable. Uses existing data flow.
 
 **Cons:** Cannot provide command name, exit code, or precise timing. False positives possible (command pauses output then resumes). The idle threshold is a tradeoff — too short = false positives, too long = delayed notification.
 
-**Configurable threshold:** Exposed in settings UI. Default 10s. Range: 3–120 seconds. Note: PaneStream fires idle events at a fixed 10s interval. For thresholds <10s, the LiveView forwards immediately on the first idle event (the user perceives a minimum 10s delay). For thresholds >10s, the LiveView suppresses the event until `idle_ms` exceeds the configured threshold. This is a simplicity tradeoff — avoids syncing config to every PaneStream process at the cost of 10s minimum granularity.
+**Configurable threshold:** Exposed in settings UI. Default 10s. Range: 3–120 seconds. PaneStream reads this from config on init and subscribes to config changes, so the timer always matches the user's setting.
 
 ### Mode 2: Shell Integration
 
@@ -481,12 +483,13 @@ The notification mode is checked in two places (defense-in-depth): the LiveView'
 
 **Files:** `server/lib/termigate/pane_stream.ex`
 
-1. Add `idle_timer_ref`, `last_output_at`, `had_recent_activity` to state.
-2. In `flush_output/1`: reset idle timer, set `had_recent_activity = true`.
-3. Add `handle_info(:idle_timeout, state)`: broadcast `{:pane_idle, target, elapsed_ms}` if `had_recent_activity`.
-4. Cancel `idle_timer_ref` in `handle_pane_death` (alongside the existing `grace_timer_ref` cancellation) and in `terminate/2`.
-5. Default idle threshold: 10 seconds (from application config).
-6. Add unit tests for idle detection.
+1. Add `idle_timer_ref`, `idle_threshold_ms`, `last_output_at`, `had_recent_activity` to state.
+2. In `init/1`: read idle threshold from `Config.get()["notifications"]["idle_threshold"]` (seconds → ms). Subscribe to `"config"` PubSub topic.
+3. In `flush_output/1`: reset idle timer using `state.idle_threshold_ms`, set `had_recent_activity = true`.
+4. Add `handle_info(:idle_timeout, state)`: broadcast `{:pane_idle, target, elapsed_ms}` if `had_recent_activity`.
+5. Add `handle_info({:config_changed, config}, state)`: update `idle_threshold_ms`, reschedule active timer adjusted for elapsed time.
+6. Cancel `idle_timer_ref` in `handle_pane_death` (alongside the existing `grace_timer_ref` cancellation) and in `terminate/2`.
+7. Add unit tests for idle detection, including threshold changes mid-timer.
 
 ### Phase 2: OSC marker scanning
 
