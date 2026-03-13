@@ -39,7 +39,7 @@ PaneStream already receives all pane output via pipe-pane → FIFO → Port. We 
 
 - In `flush_output/1`: set `last_output_at = System.monotonic_time(:millisecond)`, set `had_recent_activity = true`, cancel existing `idle_timer_ref`, start new timer via `Process.send_after(self(), :idle_timeout, idle_threshold_ms)`.
 - New `handle_info(:idle_timeout, state)`: if `had_recent_activity` is true, broadcast `{:pane_idle, target, elapsed_ms}`, set `had_recent_activity = false`.
-- Only broadcast idle if notifications are enabled (check via a flag passed during subscribe or a config lookup).
+- Idle tracking always runs (it's cheap — just a timer reset and a `Process.send_after`). The LiveView decides whether to forward idle events to the JS hook based on the user's notification preference. This avoids complex bidirectional config sync between PaneStream and the client.
 
 **Pros:** No user setup. Portable. Uses existing data flow.
 
@@ -147,8 +147,9 @@ In `flush_output/1`, after building the binary, call `scan_and_strip_notificatio
 ```elixir
 @notification_marker "\e]termigate;"
 
-# Returns {stripped_data, notifications_found?}
+# Returns {stripped_data, marker_partial}
 # Strips all termigate OSC markers from the data and broadcasts notification events.
+# marker_partial is stored in PaneStream state and prepended to the next chunk.
 defp scan_and_strip_notifications(data, target) do
   do_scan_and_strip(data, target, <<>>)
 end
@@ -183,12 +184,15 @@ defp parse_and_broadcast_notification(payload, target) do
         |> String.slice(0, 128)
         |> String.replace(~r/[^\x20-\x7E]/, "")
 
-      broadcast(target, {:command_finished, target, %{
-        exit_code: String.to_integer(exit_code),
-        command: sanitized_name,
-        duration_seconds: String.to_integer(duration)
-      }})
-    _ -> :ok  # Ignore malformed markers
+      with {parsed_exit_code, _} <- Integer.parse(exit_code),
+           {parsed_duration, _} <- Integer.parse(duration) do
+        broadcast(target, {:command_finished, target, %{
+          exit_code: parsed_exit_code,
+          command: sanitized_name,
+          duration_seconds: parsed_duration
+        }})
+      end
+    _ -> :ok  # Ignore malformed markers (wrong field count or non-integer values)
   end
 end
 ```
@@ -230,7 +234,7 @@ Add a "Notifications" section to `settings_live.ex` with:
 
 4. **Common options** (shown when any mode except disabled is selected):
    - Notification sound toggle
-   - "Request permission" button (calls `Notification.requestPermission()`)
+   - "Request permission" button (calls `Notification.requestPermission()`). Note: modern browsers require permission requests to originate from a user gesture (e.g., button click). The button satisfies this requirement. Do not call `requestPermission()` programmatically on page load — it will be silently blocked.
    - Permission status indicator
 
 ### Bash version detection
@@ -375,15 +379,17 @@ Shell hook (printf OSC sequence)
 
 ### Notification preference sync
 
-Notification mode is stored in localStorage (client-side). The server needs to know the mode to avoid unnecessary work (e.g., don't run idle timers if notifications are disabled).
+Notification mode is stored in localStorage (client-side). Idle tracking always runs in PaneStream (it's cheap — just a timer reset and a `Process.send_after`). The LiveView decides whether to turn idle events into push_events based on the user's preference. This avoids complex bidirectional preference sync between PaneStream and the client.
 
-On mount and on preference change, the JS hook pushes the notification mode to the LiveView:
+On mount and on preference change, the JS hook pushes the notification mode to the LiveView. The NotificationHook's `mounted()` callback should include:
 
 ```javascript
+// Sync preferences to server on mount
+const prefs = loadPrefs();
 this.pushEvent("notification_pref", { mode: prefs.notifications, threshold: prefs.notifyIdleThreshold });
 ```
 
-Idle tracking always runs in PaneStream (it's cheap — just a timer). The LiveView decides whether to turn idle events into notifications based on the user's preference. This avoids complex bidirectional preference sync.
+And should listen for preference changes (e.g., via a `storage` event listener or a custom event from the settings page) to re-push when the user changes settings.
 
 ```elixir
 def handle_event("notification_pref", %{"mode" => mode, "threshold" => threshold}, socket) do
@@ -402,18 +408,19 @@ The LiveView's `handle_info` for `{:pane_idle, ...}` checks `socket.assigns.noti
 1. Add `idle_timer_ref`, `last_output_at`, `had_recent_activity` to state.
 2. In `flush_output/1`: reset idle timer, set `had_recent_activity = true`.
 3. Add `handle_info(:idle_timeout, state)`: broadcast `{:pane_idle, target, elapsed_ms}` if `had_recent_activity`.
-4. Default idle threshold: 10 seconds (from application config).
-5. Add unit tests for idle detection.
+4. Cancel `idle_timer_ref` in `handle_pane_death` (alongside the existing `grace_timer_ref` cancellation) and in `terminate/2`.
+5. Default idle threshold: 10 seconds (from application config).
+6. Add unit tests for idle detection.
 
 ### Phase 2: OSC marker scanning
 
 **Files:** `server/lib/termigate/pane_stream.ex`
 
-1. Add `scan_notifications/2` function.
-2. Call from `flush_output/1` before appending to buffer.
+1. Add `scan_and_strip_notifications/2` function.
+2. Call from `flush_output/1` before appending to buffer: prepend `state.marker_partial` to the coalesced data, call `scan_and_strip_notifications/2`, use the returned `stripped_data` for the ring buffer and broadcast, and store the returned `marker_partial` back in state.
 3. Strip OSC marker sequences from data before buffering/broadcasting.
 4. Broadcast `{:command_finished, target, metadata}` when marker found.
-5. Handle edge case: marker split across two coalesced chunks. Keep a small `marker_partial` buffer in state for incomplete markers at chunk boundaries.
+5. Handle edge case: marker split across two coalesced chunks. `scan_and_strip_notifications/2` returns `{stripped_data, marker_partial}`. The partial is stored in PaneStream state (field `marker_partial`, default `<<>>`) and prepended to the next chunk before scanning. Max marker size is ~200 bytes, so the partial is always small.
 6. Add unit tests for marker parsing, including split-marker edge cases.
 
 ### Phase 3: Preferences
@@ -435,12 +442,15 @@ The LiveView's `handle_info` for `{:pane_idle, ...}` checks `socket.assigns.noti
 
 **Files:** `server/lib/termigate_web/live/multi_pane_live.ex`, `server/lib/termigate_web/live/terminal_live.ex`
 
-Both LiveViews use the same per-pane PubSub topic they already subscribe to for output. Notification events (`{:pane_idle, ...}`, `{:command_finished, ...}`) are additional tuple shapes on that topic.
+**Note:** `terminal_live` already subscribes to `"pane:#{target}"` in mount. `multi_pane_live` does **not** currently subscribe to per-pane topics — it subscribes to `"sessions:state"` and `"config"`. Per-pane subscriptions must be added to `multi_pane_live`, managed dynamically as panes are added/removed via `{:layout_updated, panes}`. Track subscribed panes in a `subscribed_panes` MapSet assign; on layout update, diff old vs new panes, subscribe to new ones, unsubscribe from removed ones.
 
-1. Add `handle_info` clauses for `{:pane_idle, ...}` and `{:command_finished, ...}` — forward as push_events to the notification hook.
-2. Handle `"notification_pref"` event to store mode in assigns.
-3. **`multi_pane_live` only:** Handle `"focus_pane"` event to set active pane and push `"focus_terminal"`. `terminal_live` does not define this handler — it shows a single pane, so focus is implicit. (If a `"focus_pane"` event arrives via the hook, LiveView's default handling ignores unmatched events.)
-4. **Cleanup on unmount:** In `terminate/2`, cancel any pending idle timer refs held in assigns (if the LiveView caches them). PubSub subscriptions tied to `self()` are automatically cleaned up when the LiveView process exits, but explicitly unsubscribe from pane topics in `terminate/2` to avoid ghost notifications during navigation (e.g., user navigates away from a session page while a pane idle event is in the mailbox).
+Notification events (`{:pane_idle, ...}`, `{:command_finished, ...}`) are additional tuple shapes on the per-pane PubSub topic.
+
+1. **`multi_pane_live`:** Add per-pane PubSub subscriptions. In the `{:layout_updated, panes}` handler, diff against `subscribed_panes` and subscribe/unsubscribe accordingly.
+2. Add `handle_info` clauses for `{:pane_idle, ...}` and `{:command_finished, ...}` — forward as push_events to the notification hook.
+3. Handle `"notification_pref"` event to store mode in assigns.
+4. **`multi_pane_live` only:** Handle `"focus_pane"` event to set active pane and push `"focus_terminal"`. **`terminal_live`:** Add a no-op `"focus_pane"` handler that returns `{:noreply, socket}` — LiveView does not silently ignore unhandled `handle_event` calls; an explicit clause is required.
+5. **Cleanup on unmount:** In `terminate/2`, cancel any pending idle timer refs held in assigns (if the LiveView caches them). PubSub subscriptions tied to `self()` are automatically cleaned up when the LiveView process exits, but explicitly unsubscribe from pane topics in `terminate/2` to avoid ghost notifications during navigation (e.g., user navigates away from a session page while a pane idle event is in the mailbox).
 
 ```elixir
 # In both multi_pane_live.ex and terminal_live.ex
@@ -478,7 +488,8 @@ Track subscribed panes in assigns (`subscribed_panes` MapSet) so `terminate/2` k
 - **Rapid commands:** In shell integration mode, many fast commands in succession could spam notifications. The `notifyMinDuration` preference (default 5s) filters these out — only commands running longer than the threshold trigger notifications.
 - **Multiple browser tabs:** Each tab has its own LiveView and hook. Use `Notification.tag` to deduplicate — browsers replace notifications with the same tag.
 - **Permission denied:** If the user denies notification permission, the settings page shows the current status and instructions for re-enabling in browser settings.
-- **Pane dies during command:** If the pane dies, PaneStream shuts down. No idle notification fires (timer is cancelled in `handle_pane_death`). For shell integration, the marker never arrives, so no notification. This is acceptable — the pane death itself is visible in the UI.
+- **Pane dies during command:** If the pane dies, PaneStream shuts down. The idle timer must be cancelled in `handle_pane_death` (add `Process.cancel_timer` for `idle_timer_ref` alongside the existing `grace_timer_ref` cancellation). For shell integration, the marker never arrives, so no notification. This is acceptable — the pane death itself is visible in the UI.
 - **User working in tmux directly:** Both modes will trigger notifications for commands run outside the browser. This is a feature, not a bug — the user opted in. The `document.hasFocus()` guard means they won't be interrupted if they're already looking at the termigate tab.
+- **Idle timer vs coalesce delay:** PaneStream coalesces output chunks (default 3ms coalesce window). The idle timer resets in `flush_output/1`, which fires after coalescing. This means the effective idle time includes the coalesce delay. At default settings (10s idle threshold, 3ms coalesce), this is negligible. But at low idle thresholds (e.g., 3s), the coalesce delay could cause the idle timer to reset slightly late. This is acceptable — the coalesce delay is small relative to any reasonable idle threshold.
 - **Notification cooldown (activity mode):** With a low idle threshold (e.g. 3s) and a pane alternating between output bursts and silence, the user could get spammed. The JS hook enforces a per-pane cooldown: after showing an idle notification for a pane, suppress further idle notifications for that pane for 30 seconds. Shell integration mode does not need this since `notifyMinDuration` already filters rapid commands.
-- **Tab closed = no notifications:** Browser `Notification` API requires an open tab. Notifications stop if the user closes all termigate tabs. A Service Worker could provide persistent notifications, but this is a non-goal for the initial implementation. Can be revisited if users request it.
+- **Tab closed = no notifications:** The current architecture (LiveView push_event → JS hook) fundamentally requires an open tab. If the user closes all termigate tabs, no notifications fire — PaneStream still broadcasts events, but no LiveView is alive to receive them. A Service Worker with a WebSocket or SSE connection could provide persistent notifications independent of tab lifecycle, but this is a non-goal for the initial implementation. Can be revisited if users request it.
