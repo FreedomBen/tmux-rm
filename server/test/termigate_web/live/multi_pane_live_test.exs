@@ -79,10 +79,11 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       send(view.pid, {:layout_updated, @test_panes})
       html = render(view)
 
-      # Mobile list with links to single-pane view
+      # Mobile list with maximize buttons
       assert html =~ "sm:hidden"
-      assert html =~ "/terminal/test:0.0"
-      assert html =~ "/terminal/test:0.1"
+      assert html =~ "test:0.0"
+      assert html =~ "test:0.1"
+      assert html =~ "maximize_pane"
     end
 
     test "pane containers have data-mode=multi", %{conn: conn} do

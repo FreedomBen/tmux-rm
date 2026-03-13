@@ -93,7 +93,9 @@ defmodule TermigateWeb.MultiPaneLive do
           <span class="hidden sm:inline">Sessions</span>
         </.link>
         <span class="text-base-content/70 text-sm font-mono tracking-tight">{@session}</span>
-        <div class="w-10" />
+        <.link navigate={~p"/settings"} class="text-base-content/50 hover:text-base-content text-sm" aria-label="Settings">
+          <.icon name="hero-cog-6-tooth-micro" class="size-5" />
+        </.link>
       </div>
 
       <%!-- Window tabs --%>
@@ -197,7 +199,7 @@ defmodule TermigateWeb.MultiPaneLive do
         :if={@panes != []}
         id="multi-pane-grid"
         phx-hook="PaneResizeHook"
-        class="flex-1 min-h-0 hidden sm:grid relative"
+        class={["flex-1 min-h-0 relative", if(@maximized, do: "grid", else: "hidden sm:grid")]}
         style={"grid-template-columns: #{@grid.cols}; grid-template-rows: #{@grid.rows}; gap: 2px;"}
         data-panes={
           Jason.encode!(
@@ -291,13 +293,6 @@ defmodule TermigateWeb.MultiPaneLive do
                   <path d="M2 4.5A2.5 2.5 0 014.5 2h11A2.5 2.5 0 0118 4.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 012 15.5v-11zM4 9V4.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5V9H4zm0 2v4.5a.5.5 0 00.5.5h11a.5.5 0 00.5-.5V11H4z" />
                 </svg>
               </button>
-              <.link
-                navigate={"/terminal/#{pane.target}"}
-                class="pane-overlay-btn"
-                title="Open in full view"
-              >
-                <.icon name="hero-arrow-top-right-on-square-micro" class="size-4" />
-              </.link>
             </div>
           </div>
         <% end %>
@@ -312,12 +307,13 @@ defmodule TermigateWeb.MultiPaneLive do
         </div>
       </div>
 
-      <%!-- Mobile pane list — tappable cards navigate to terminal --%>
-      <div :if={@panes != []} class="flex-1 overflow-y-auto sm:hidden p-3 space-y-2">
-        <.link
+      <%!-- Mobile pane list — tappable cards maximize the pane --%>
+      <div :if={@panes != [] and @maximized == nil} class="flex-1 overflow-y-auto sm:hidden p-3 space-y-2">
+        <div
           :for={pane <- @panes}
-          navigate={"/terminal/#{pane.target}"}
-          class="pane-row rounded-xl mobile-pane-card"
+          class="pane-row rounded-xl mobile-pane-card cursor-pointer"
+          phx-click="maximize_pane"
+          phx-value-target={pane.target}
         >
           <.icon name="hero-command-line-micro" class="size-4 text-base-content/25 shrink-0" />
           <div class="flex-1 min-w-0">
@@ -326,8 +322,8 @@ defmodule TermigateWeb.MultiPaneLive do
               {pane.command} &middot; {pane.width}&times;{pane.height}
             </div>
           </div>
-          <.icon name="hero-chevron-right-micro" class="size-4 text-base-content/20 shrink-0" />
-        </.link>
+          <.icon name="hero-arrows-pointing-out-micro" class="size-4 text-base-content/20 shrink-0" />
+        </div>
       </div>
 
       <%!-- Empty state --%>

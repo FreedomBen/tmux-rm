@@ -76,7 +76,6 @@ defmodule TermigateWeb.Router do
 
     live_session :authenticated, on_mount: [{TermigateWeb.AuthHook, :default}] do
       live "/", SessionListLive, :index
-      live "/terminal/:target", TerminalLive, :show
       live "/sessions/:session", MultiPaneLive, :session
       live "/sessions/:session/windows/:window", MultiPaneLive, :window
       live "/settings", SettingsLive, :index
