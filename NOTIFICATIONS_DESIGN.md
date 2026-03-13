@@ -19,8 +19,8 @@ Command completion notifications for long-running commands. When a command finis
 PaneStream already receives all pane output via pipe-pane → FIFO → Port. We add idle tracking:
 
 1. Each time `flush_output/1` fires (output received), reset an idle timer.
-2. When the idle timer expires (configurable, default 10 seconds), broadcast `{:pane_idle, target, idle_ms}` on the pane's PubSub topic.
-3. The LiveView (or a dedicated NotificationManager) receives this and pushes a `"notify_idle"` event to the JS hook.
+2. When the idle timer expires (configurable, default 10 seconds), broadcast `{:pane_idle, target, idle_ms}` on the existing per-pane PubSub topic (same topic used for output). No separate notification topic — the LiveView pattern-matches on the tuple shape.
+3. The LiveView receives this and pushes a `"notify_idle"` event to the JS hook.
 4. The JS hook shows a browser Notification.
 
 **State additions to PaneStream:**
@@ -264,7 +264,7 @@ If bash <5.1, show a warning in the shell integration section and recommend usin
 
 ### JS notification hook (`server/assets/js/hooks/notification_hook.js`)
 
-New hook attached to the terminal container (or a dedicated invisible element):
+The hook is mounted **once per LiveView** on a dedicated invisible element (e.g. `<div id="notification-hook" phx-hook="NotificationHook" class="hidden" />`), not per-terminal. This avoids duplicate notifications in multi-pane view.
 
 ```javascript
 const IDLE_COOLDOWN_MS = 30_000; // 30 seconds per-pane cooldown for activity mode
@@ -435,10 +435,25 @@ The LiveView's `handle_info` for `{:pane_idle, ...}` checks `socket.assigns.noti
 
 **Files:** `server/lib/termigate_web/live/multi_pane_live.ex`, `server/lib/termigate_web/live/terminal_live.ex`
 
-1. Subscribe to `{:pane_idle, ...}` and `{:command_finished, ...}` PubSub messages.
-2. Forward as push_events to the notification hook.
-3. Handle `"focus_pane"` event to set active pane and push `"focus_terminal"`.
-4. Handle `"notification_pref"` event to store mode in assigns.
+Both LiveViews use the same per-pane PubSub topic they already subscribe to for output. Notification events (`{:pane_idle, ...}`, `{:command_finished, ...}`) are additional tuple shapes on that topic.
+
+1. Add `handle_info` clauses for `{:pane_idle, ...}` and `{:command_finished, ...}` — forward as push_events to the notification hook.
+2. Handle `"notification_pref"` event to store mode in assigns.
+3. **`multi_pane_live` only:** Handle `"focus_pane"` event to set active pane and push `"focus_terminal"`. `terminal_live` does not define this handler — it shows a single pane, so focus is implicit. (If a `"focus_pane"` event arrives via the hook, LiveView's default handling ignores unmatched events.)
+4. **Cleanup on unmount:** In `terminate/2`, cancel any pending idle timer refs held in assigns (if the LiveView caches them). PubSub subscriptions tied to `self()` are automatically cleaned up when the LiveView process exits, but explicitly unsubscribe from pane topics in `terminate/2` to avoid ghost notifications during navigation (e.g., user navigates away from a session page while a pane idle event is in the mailbox).
+
+```elixir
+# In both multi_pane_live.ex and terminal_live.ex
+def terminate(_reason, socket) do
+  # Unsubscribe from all pane topics to prevent ghost notifications
+  for target <- socket.assigns[:subscribed_panes] || [] do
+    Phoenix.PubSub.unsubscribe(Termigate.PubSub, "pane:#{target}")
+  end
+  :ok
+end
+```
+
+Track subscribed panes in assigns (`subscribed_panes` MapSet) so `terminate/2` knows what to clean up.
 
 ### Phase 6: Settings UI
 
