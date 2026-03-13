@@ -2,17 +2,15 @@
 
 - Let's add a notification feature.  This is intended for long-running commands.  When a command finishes, pop up a notification informing the user.  Clicking on the notification should take you to the browser tab and put focus on the pane that triggered the notification.
 
-- Where did the quick action buttons go?  Let's also add one for Ctrl+d, Ctrl+c, 
-
 - Write a Makefile and include a build command, clean, and install.  The install should build and copy the server binary in place, and copy the systemd service file in place as well.
 
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page.
 
+# Already Run
+
 - Let's make sure the reset to default button in settings doesn't override the saved password info.
 
-- Let's add an direct edit for the settings config file to the settings page so users can optionally open the file in a text editor (inside the application's UI) and make direct changes to the file.
-
-# Already Run
+- Where did the quick action buttons go?  Let's also add one for Ctrl+d, Ctrl+c, 
 
 - Let's add a control for creating a new window in a session.
 
