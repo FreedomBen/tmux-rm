@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Let's make the space between panes narrower so it doesn't waste screen real estate.  A thin line would be better I think.  Also ensure the user can still resize by clicking and dragging on them.
-
 - There seems to be a bug with the initial config file that get's written.  It doesn't have any quick_actions in it, just an empty array.  Let's make sure we're writing out the full config file on initial setup.
 
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
@@ -15,6 +13,8 @@
 - We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
 
 # Already Run
+
+- Let's make the space between panes narrower so it doesn't waste screen real estate.  A thin line would be better I think.  Also ensure the user can still resize by clicking and dragging on them.
 
 - What's the purpose for the full view?
 
