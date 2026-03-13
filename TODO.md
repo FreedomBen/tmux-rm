@@ -1,6 +1,6 @@
 # Not Run Yet
 
-- What's the purpose for the full view?
+- There seems to be a bug with the initial config file that get's written.  It doesn't have any quick_actions in it, just an empty array.  Let's make sure we're writing out the full config file on initial setup.
 
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
@@ -13,6 +13,8 @@
 - We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
 
 # Already Run
+
+- What's the purpose for the full view?
 
 - Bug:  When I ran tmux split-window in a running pane, it seemed to work, but all the typed input went into the top pane (which was the original) instead of the bottom pane.  After I sent Ctrl+d to the top pane to close them, it began double registering key presses.
 
