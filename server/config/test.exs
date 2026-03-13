@@ -15,8 +15,8 @@ config :termigate,
   config_poll_interval: 500,
   output_coalesce_ms: 0
 
-# Print only warnings and errors during test
-config :logger, level: :warning
+# Print only errors during test
+config :logger, level: :error
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
