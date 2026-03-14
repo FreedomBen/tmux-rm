@@ -143,6 +143,73 @@ defmodule Termigate.PaneStreamMarkerTest do
       # Tab should be stripped
       assert metadata.command == "cmdname"
     end
+
+    test "truncates command name to 128 characters", %{session: session} do
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      # Build a 200-char command name
+      long_name = String.duplicate("a", 200)
+      marker = "\\033]termigate;cmd_done;0;#{long_name};5\\007"
+      PaneStream.send_keys(target, "printf '#{marker}'\n")
+
+      assert_receive {:command_finished, ^target, metadata}, 3000
+      assert String.length(metadata.command) == 128
+      assert metadata.command == String.duplicate("a", 128)
+    end
+
+    test "handles extreme exit codes and durations", %{session: session} do
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      # Very large exit code and duration
+      marker = "\\033]termigate;cmd_done;255;cmd;999999\\007"
+      PaneStream.send_keys(target, "printf '#{marker}'\n")
+
+      assert_receive {:command_finished, ^target, metadata}, 3000
+      assert metadata.exit_code == 255
+      assert metadata.duration_seconds == 999_999
+    end
+
+    test "ignores marker with non-integer exit code", %{session: session} do
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      marker = "\\033]termigate;cmd_done;abc;cmd;5\\007"
+      PaneStream.send_keys(target, "printf '#{marker}'\n")
+
+      refute_receive {:command_finished, ^target, _}, 2000
+    end
+
+    test "ignores marker with non-integer duration", %{session: session} do
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      marker = "\\033]termigate;cmd_done;0;cmd;xyz\\007"
+      PaneStream.send_keys(target, "printf '#{marker}'\n")
+
+      refute_receive {:command_finished, ^target, _}, 2000
+    end
+
+    test "discards stale marker partial over 256 bytes and recovers", %{session: session} do
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      # Send a false partial: marker start followed by >256 bytes of junk (no BEL).
+      # The junk uses printable chars to avoid shell interpretation issues.
+      junk = String.duplicate("x", 300)
+      PaneStream.send_keys(target, "printf '\\033]termigate;#{junk}'\n")
+
+      # Wait for the coalesce flush to process and store the oversized partial
+      Process.sleep(200)
+
+      # Now send a real valid marker — staleness guard should have discarded
+      # the oversized partial, so this marker should be detected
+      real_marker = "\\033]termigate;cmd_done;0;recovered;1\\007"
+      PaneStream.send_keys(target, "printf '#{real_marker}'\n")
+
+      assert_receive {:command_finished, ^target, %{command: "recovered"}}, 3000
+    end
   end
 
   defp collect_output(target, timeout) do

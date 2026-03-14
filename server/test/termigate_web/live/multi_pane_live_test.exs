@@ -110,22 +110,22 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       %{view: view}
     end
 
-    test "forwards pane_idle event when mode is activity", %{view: view} do
-      # Set notification mode to activity
+    test "forwards pane_idle event with correct payload when mode is activity", %{view: view} do
       Termigate.Config.update(fn config ->
         Map.put(config, "notifications", %{"mode" => "activity", "idle_threshold" => 10})
       end)
 
-      # Wait for config change to propagate
       render(view)
 
-      # Send idle event for a subscribed pane
       send(view.pid, {:pane_idle, "test:0.0", 15_000})
-      # Should not crash — event is forwarded to JS hook
-      render(view)
+
+      assert_push_event(view, "notify_pane_idle", %{
+        pane: "test:0.0",
+        idle_seconds: 15
+      })
     end
 
-    test "ignores pane_idle event when mode is disabled", %{view: view} do
+    test "does not push pane_idle event when mode is disabled", %{view: view} do
       Termigate.Config.update(fn config ->
         Map.put(config, "notifications", %{"mode" => "disabled"})
       end)
@@ -133,11 +133,25 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       render(view)
 
       send(view.pid, {:pane_idle, "test:0.0", 15_000})
-      # Should not crash
       render(view)
+
+      refute_push_event(view, "notify_pane_idle", %{})
     end
 
-    test "forwards command_finished event when mode is shell", %{view: view} do
+    test "does not push pane_idle event when mode is shell", %{view: view} do
+      Termigate.Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "shell"})
+      end)
+
+      render(view)
+
+      send(view.pid, {:pane_idle, "test:0.0", 15_000})
+      render(view)
+
+      refute_push_event(view, "notify_pane_idle", %{})
+    end
+
+    test "forwards command_finished event with correct payload when mode is shell", %{view: view} do
       Termigate.Config.update(fn config ->
         Map.put(config, "notifications", %{"mode" => "shell", "min_duration" => 5})
       end)
@@ -145,15 +159,43 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       render(view)
 
       send(view.pid, {:command_finished, "test:0.0", %{
-        exit_code: 0,
+        exit_code: 1,
         command: "make",
         duration_seconds: 30
       }})
 
-      render(view)
+      assert_push_event(view, "notify_command_done", %{
+        pane: "test:0.0",
+        exit_code: 1,
+        command: "make",
+        duration_seconds: 30
+      })
     end
 
-    test "ignores command_finished event when mode is activity", %{view: view} do
+    test "forwards all command_finished events regardless of duration (min_duration is JS-only)",
+         %{view: view} do
+      Termigate.Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "shell", "min_duration" => 60})
+      end)
+
+      render(view)
+
+      # Duration 2s is below min_duration 60s, but LiveView should forward anyway.
+      # Filtering by min_duration is the JS hook's responsibility.
+      send(view.pid, {:command_finished, "test:0.0", %{
+        exit_code: 0,
+        command: "ls",
+        duration_seconds: 2
+      }})
+
+      assert_push_event(view, "notify_command_done", %{
+        pane: "test:0.0",
+        command: "ls",
+        duration_seconds: 2
+      })
+    end
+
+    test "does not push command_finished event when mode is activity", %{view: view} do
       Termigate.Config.update(fn config ->
         Map.put(config, "notifications", %{"mode" => "activity"})
       end)
@@ -167,6 +209,26 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       }})
 
       render(view)
+
+      refute_push_event(view, "notify_command_done", %{})
+    end
+
+    test "does not push command_finished event when mode is disabled", %{view: view} do
+      Termigate.Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "disabled"})
+      end)
+
+      render(view)
+
+      send(view.pid, {:command_finished, "test:0.0", %{
+        exit_code: 0,
+        command: "make",
+        duration_seconds: 30
+      }})
+
+      render(view)
+
+      refute_push_event(view, "notify_command_done", %{})
     end
   end
 
@@ -210,9 +272,44 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       send(view.pid, {:layout_updated, @test_panes})
       render(view)
 
-      # Send notification to the new pane — should not crash
+      # Enable activity mode so we can verify events are forwarded
+      Termigate.Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "activity", "idle_threshold" => 10})
+      end)
+
+      render(view)
+
+      # Send notification to the new pane — should forward correctly
+      send(view.pid, {:pane_idle, "test:0.1", 10_000})
+
+      assert_push_event(view, "notify_pane_idle", %{pane: "test:0.1", idle_seconds: 10})
+    end
+
+    test "unsubscribes from removed panes on layout update", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/sessions/test/windows/0")
+
+      Termigate.Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "activity", "idle_threshold" => 10})
+      end)
+
+      # Start with two panes
+      send(view.pid, {:layout_updated, @test_panes})
+      render(view)
+
+      # Remove second pane from layout
+      send(view.pid, {:layout_updated, [hd(@test_panes)]})
+      render(view)
+
+      # Send idle event for the removed pane — should be silently ignored
+      # (the LiveView is no longer subscribed, so it won't receive it via PubSub,
+      # but even if sent directly it should not crash)
       send(view.pid, {:pane_idle, "test:0.1", 10_000})
       render(view)
+
+      # Verify the remaining pane still works
+      send(view.pid, {:pane_idle, "test:0.0", 10_000})
+
+      assert_push_event(view, "notify_pane_idle", %{pane: "test:0.0"})
     end
   end
 

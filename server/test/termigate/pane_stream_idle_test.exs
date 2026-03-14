@@ -153,5 +153,91 @@ defmodule Termigate.PaneStreamIdleTest do
       # Should receive idle notification
       assert_receive {:pane_idle, ^target, _elapsed_ms}, 5000
     end
+
+    test "mode transition from activity to disabled cancels timer", %{session: session} do
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{
+          "mode" => "activity",
+          "idle_threshold" => 3,
+          "min_duration" => 5,
+          "sound" => false
+        })
+      end)
+
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      # Generate output to start idle timer
+      PaneStream.send_keys(target, "echo cancel_test\n")
+      assert_receive {:pane_output, ^target, _data}, 2000
+
+      # Disable before the 3s threshold fires
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{
+          "mode" => "disabled",
+          "idle_threshold" => 3,
+          "min_duration" => 5,
+          "sound" => false
+        })
+      end)
+
+      # Should NOT get idle notification — timer was cancelled
+      refute_receive {:pane_idle, ^target, _}, 5000
+    end
+
+    test "elapsed_ms in idle broadcast is approximately correct", %{session: session} do
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{
+          "mode" => "activity",
+          "idle_threshold" => 3,
+          "min_duration" => 5,
+          "sound" => false
+        })
+      end)
+
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      PaneStream.send_keys(target, "echo elapsed_test\n")
+      assert_receive {:pane_output, ^target, _data}, 2000
+
+      assert_receive {:pane_idle, ^target, elapsed_ms}, 5000
+      # elapsed_ms should be approximately the threshold (3000ms), within 1500ms tolerance
+      assert elapsed_ms >= 2500, "elapsed_ms #{elapsed_ms} should be >= 2500"
+      assert elapsed_ms <= 6000, "elapsed_ms #{elapsed_ms} should be <= 6000"
+    end
+
+    test "rapid config changes settle correctly", %{session: session} do
+      target = "#{session}:0.0"
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      # Start with activity mode, generate output
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{
+          "mode" => "activity",
+          "idle_threshold" => 3,
+          "min_duration" => 5,
+          "sound" => false
+        })
+      end)
+
+      PaneStream.send_keys(target, "echo rapid_test\n")
+      assert_receive {:pane_output, ^target, _data}, 2000
+
+      # Rapidly toggle: activity → disabled → activity → disabled
+      for mode <- ~w(disabled activity disabled) do
+        Config.update(fn config ->
+          Map.put(config, "notifications", %{
+            "mode" => mode,
+            "idle_threshold" => 3,
+            "min_duration" => 5,
+            "sound" => false
+          })
+        end)
+      end
+
+      # Final mode is disabled — should NOT get idle notification
+      refute_receive {:pane_idle, ^target, _}, 5000
+    end
   end
 end

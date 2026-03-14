@@ -509,6 +509,7 @@ defmodule TermigateWeb.MultiPaneLive do
   def handle_info({:pane_dead, _}, socket), do: {:noreply, socket}
   def handle_info({:pane_reconnected, _, _}, socket), do: {:noreply, socket}
   def handle_info({:pane_resized, _, _}, socket), do: {:noreply, socket}
+  def handle_info({:pane_superseded, _, _}, socket), do: {:noreply, socket}
   def handle_info({:tmux_status_changed, _}, socket), do: {:noreply, socket}
   def handle_info(_msg, socket), do: {:noreply, socket}
 

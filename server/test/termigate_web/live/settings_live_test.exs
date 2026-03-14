@@ -138,6 +138,64 @@ defmodule TermigateWeb.SettingsLiveTest do
       # Should not crash
       render_click(view, "test_notification")
     end
+
+    test "invalid numeric idle_threshold defaults to 10", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "idle_threshold",
+        "value" => "abc"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["idle_threshold"] == 10
+    end
+
+    test "out-of-range idle_threshold is clamped", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      # Above max (120)
+      render_click(view, "update_notification_setting", %{
+        "key" => "idle_threshold",
+        "value" => "999"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["idle_threshold"] == 120
+
+      # Below min (3)
+      render_click(view, "update_notification_setting", %{
+        "key" => "idle_threshold",
+        "value" => "1"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["idle_threshold"] == 3
+    end
+
+    test "out-of-range min_duration is clamped", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "min_duration",
+        "value" => "9999"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["min_duration"] == 600
+    end
+
+    test "invalid mode falls back to disabled", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "invalid_mode"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["mode"] == "disabled"
+    end
   end
 
   describe "quick action CRUD" do
