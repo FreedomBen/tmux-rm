@@ -57,7 +57,8 @@
       "Bash(grep:*)",
       "mcp__plugin_context-mode_context-mode__batch_execute",
       "Bash(cd:*)",
-      "Bash(tmux capture-pane:*)"
+      "Bash(tmux capture-pane:*)",
+      "Bash(curl:*)"
     ]
   }
 }

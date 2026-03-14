@@ -263,14 +263,15 @@ defmodule Termigate.PaneStream do
         # reflow cleanly with embedded ANSI escape sequences.
         case runner.run(["capture-pane", "-p", "-e", "-t", state.pane_id]) do
           {:ok, screen} ->
-            Logger.debug("resize_and_capture: #{cols}x#{rows}, got #{byte_size(screen)} bytes")
+            screen_data = build_screen_data(runner, state.pane_id, screen)
+            Logger.debug("resize_and_capture: #{cols}x#{rows}, got #{byte_size(screen_data)} bytes")
 
             buffer =
               state.buffer
               |> RingBuffer.clear()
-              |> RingBuffer.append(screen)
+              |> RingBuffer.append(screen_data)
 
-            {:reply, {:ok, screen}, %{state | buffer: buffer}}
+            {:reply, {:ok, screen_data}, %{state | buffer: buffer}}
 
           {:error, _} ->
             {:reply, {:ok, RingBuffer.read(state.buffer)}, state}
@@ -577,15 +578,59 @@ defmodule Termigate.PaneStream do
     buffer =
       case runner.run(["capture-pane", "-p", "-e", "-t", pane_id]) do
         {:ok, screen} ->
+          screen_data = build_screen_data(runner, pane_id, screen)
+
           buffer
           |> RingBuffer.clear()
-          |> RingBuffer.append(screen)
+          |> RingBuffer.append(screen_data)
 
         {:error, _} ->
           buffer
       end
 
     {:ok, buffer}
+  end
+
+  # Build screen data that xterm.js can render correctly.
+  # capture-pane -p uses bare LF (\n) between lines, but xterm.js treats LF
+  # as line-feed only (no carriage return), causing a staircase effect.
+  # Real tmux redraws using cursor positioning; we emulate that by converting
+  # LF to CRLF and restoring the cursor position.
+  defp build_screen_data(runner, pane_id, screen) do
+    {cursor_x, cursor_y} = get_cursor_position(runner, pane_id)
+
+    # Convert LF to CRLF for xterm.js, strip trailing CRLF
+    screen_crlf =
+      screen
+      |> String.replace("\n", "\r\n")
+      |> String.trim_trailing("\r\n")
+
+    IO.iodata_to_binary([
+      # Clear screen and home cursor for a clean slate
+      "\e[2J\e[H",
+      screen_crlf,
+      # Restore cursor to match tmux's actual cursor position (1-indexed)
+      "\e[#{cursor_y + 1};#{cursor_x + 1}H"
+    ])
+  end
+
+  defp get_cursor_position(runner, pane_id) do
+    case runner.run([
+           "display-message",
+           "-p",
+           "-t",
+           pane_id,
+           "\#{cursor_x}\t\#{cursor_y}"
+         ]) do
+      {:ok, result} ->
+        case String.split(String.trim(result), "\t") do
+          [cx, cy] -> {parse_int(cx, 0), parse_int(cy, 0)}
+          _ -> {0, 0}
+        end
+
+      {:error, _} ->
+        {0, 0}
+    end
   end
 
   defp flush_output(%{coalesce_bytes: 0} = state), do: state
