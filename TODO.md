@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Let's continue implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Continue with the first phase.  Update the document as you go to track what has been completed.
-
 - Let's add settings to the settings page to change the app theme itself.  At a minimum we should have a light and dark theme.  Since this is a terminal program and many theme options are common, let's also brainstorm some other themes we could add.
 
 - I don't see anywhere in the settings to configure the notification feature we added in @NOTIFICATIONS_DESIGN.md.  
@@ -19,6 +17,8 @@
 - We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
 
 # Already Run
+
+- Let's continue implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Continue with the first phase.  Update the document as you go to track what has been completed.
 
 - Let's begin implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Begin with the first phase.  Update the document as you go to track what has been completed.
 
