@@ -59,7 +59,8 @@
       "Bash(cd:*)",
       "Bash(tmux capture-pane:*)",
       "Bash(curl:*)",
-      "Bash(mix:*)"
+      "Bash(mix:*)",
+      "Bash(ls:*)"
     ]
   }
 }

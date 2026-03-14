@@ -253,8 +253,15 @@ defmodule Termigate.Config do
 
   defp load_config(state) do
     case read_config(state.path) do
-      {:ok, config, mtime} ->
+      {:ok, config, _mtime} ->
         config = ensure_action_ids(config, true)
+
+        # Re-stat the file in case ensure_action_ids wrote back
+        mtime =
+          case File.stat(state.path) do
+            {:ok, %{mtime: m}} -> m
+            _ -> nil
+          end
 
         Logger.info(
           "Config loaded from #{state.path} (#{length(config["quick_actions"] || [])} quick actions)"
@@ -281,17 +288,19 @@ defmodule Termigate.Config do
     case File.stat(state.path) do
       {:ok, %{mtime: mtime}} when mtime != state.mtime ->
         case read_config(state.path) do
-          {:ok, config, ^mtime} ->
+          {:ok, config, _mtime} ->
             config = ensure_action_ids(config, true)
-            Logger.info("Config file changed, reloading")
-            broadcast_change(config)
-            %{state | config: config, mtime: mtime}
 
-          {:ok, config, new_mtime} ->
-            config = ensure_action_ids(config, true)
+            # Re-stat in case ensure_action_ids wrote back
+            final_mtime =
+              case File.stat(state.path) do
+                {:ok, %{mtime: m}} -> m
+                _ -> nil
+              end
+
             Logger.info("Config file changed, reloading")
             broadcast_change(config)
-            %{state | config: config, mtime: new_mtime}
+            %{state | config: config, mtime: final_mtime}
 
           {:error, reason} ->
             Logger.warning("Malformed config file, keeping last good config: #{inspect(reason)}")
@@ -522,13 +531,10 @@ defmodule Termigate.Config do
       updated = Enum.map(actions, &ensure_id/1)
       config = Map.put(config, "quick_actions", updated)
 
-      # Only write back when explicitly requested and config has auth
-      # to avoid overwriting the config file without the auth section
+      # Write synchronously to avoid race conditions — a spawned process
+      # could overwrite auth added by a concurrent Config.update call.
       if write_back do
-        spawn(fn ->
-          path = config_path()
-          write_config(path, config)
-        end)
+        write_config(config_path(), config)
       end
 
       config
