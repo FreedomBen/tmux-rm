@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Let's begin implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Begin with the first phase.  Update the document as you go to track what has been completed.
-
 - Let's continue implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Continue with the first phase.  Update the document as you go to track what has been completed.
 
 - I don't see anywhere in the settings to configure the notification feature we added in @NOTIFICATIONS_DESIGN.md.  
@@ -19,6 +17,8 @@
 - We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
 
 # Already Run
+
+- Let's begin implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Begin with the first phase.  Update the document as you go to track what has been completed.
 
 - Let's add an Enabled/Disabled control on the settings page for quick actions, so the user can turn them on or off without wiping out their config.  This is useful if they don't need them currently and want to reclaim the screen real estate.
 
