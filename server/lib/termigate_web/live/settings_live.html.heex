@@ -1,9 +1,9 @@
 
 <div class="page-container">
   <div class="flex items-center gap-3 pb-4">
-    <.link navigate={~p"/"} class="btn btn-ghost btn-sm" aria-label="Back">
+    <button class="btn btn-ghost btn-sm" aria-label="Back" onclick="history.length > 1 ? history.back() : (window.location.href = '/')">
       <.icon name="hero-arrow-left-micro" class="size-5" />
-    </.link>
+    </button>
     <h1 class="text-xl font-bold tracking-tight">Settings</h1>
   </div>
 
