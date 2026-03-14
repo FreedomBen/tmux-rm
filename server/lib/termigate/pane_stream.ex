@@ -126,7 +126,8 @@ defmodule Termigate.PaneStream do
       idle_timer_ref: nil,
       idle_threshold_ms: (notification_config["idle_threshold"] || 10) * 1000,
       last_output_at: nil,
-      had_recent_activity: false
+      had_recent_activity: false,
+      marker_partial: <<>>
     }
 
     Phoenix.PubSub.subscribe(Termigate.PubSub, "config")
@@ -592,12 +593,25 @@ defmodule Termigate.PaneStream do
   defp flush_output(state) do
     data = IO.iodata_to_binary(state.coalesce_acc)
 
-    buffer = RingBuffer.append(state.buffer, data)
-    broadcast(state.target, {:pane_output, state.target, data})
+    # Prepend any partial marker from previous chunk, with staleness guard
+    marker_partial =
+      if byte_size(state.marker_partial) > 256, do: <<>>, else: state.marker_partial
+
+    scan_input = <<marker_partial::binary, data::binary>>
+
+    # Scan for OSC markers, strip them, and broadcast notification events
+    {stripped_data, new_marker_partial} =
+      scan_and_strip_notifications(scan_input, state.target)
+
+    buffer = RingBuffer.append(state.buffer, stripped_data)
+
+    if byte_size(stripped_data) > 0 do
+      broadcast(state.target, {:pane_output, state.target, stripped_data})
+    end
 
     :telemetry.execute(
       [:termigate, :pane_stream, :output],
-      %{bytes: byte_size(data)},
+      %{bytes: byte_size(stripped_data)},
       %{target: state.target}
     )
 
@@ -605,7 +619,14 @@ defmodule Termigate.PaneStream do
       Process.cancel_timer(state.coalesce_timer)
     end
 
-    state = %{state | buffer: buffer, coalesce_acc: [], coalesce_timer: nil, coalesce_bytes: 0}
+    state = %{
+      state
+      | buffer: buffer,
+        coalesce_acc: [],
+        coalesce_timer: nil,
+        coalesce_bytes: 0,
+        marker_partial: new_marker_partial
+    }
 
     # Idle tracking for notifications
     state = %{state | last_output_at: System.monotonic_time(:millisecond), had_recent_activity: true}
@@ -794,6 +815,63 @@ defmodule Termigate.PaneStream do
     case Integer.parse(str) do
       {n, _} -> n
       :error -> default
+    end
+  end
+
+  # --- OSC marker scanning ---
+
+  @notification_marker "\e]termigate;"
+
+  # Scans data for termigate OSC markers, strips them, and broadcasts events.
+  # Returns {stripped_data, marker_partial} where marker_partial is an incomplete
+  # marker at the end of the chunk to be prepended to the next chunk.
+  defp scan_and_strip_notifications(data, target) do
+    do_scan_and_strip(data, target, <<>>)
+  end
+
+  defp do_scan_and_strip(data, target, acc) do
+    case :binary.match(data, @notification_marker) do
+      {start, len} ->
+        before = binary_part(data, 0, start)
+        rest = binary_part(data, start + len, byte_size(data) - start - len)
+
+        case :binary.match(rest, <<7>>) do
+          {end_pos, _} ->
+            payload = binary_part(rest, 0, end_pos)
+            parse_and_broadcast_notification(payload, target)
+            remaining = binary_part(rest, end_pos + 1, byte_size(rest) - end_pos - 1)
+            do_scan_and_strip(remaining, target, <<acc::binary, before::binary>>)
+
+          :nomatch ->
+            # Incomplete marker at end of chunk — store as partial
+            {<<acc::binary, before::binary>>,
+             binary_part(data, start, byte_size(data) - start)}
+        end
+
+      :nomatch ->
+        {<<acc::binary, data::binary>>, <<>>}
+    end
+  end
+
+  defp parse_and_broadcast_notification(payload, target) do
+    case String.split(payload, ";") do
+      ["cmd_done", exit_code, cmd_name, duration] ->
+        sanitized_name =
+          cmd_name
+          |> String.slice(0, 128)
+          |> String.replace(~r/[^\x20-\x7E]/, "")
+
+        with {parsed_exit_code, _} <- Integer.parse(exit_code),
+             {parsed_duration, _} <- Integer.parse(duration) do
+          broadcast(target, {:command_finished, target, %{
+            exit_code: parsed_exit_code,
+            command: sanitized_name,
+            duration_seconds: parsed_duration
+          }})
+        end
+
+      _ ->
+        :ok
     end
   end
 

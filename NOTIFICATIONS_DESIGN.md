@@ -492,16 +492,16 @@ The notification mode is checked in three places (defense-in-depth): PaneStream 
 6. ✅ Cancel `idle_timer_ref` in `handle_pane_death` (alongside the existing `grace_timer_ref` cancellation) and in `terminate/2`.
 7. ✅ Add unit tests for idle detection, including threshold changes mid-timer and mode transitions. (`test/termigate/pane_stream_idle_test.exs`)
 
-### Phase 2: OSC marker scanning
+### Phase 2: OSC marker scanning ✅ COMPLETED
 
 **Files:** `server/lib/termigate/pane_stream.ex`
 
-1. Add `scan_and_strip_notifications/2` function.
-2. Call from `flush_output/1` before appending to buffer: prepend `state.marker_partial` to the coalesced data, call `scan_and_strip_notifications/2`, use the returned `stripped_data` for the ring buffer and broadcast, and store the returned `marker_partial` back in state.
-3. Strip OSC marker sequences from data before buffering/broadcasting.
-4. Broadcast `{:command_finished, target, metadata}` when marker found.
-5. Handle edge case: marker split across two coalesced chunks. `scan_and_strip_notifications/2` returns `{stripped_data, marker_partial}`. The partial is stored in PaneStream state (field `marker_partial`, default `<<>>`) and prepended to the next chunk before scanning. Max marker size is ~200 bytes, so the partial is always small.
-6. Add unit tests for marker parsing, including split-marker edge cases.
+1. ✅ Add `scan_and_strip_notifications/2` function.
+2. ✅ Call from `flush_output/1` before appending to buffer: prepend `state.marker_partial` to the coalesced data, call `scan_and_strip_notifications/2`, use the returned `stripped_data` for the ring buffer and broadcast, and store the returned `marker_partial` back in state.
+3. ✅ Strip OSC marker sequences from data before buffering/broadcasting.
+4. ✅ Broadcast `{:command_finished, target, metadata}` when marker found.
+5. ✅ Handle edge case: marker split across two coalesced chunks. `scan_and_strip_notifications/2` returns `{stripped_data, marker_partial}`. The partial is stored in PaneStream state (field `marker_partial`, default `<<>>`) and prepended to the next chunk before scanning. Max marker size is ~200 bytes, so the partial is always small. Staleness guard discards partials >256 bytes.
+6. ✅ Tests added in `test/termigate/pane_stream_marker_test.exs` (6 tests: detection, stripping, non-zero exit codes, malformed markers, multiple markers, command name sanitization).
 
 ### Phase 3: Config schema ✅ COMPLETED
 
