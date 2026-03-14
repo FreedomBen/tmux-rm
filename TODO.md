@@ -2,6 +2,8 @@
 
 - In mobile 
 
+- Let's create an OpenAPI specification doc for this applications.  We should also serve it as a static asset.
+
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
 - Let's add support for getting a TLS certificate from Let's Encrypt.  For this the user needs to enter the domain name or select to get an IP address certificate.
