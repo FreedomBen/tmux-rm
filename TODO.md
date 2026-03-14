@@ -4,6 +4,8 @@
 
 - When first loading an existing pane, the formatting is very messed up.  It also gets mangled when tools like claude code edit text in place.  This is not an issue that real tmux experiences.  What are we doing differently that real tmux does when attaching to a session and opening a pane?  For an example, you can use the open browser to take a look yourself. attach to the "Termigate" session,window 1
 
+- The enable/disable toggle in the settings page for quick actions doesn't appear to work.  It animates a bit but always comes back enabled.
+
 - Let's add a close button (maybe a "x") to windows
 
 - Let's add a quick button for tab and for the up, left, right, and down arrows next to our control character buttons (like ^c, ^d, etc).

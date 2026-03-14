@@ -53,7 +53,8 @@
       "Bash(ping -c 2 -W 2 192.168.2.178)",
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__hover",
       "Bash(grep -r \"pane_resize_hook\" /home/ben/gitclone/tmux-rm/server --include=\"*.js\" --include=\"*.ts\" 2>/dev/null | head -20)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ]
   }
 }
