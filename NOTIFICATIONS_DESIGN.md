@@ -545,11 +545,12 @@ The notification mode is checked in three places (defense-in-depth): PaneStream 
 5. ✅ "Request permission" button + permission status display via `NotificationPermission` JS hook.
 6. ✅ "Test notification" button. Sound toggle. All settings saved via `Config.update/1` with normalization.
 
-### Phase 7: Testing
+### Phase 7: Testing ✅ COMPLETED
 
-1. **PaneStream tests:** idle timer fires after threshold, resets on output, skipped when disabled, mode transitions, marker scanning and stripping.
-2. **LiveView tests (`multi_pane_live`):** notification events forwarded correctly, focus_pane works, per-pane subscription management.
-3. **JS tests (if test framework exists):** notification hook behavior, permission handling, hasFocus guard.
+1. ✅ **PaneStream tests:** idle timer fires after threshold, resets on output, skipped when disabled, mode transitions, marker scanning and stripping. (`pane_stream_idle_test.exs`, `pane_stream_marker_test.exs` — completed in Phases 1-2)
+2. ✅ **LiveView tests (`multi_pane_live`):** notification events forwarded correctly (activity + shell modes), events ignored when wrong mode, focus_pane with unmaximize, per-pane subscription management on layout update.
+3. ✅ **Settings LiveView tests:** mode selector rendering, conditional UI display (activity options, shell options, disabled state), config persistence for mode/idle_threshold/sound, test notification event.
+4. **JS tests:** No JS test framework in project — JS hook behavior verified via manual testing and server-side integration tests.
 
 ## Edge Cases
 

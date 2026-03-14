@@ -22,6 +22,124 @@ defmodule TermigateWeb.SettingsLiveTest do
     end
   end
 
+  describe "notifications section" do
+    test "renders notification mode selector", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/settings")
+      assert html =~ "Notifications"
+      assert html =~ "Detection Mode"
+      assert html =~ "Disabled"
+      assert html =~ "Activity-based"
+      assert html =~ "Shell integration"
+    end
+
+    test "changing mode to activity shows idle threshold", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "activity"
+      })
+
+      # Config change propagates via PubSub — re-render to pick it up
+      html = render(view)
+
+      assert html =~ "Idle threshold"
+      assert html =~ "Play sound"
+      assert html =~ "Request permission"
+    end
+
+    test "changing mode to shell shows min duration and snippets", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "shell"
+      })
+
+      html = render(view)
+
+      assert html =~ "Minimum command duration"
+      assert html =~ "Shell setup instructions"
+    end
+
+    test "changing mode to disabled hides options", %{conn: conn} do
+      # First enable activity mode
+      Termigate.Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "activity"})
+      end)
+
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "disabled"
+      })
+
+      html = render(view)
+
+      refute html =~ "Idle threshold"
+      refute html =~ "Request permission"
+    end
+
+    test "persists notification settings to config", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "activity"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["mode"] == "activity"
+    end
+
+    test "updates idle threshold", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "activity"
+      })
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "idle_threshold",
+        "value" => "30"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["idle_threshold"] == 30
+    end
+
+    test "toggles sound setting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "activity"
+      })
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "sound",
+        "value" => "true"
+      })
+
+      config = Termigate.Config.get()
+      assert config["notifications"]["sound"] == true
+    end
+
+    test "test_notification event does not crash", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/settings")
+
+      render_click(view, "update_notification_setting", %{
+        "key" => "mode",
+        "value" => "activity"
+      })
+
+      # Should not crash
+      render_click(view, "test_notification")
+    end
+  end
+
   describe "quick action CRUD" do
     test "add new action form", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/settings")
