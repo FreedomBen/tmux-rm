@@ -3,21 +3,15 @@ defmodule Termigate.ConfigTest do
 
   alias Termigate.Config
 
-  @test_dir "/tmp/termigate-config-test"
-
   setup do
-    test_path = Path.join(@test_dir, "config-#{:rand.uniform(100_000)}.yaml")
-    File.mkdir_p!(@test_dir)
-    File.rm(test_path)
-
-    # Clear quick actions for each test, preserving auth and other config
+    # Clear quick actions for each test
     Config.update(fn config -> Map.put(config, "quick_actions", []) end)
 
     on_exit(fn ->
       Config.update(fn config -> Map.put(config, "quick_actions", []) end)
     end)
 
-    %{path: test_path}
+    :ok
   end
 
   describe "get/0" do

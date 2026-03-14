@@ -562,8 +562,10 @@ defmodule Termigate.Config do
     :crypto.strong_rand_bytes(8) |> Base.url_encode64(padding: false)
   end
 
-  defp config_path do
-    System.get_env("TERMIGATE_CONFIG_PATH") ||
+  @doc false
+  def config_path do
+    Application.get_env(:termigate, :config_path) ||
+      System.get_env("TERMIGATE_CONFIG_PATH") ||
       Path.join([System.user_home!(), ".config", "termigate", "config.yaml"])
   end
 

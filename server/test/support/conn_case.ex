@@ -36,21 +36,6 @@ defmodule TermigateWeb.ConnCase do
     # Tests that need to test auth behavior directly can use @tag :skip_auth.
     if tags[:skip_auth] do
       Application.delete_env(:termigate, :auth_token)
-
-      # Also redirect config path to a temp file without auth so that
-      # auth_enabled?() returns false even if the real config has credentials.
-      old_config_path = System.get_env("TERMIGATE_CONFIG_PATH")
-      tmp_config = Path.join(System.tmp_dir!(), "termigate_test_no_auth_#{:rand.uniform(1_000_000)}.yaml")
-      File.write!(tmp_config, "---\nquick_actions: []\n")
-      System.put_env("TERMIGATE_CONFIG_PATH", tmp_config)
-
-      on_exit(fn ->
-        File.rm(tmp_config)
-
-        if old_config_path,
-          do: System.put_env("TERMIGATE_CONFIG_PATH", old_config_path),
-          else: System.delete_env("TERMIGATE_CONFIG_PATH")
-      end)
     else
       Application.put_env(:termigate, :auth_token, "test-token")
     end

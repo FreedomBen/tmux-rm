@@ -11,6 +11,7 @@ config :termigate,
   command_runner: Termigate.StubCommandRunner,
   pane_stream_grace_period: 100,
   fifo_dir: "/tmp/termigate-test",
+  config_path: "/tmp/termigate-test/config.yaml",
   session_poll_interval: 500,
   config_poll_interval: 500,
   output_coalesce_ms: 0

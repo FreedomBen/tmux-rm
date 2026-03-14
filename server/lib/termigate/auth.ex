@@ -138,8 +138,7 @@ defmodule Termigate.Auth do
 
   @doc "Returns the config file path."
   def config_path do
-    System.get_env("TERMIGATE_CONFIG_PATH") ||
-      Path.join([System.user_home!(), ".config", "termigate", "config.yaml"])
+    Termigate.Config.config_path()
   end
 
   @doc "Hash a password with a random salt using PBKDF2-HMAC-SHA256."
