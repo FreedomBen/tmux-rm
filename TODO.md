@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- Let's begin implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  
+
 - I don't see anywhere in the settings to configure the notification feature we added in @NOTIFICATIONS_DESIGN.md.  
 
 - There seems to be a bug with the initial config file that get's written.  It doesn't have any quick_actions in it, just an empty array.  Let's make sure we're writing out the full config file on initial setup.
