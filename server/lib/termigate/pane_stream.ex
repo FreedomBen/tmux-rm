@@ -108,6 +108,8 @@ defmodule Termigate.PaneStream do
 
   @impl true
   def init(target) do
+    notification_config = read_notification_config()
+
     state = %{
       target: target,
       pane_id: nil,
@@ -119,8 +121,15 @@ defmodule Termigate.PaneStream do
       port_recovery: %{attempts: 0, window_start: nil},
       coalesce_acc: [],
       coalesce_timer: nil,
-      coalesce_bytes: 0
+      coalesce_bytes: 0,
+      notification_mode: notification_config["mode"] || "disabled",
+      idle_timer_ref: nil,
+      idle_threshold_ms: (notification_config["idle_threshold"] || 10) * 1000,
+      last_output_at: nil,
+      had_recent_activity: false
     }
+
+    Phoenix.PubSub.subscribe(Termigate.PubSub, "config")
 
     {:ok, state, {:continue, :setup}}
   end
@@ -374,6 +383,62 @@ defmodule Termigate.PaneStream do
     end
   end
 
+  # Idle timeout — broadcast idle notification
+  def handle_info(:idle_timeout, state) do
+    state = %{state | idle_timer_ref: nil}
+
+    if state.had_recent_activity do
+      elapsed_ms =
+        case state.last_output_at do
+          nil -> state.idle_threshold_ms
+          ts -> System.monotonic_time(:millisecond) - ts
+        end
+
+      broadcast(state.target, {:pane_idle, state.target, elapsed_ms})
+      {:noreply, %{state | had_recent_activity: false}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  # Config changed — update notification settings
+  def handle_info({:config_changed, config}, state) do
+    notification_config = config["notifications"] || %{}
+    new_mode = notification_config["mode"] || "disabled"
+    new_threshold_ms = (notification_config["idle_threshold"] || 10) * 1000
+    old_mode = state.notification_mode
+
+    state = %{state | notification_mode: new_mode, idle_threshold_ms: new_threshold_ms}
+
+    state =
+      cond do
+        new_mode == "disabled" ->
+          cancel_idle_timer(state)
+
+        old_mode == "disabled" and state.had_recent_activity ->
+          ref = Process.send_after(self(), :idle_timeout, new_threshold_ms)
+          %{state | idle_timer_ref: ref}
+
+        old_mode != "disabled" and state.idle_timer_ref != nil ->
+          # Reschedule with new threshold, adjusted for elapsed time
+          elapsed =
+            case state.last_output_at do
+              nil -> 0
+              ts -> System.monotonic_time(:millisecond) - ts
+            end
+
+          remaining = max(0, new_threshold_ms - elapsed)
+          state = cancel_idle_timer(state)
+          ref = Process.send_after(self(), :idle_timeout, remaining)
+          %{state | idle_timer_ref: ref}
+
+        true ->
+          state
+      end
+
+    {:noreply, state}
+  end
+
   # Supersede flow
   @impl true
   def handle_cast({:superseded, new_target}, state) do
@@ -391,6 +456,7 @@ defmodule Termigate.PaneStream do
       %{target: state.target, reason: reason}
     )
 
+    state = cancel_idle_timer(state)
     state = flush_output(state)
     cleanup_pipeline(%{state | status: :shutting_down})
     :ok
@@ -539,7 +605,18 @@ defmodule Termigate.PaneStream do
       Process.cancel_timer(state.coalesce_timer)
     end
 
-    %{state | buffer: buffer, coalesce_acc: [], coalesce_timer: nil, coalesce_bytes: 0}
+    state = %{state | buffer: buffer, coalesce_acc: [], coalesce_timer: nil, coalesce_bytes: 0}
+
+    # Idle tracking for notifications
+    state = %{state | last_output_at: System.monotonic_time(:millisecond), had_recent_activity: true}
+
+    if state.notification_mode != "disabled" do
+      state = cancel_idle_timer(state)
+      ref = Process.send_after(self(), :idle_timeout, state.idle_threshold_ms)
+      %{state | idle_timer_ref: ref}
+    else
+      state
+    end
   end
 
   defp send_hex_keys(pane_id, data) do
@@ -629,6 +706,8 @@ defmodule Termigate.PaneStream do
         state
       end
 
+    state = cancel_idle_timer(state)
+
     broadcast(state.target, {:pane_dead, state.target})
     cleanup_fifo(state)
     {:stop, :normal, %{state | status: :dead}}
@@ -715,6 +794,24 @@ defmodule Termigate.PaneStream do
     case Integer.parse(str) do
       {n, _} -> n
       :error -> default
+    end
+  end
+
+  defp cancel_idle_timer(%{idle_timer_ref: nil} = state), do: state
+
+  defp cancel_idle_timer(%{idle_timer_ref: ref} = state) do
+    Process.cancel_timer(ref)
+    %{state | idle_timer_ref: nil}
+  end
+
+  defp read_notification_config do
+    try do
+      config = Termigate.Config.get()
+      config["notifications"] || %{}
+    rescue
+      _ -> %{}
+    catch
+      :exit, _ -> %{}
     end
   end
 

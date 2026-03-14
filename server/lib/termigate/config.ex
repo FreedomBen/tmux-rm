@@ -52,6 +52,12 @@ defmodule Termigate.Config do
       "cursor_style" => "block",
       "cursor_blink" => true,
       "show_toolbar" => true
+    },
+    "notifications" => %{
+      "mode" => "disabled",
+      "idle_threshold" => 10,
+      "min_duration" => 5,
+      "sound" => false
     }
   }
   @header_comment """
@@ -361,6 +367,14 @@ defmodule Termigate.Config do
     clean_config =
       Map.put(clean_config, "terminal", config["terminal"] || @default_config["terminal"])
 
+    # Include notifications section
+    clean_config =
+      Map.put(
+        clean_config,
+        "notifications",
+        config["notifications"] || @default_config["notifications"]
+      )
+
     # Include auth section if present
     clean_config =
       case config["auth"] do
@@ -394,7 +408,9 @@ defmodule Termigate.Config do
     config =
       %{"quick_actions" => actions}
       |> Map.put("terminal", parsed["terminal"])
+      |> Map.put("notifications", parsed["notifications"])
       |> normalize_terminal_section()
+      |> normalize_notifications_section()
 
     case parsed["auth"] do
       auth when is_map(auth) and map_size(auth) > 0 ->
@@ -435,6 +451,21 @@ defmodule Termigate.Config do
     }
 
     Map.put(config, "terminal", terminal)
+  end
+
+  defp normalize_notifications_section(config) do
+    defaults = @default_config["notifications"]
+    notif = Map.merge(defaults, config["notifications"] || %{})
+
+    notif = %{
+      "mode" =>
+        if(notif["mode"] in ~w(disabled activity shell), do: notif["mode"], else: "disabled"),
+      "idle_threshold" => notif["idle_threshold"] |> clamp(3, 120),
+      "min_duration" => notif["min_duration"] |> clamp(0, 600),
+      "sound" => notif["sound"] == true
+    }
+
+    Map.put(config, "notifications", notif)
   end
 
   defp clamp(value, min_val, max_val) when is_number(value),

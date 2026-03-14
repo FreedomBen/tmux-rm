@@ -480,17 +480,17 @@ The notification mode is checked in three places (defense-in-depth): PaneStream 
 
 ## Implementation Plan
 
-### Phase 1: PaneStream idle tracking
+### Phase 1: PaneStream idle tracking ✅ COMPLETED
 
 **Files:** `server/lib/termigate/pane_stream.ex`
 
-1. Add `notification_mode`, `idle_timer_ref`, `idle_threshold_ms`, `last_output_at`, `had_recent_activity` to state.
-2. In `init/1`: read notification mode and idle threshold from `Config.get()["notifications"]`. Subscribe to `"config"` PubSub topic.
-3. In `flush_output/1`: set `had_recent_activity = true`, `last_output_at`. Only reset/start idle timer if `notification_mode != "disabled"`.
-4. Add `handle_info(:idle_timeout, state)`: broadcast `{:pane_idle, target, elapsed_ms}` if `had_recent_activity`.
-5. Add `handle_info({:config_changed, config}, state)`: update `notification_mode` and `idle_threshold_ms`. If mode changed to `"disabled"`, cancel active timer. If mode changed from `"disabled"` and recent activity exists, start timer. If mode unchanged and non-disabled, reschedule with new threshold (adjusted for elapsed time).
-6. Cancel `idle_timer_ref` in `handle_pane_death` (alongside the existing `grace_timer_ref` cancellation) and in `terminate/2`.
-7. Add unit tests for idle detection, including threshold changes mid-timer and mode transitions.
+1. ✅ Add `notification_mode`, `idle_timer_ref`, `idle_threshold_ms`, `last_output_at`, `had_recent_activity` to state.
+2. ✅ In `init/1`: read notification mode and idle threshold from `Config.get()["notifications"]`. Subscribe to `"config"` PubSub topic.
+3. ✅ In `flush_output/1`: set `had_recent_activity = true`, `last_output_at`. Only reset/start idle timer if `notification_mode != "disabled"`.
+4. ✅ Add `handle_info(:idle_timeout, state)`: broadcast `{:pane_idle, target, elapsed_ms}` if `had_recent_activity`.
+5. ✅ Add `handle_info({:config_changed, config}, state)`: update `notification_mode` and `idle_threshold_ms`. If mode changed to `"disabled"`, cancel active timer. If mode changed from `"disabled"` and recent activity exists, start timer. If mode unchanged and non-disabled, reschedule with new threshold (adjusted for elapsed time).
+6. ✅ Cancel `idle_timer_ref` in `handle_pane_death` (alongside the existing `grace_timer_ref` cancellation) and in `terminate/2`.
+7. ✅ Add unit tests for idle detection, including threshold changes mid-timer and mode transitions. (`test/termigate/pane_stream_idle_test.exs`)
 
 ### Phase 2: OSC marker scanning
 
@@ -503,14 +503,15 @@ The notification mode is checked in three places (defense-in-depth): PaneStream 
 5. Handle edge case: marker split across two coalesced chunks. `scan_and_strip_notifications/2` returns `{stripped_data, marker_partial}`. The partial is stored in PaneStream state (field `marker_partial`, default `<<>>`) and prepended to the next chunk before scanning. Max marker size is ~200 bytes, so the partial is always small.
 6. Add unit tests for marker parsing, including split-marker edge cases.
 
-### Phase 3: Config schema
+### Phase 3: Config schema ✅ COMPLETED
 
 **Files:** `server/lib/termigate/config.ex`
 
-1. Add `"notifications"` section to `@default_config` with keys: `mode`, `idle_threshold`, `min_duration`, `sound`.
-2. Add `normalize_notifications_section/1` validation (mode whitelist, threshold clamping, boolean coercion). Note: `clamp/3` already exists in `config.ex`.
-3. Add `|> normalize_notifications_section()` to the existing `normalize_config/1` pipeline (which already chains `normalize_terminal_section/1`).
-4. Include `"notifications"` in `to_yaml/1` serialization (alongside `"terminal"` and `"auth"`).
+1. ✅ Add `"notifications"` section to `@default_config` with keys: `mode`, `idle_threshold`, `min_duration`, `sound`.
+2. ✅ Add `normalize_notifications_section/1` validation (mode whitelist, threshold clamping, boolean coercion). Note: `clamp/3` already exists in `config.ex`.
+3. ✅ Add `|> normalize_notifications_section()` to the existing `normalize_config/1` pipeline (which already chains `normalize_terminal_section/1`).
+4. ✅ Include `"notifications"` in `to_yaml/1` serialization (alongside `"terminal"` and `"auth"`).
+5. ✅ Tests added in `test/termigate/config_test.exs` (notifications config describe block).
 
 ### Phase 4: JS notification hook
 

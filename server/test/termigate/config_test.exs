@@ -126,6 +126,79 @@ defmodule Termigate.ConfigTest do
     end
   end
 
+  describe "notifications config" do
+    test "defaults are applied when notifications section is missing" do
+      Config.update(fn config -> Map.delete(config, "notifications") end)
+      config = Config.get()
+
+      assert config["notifications"]["mode"] == "disabled"
+      assert config["notifications"]["idle_threshold"] == 10
+      assert config["notifications"]["min_duration"] == 5
+      assert config["notifications"]["sound"] == false
+    end
+
+    test "invalid mode is coerced to disabled" do
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"mode" => "bogus"})
+      end)
+
+      config = Config.get()
+      assert config["notifications"]["mode"] == "disabled"
+    end
+
+    test "idle_threshold is clamped to 3-120" do
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"idle_threshold" => 1})
+      end)
+
+      assert Config.get()["notifications"]["idle_threshold"] == 3
+
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"idle_threshold" => 999})
+      end)
+
+      assert Config.get()["notifications"]["idle_threshold"] == 120
+    end
+
+    test "min_duration is clamped to 0-600" do
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"min_duration" => -1})
+      end)
+
+      assert Config.get()["notifications"]["min_duration"] == 0
+
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"min_duration" => 1000})
+      end)
+
+      assert Config.get()["notifications"]["min_duration"] == 600
+    end
+
+    test "sound is coerced to boolean" do
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"sound" => "yes"})
+      end)
+
+      assert Config.get()["notifications"]["sound"] == false
+
+      Config.update(fn config ->
+        Map.put(config, "notifications", %{"sound" => true})
+      end)
+
+      assert Config.get()["notifications"]["sound"] == true
+    end
+
+    test "valid modes are accepted" do
+      for mode <- ~w(disabled activity shell) do
+        Config.update(fn config ->
+          Map.put(config, "notifications", %{"mode" => mode})
+        end)
+
+        assert Config.get()["notifications"]["mode"] == mode
+      end
+    end
+  end
+
   describe "PubSub broadcast" do
     test "broadcasts on config change" do
       Phoenix.PubSub.subscribe(Termigate.PubSub, "config")
