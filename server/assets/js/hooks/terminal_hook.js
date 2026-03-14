@@ -95,8 +95,13 @@ const TerminalHook = {
     // Open terminal in container
     this.term.open(this.el);
 
-    // Fit terminal to container
-    this.fitAddon.fit();
+    // In multi-pane mode, use tmux dimensions as-is (the CSS grid is
+    // computed from tmux's layout). Calling fitAddon.fit() here would
+    // resize the pane, trigger a LayoutPoller update, and cause a
+    // visible resize flash a couple seconds later.
+    if (!this._isMultiPane) {
+      this.fitAddon.fit();
+    }
 
     console.log("[TerminalHook] after setup", {
       target,
@@ -146,15 +151,18 @@ const TerminalHook = {
       }
     });
 
-    // Resize handling with debounce
+    // Resize handling with debounce (single-pane only — in multi-pane mode,
+    // resizing is driven by tmux layout via LiveView pane_resized events)
     this._resizeTimer = null;
-    this._resizeObserver = new ResizeObserver(() => {
-      clearTimeout(this._resizeTimer);
-      this._resizeTimer = setTimeout(() => {
-        this.fitAddon.fit();
-      }, 300);
-    });
-    this._resizeObserver.observe(this.el);
+    if (!this._isMultiPane) {
+      this._resizeObserver = new ResizeObserver(() => {
+        clearTimeout(this._resizeTimer);
+        this._resizeTimer = setTimeout(() => {
+          this.fitAddon.fit();
+        }, 300);
+      });
+      this._resizeObserver.observe(this.el);
+    }
 
     // Handle pane_resized from other viewers or layout changes (via LiveView)
     this.handleEvent("pane_resized", ({ target, cols, rows }) => {
