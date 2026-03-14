@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- Do we need to clear the screen for the formatting issue?  It's very useful to not hide the history.  We do also need to figure out how to scroll up in the app.
+
 - Let's add settings to the settings page to change the app theme itself.  At a minimum we should have a light and dark theme.  Since this is a terminal program and many theme options are common, let's also brainstorm some other themes we could add.
 
 - In the mobile view, when user's click on a Window they're really just viewing a specific pane.  For consistency, should we label is "Pane" instead of "Window?
