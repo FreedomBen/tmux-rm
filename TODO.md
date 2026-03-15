@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- Let's move on to implementing the android application.  Read through APPLICATION_DESIGN.md , and write an implementation plan to ANDROID_IMPLEMENTATION.md.  
+
 - In mobile 
 
 - Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
