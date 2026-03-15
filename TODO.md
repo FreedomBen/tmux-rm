@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Let's continue implementation for the Android app.  Read ANDROID_IMPLEMENTATION.md and continue with the next task.
-
 Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implementation plan.  Might do one more pass, then have it implmenet.  MCP finished, but not tested.
 
 - Let's review the android implementation plan in ANDROID_IMPLEMENTATION.md before we move on to implementation.  Look for any errors, inconsistencies, ambiguities, or otherwise missing things that need to be corrected prior to implementation.
@@ -19,6 +17,10 @@ Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implemen
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- We've finished initial implementation of the Android app as defined in ANDROID_IMPLEMENTATION.md .  Do a review check to see that we implemented it according to plan.
+
+- Let's continue implementation for the Android app.  Read ANDROID_IMPLEMENTATION.md and continue with the next task.
 
 - Let's begin implementation of the Android app.  Read ANDROID_IMPLEMENTATION.md and start with the first phase.
 
