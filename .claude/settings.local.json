@@ -61,7 +61,10 @@
       "Bash(curl:*)",
       "Bash(mix:*)",
       "Bash(ls:*)",
-      "mcp__plugin_context7_context7__resolve-library-id"
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "WebFetch(domain:hexdocs.pm)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
