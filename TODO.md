@@ -18,6 +18,8 @@ Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implemen
 
 # Already Run
 
+- I really like the green color we used in the android app.  Let's update the web app UI to use that green color as well instead of the yellow/orange color we're currently using.
+
 - Write a Makefile and include a build command, clean, and install, for the server and for the android app.  The server install should build and copy the server binary in place, and copy the systemd service file in place as well.  Do not run the install commands automatically.  I'll run them manually.  For the android app we should have an install-debug target that builds a debug apk and installed it to the attached android device over adb.
 
 - We've finished initial implementation of the Android app as defined in ANDROID_IMPLEMENTATION.md .  Do a review check to see that we implemented it according to plan.
