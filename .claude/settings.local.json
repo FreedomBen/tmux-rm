@@ -76,7 +76,9 @@
       "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -30)",
       "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -20)",
       "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -40)",
-      "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -10)"
+      "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -10)",
+      "Bash(adb devices:*)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__emulate"
     ]
   }
 }
