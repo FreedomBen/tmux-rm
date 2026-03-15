@@ -31,12 +31,12 @@
   --color-base-200: oklch(18% 0.008 260);
   --color-base-300: oklch(14% 0.006 260);
   --color-base-content: oklch(92% 0.01 80);
-  --color-primary: oklch(72% 0.16 70);
-  --color-primary-content: oklch(16% 0.02 70);
+  --color-primary: oklch(72% 0.18 148);
+  --color-primary-content: oklch(16% 0.02 148);
   --color-secondary: oklch(60% 0.08 250);
   --color-secondary-content: oklch(96% 0.01 250);
-  --color-accent: oklch(72% 0.16 70);
-  --color-accent-content: oklch(16% 0.02 70);
+  --color-accent: oklch(72% 0.18 148);
+  --color-accent-content: oklch(16% 0.02 148);
   --color-neutral: oklch(28% 0.015 260);
   --color-neutral-content: oklch(85% 0.01 80);
   --color-info: oklch(65% 0.15 240);
@@ -66,12 +66,12 @@
   --color-base-200: oklch(95% 0.008 80);
   --color-base-300: oklch(90% 0.012 80);
   --color-base-content: oklch(22% 0.02 260);
-  --color-primary: oklch(55% 0.18 45);
-  --color-primary-content: oklch(98% 0.01 60);
+  --color-primary: oklch(52% 0.16 148);
+  --color-primary-content: oklch(98% 0.01 148);
   --color-secondary: oklch(45% 0.06 260);
   --color-secondary-content: oklch(98% 0.002 260);
-  --color-accent: oklch(55% 0.18 45);
-  --color-accent-content: oklch(98% 0.01 60);
+  --color-accent: oklch(52% 0.16 148);
+  --color-accent-content: oklch(98% 0.01 148);
   --color-neutral: oklch(35% 0.02 260);
   --color-neutral-content: oklch(98% 0 0);
   --color-info: oklch(55% 0.18 250);
@@ -1042,7 +1042,7 @@ body {
   bottom: 6px;
   width: 2px;
   transform: translateX(-50%);
-  background: oklch(65% 0.12 70);
+  background: oklch(65% 0.12 148);
 }
 
 .pane-divider-h::after {
@@ -1051,7 +1051,7 @@ body {
   right: 6px;
   height: 2px;
   transform: translateY(-50%);
-  background: oklch(65% 0.12 70);
+  background: oklch(65% 0.12 148);
 }
 
 .pane-divider:hover::after {
@@ -1060,8 +1060,8 @@ body {
 
 .pane-divider-active::after {
   opacity: 1;
-  background: oklch(80% 0.15 70);
-  box-shadow: 0 0 6px oklch(75% 0.15 70 / 50%);
+  background: oklch(80% 0.15 148);
+  box-shadow: 0 0 6px oklch(75% 0.15 148 / 50%);
 }
 
 /* Touch devices: wider hit area, always-visible faint line */
