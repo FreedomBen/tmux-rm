@@ -1,5 +1,7 @@
 # Not Run Yet
 
+Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implementation plan.  Might do one more pass, then have it implmenet.  MCP finished, but not tested.
+
 - Let's review the android implementation plan in ANDROID_IMPLEMENTATION.md before we move on to implementation.  Look for any errors, inconsistencies, ambiguities, or otherwise missing things that need to be corrected prior to implementation.
 
 - Let's write an external test for the MCP server.
