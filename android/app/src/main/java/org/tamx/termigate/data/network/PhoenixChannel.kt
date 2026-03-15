@@ -39,6 +39,7 @@ class PhoenixChannel(
 ) {
     companion object {
         private const val TAG = "PhoenixChannel"
+        private const val JOIN_TIMEOUT_MS = 15_000L
         private const val PUSH_TIMEOUT_MS = 10_000L
     }
 
@@ -76,30 +77,39 @@ class PhoenixChannel(
             payload = jsonPayload
         )
 
-        return suspendCancellableCoroutine { cont ->
-            pendingReplies[ref] = { reply ->
-                val status = reply.payload.optString("status")
-                val response = reply.payload.optJSONObject("response")
-                val responseMap = response?.toMap() ?: emptyMap()
+        val result = withTimeoutOrNull(JOIN_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                pendingReplies[ref] = { reply ->
+                    val status = reply.payload.optString("status")
+                    val response = reply.payload.optJSONObject("response")
+                    val responseMap = response?.toMap() ?: emptyMap()
 
-                if (status == "ok") {
-                    state = ChannelState.Joined
-                    cont.resume(JoinResult.Ok(responseMap))
-                } else {
+                    if (status == "ok") {
+                        state = ChannelState.Joined
+                        cont.resume(JoinResult.Ok(responseMap))
+                    } else {
+                        state = ChannelState.Errored
+                        val reason = response?.optString("reason") ?: status
+                        cont.resume(JoinResult.Error(reason))
+                    }
+                }
+
+                cont.invokeOnCancellation { pendingReplies.remove(ref) }
+
+                if (!socket.send(message)) {
+                    pendingReplies.remove(ref)
                     state = ChannelState.Errored
-                    val reason = response?.optString("reason") ?: status
-                    cont.resume(JoinResult.Error(reason))
+                    cont.resume(JoinResult.Error("Failed to send join"))
                 }
             }
-
-            cont.invokeOnCancellation { pendingReplies.remove(ref) }
-
-            if (!socket.send(message)) {
-                pendingReplies.remove(ref)
-                state = ChannelState.Errored
-                cont.resume(JoinResult.Error("Failed to send join"))
-            }
         }
+
+        if (result == null) {
+            pendingReplies.remove(ref)
+            state = ChannelState.Errored
+            return JoinResult.Error("Join timed out")
+        }
+        return result
     }
 
     suspend fun leave() {

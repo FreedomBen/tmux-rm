@@ -10,8 +10,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.tamx.termigate.data.network.ChannelEvent
 import org.tamx.termigate.data.network.ConnectionState
 import org.tamx.termigate.data.network.JoinResult
@@ -46,6 +48,7 @@ class TerminalRepository @Inject constructor(
         private const val MAX_JOIN_RETRIES = 3
         private const val RETRY_DELAY_MS = 1000L
         private const val DISCONNECT_NOTIFY_DELAY_MS = 60_000L
+        private const val SOCKET_CONNECT_TIMEOUT_MS = 20_000L
     }
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -89,6 +92,17 @@ class TerminalRepository @Inject constructor(
     }
 
     suspend fun connect(target: String, cols: Int, rows: Int): Result<TerminalConnection> {
+        // Ensure socket is connected before attempting to join
+        if (phoenixSocket.connectionState.value != ConnectionState.Connected) {
+            phoenixSocket.connect()
+            val connected = withTimeoutOrNull(SOCKET_CONNECT_TIMEOUT_MS) {
+                phoenixSocket.connectionState.first { it == ConnectionState.Connected }
+            }
+            if (connected == null) {
+                return Result.failure(Exception("Could not connect to server"))
+            }
+        }
+
         val topic = targetToTopic(target)
 
         var lastError: String? = null
