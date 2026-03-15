@@ -70,7 +70,9 @@
       "mcp__plugin_context-mode_context-mode__fetch_and_index",
       "mcp__plugin_context-mode_context-mode__search",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Read(//home/ben/gitclone/termigate/**)"
+      "Read(//home/ben/gitclone/termigate/**)",
+      "Bash(./gradlew assembleDebug 2>&1 | tail -40)",
+      "Bash(./gradlew assembleDebug 2>&1 | tail -30)"
     ]
   }
 }
