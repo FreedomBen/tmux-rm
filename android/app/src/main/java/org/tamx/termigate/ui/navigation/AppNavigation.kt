@@ -11,6 +11,7 @@ import org.tamx.termigate.data.network.AuthEvent
 import org.tamx.termigate.data.repository.AuthRepository
 import org.tamx.termigate.ui.login.LoginScreen
 import org.tamx.termigate.ui.sessions.SessionListScreen
+import org.tamx.termigate.ui.terminal.TerminalScreen
 
 object Routes {
     const val LOGIN = "login"
@@ -68,7 +69,14 @@ fun AppNavigation(
             )
         }
         composable(Routes.TERMINAL) {
-            // Placeholder until Phase 5
+            TerminalScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToTarget = { newTarget ->
+                    navController.navigate(Routes.terminal(newTarget)) {
+                        popUpTo(Routes.SESSIONS)
+                    }
+                }
+            )
         }
         composable(Routes.SETTINGS) {
             // Placeholder until Phase 7

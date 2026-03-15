@@ -27,7 +27,7 @@ No server changes are needed for the Android app.
 | 2 | Network Layer | Phoenix Channel client, REST API client (Ktor), auth | Large | Done |
 | 3 | Login Screen | Auth flow, token storage, server URL config | Small | Done |
 | 4 | Session List Screen | Session/pane listing via Channel + REST, CRUD actions | Medium | Done |
-| 5 | Terminal Screen (Core) | Termux TerminalView + Channel integration, keyboard input | Large | |
+| 5 | Terminal Screen (Core) | Termux TerminalView + Channel integration, keyboard input | Large | Done |
 | 6 | Terminal Toolbars | Special key toolbar, quick action bar | Medium | |
 | 7 | Settings Screen | Quick actions CRUD, display preferences, connection settings | Small | |
 | 8 | Foreground Service & Notifications | Background connection persistence, pane death alerts | Medium | |
@@ -804,12 +804,12 @@ Top bar shows session target and back button. Hides after 3 seconds of inactivit
 
 ### Checklist
 
-- [ ] 5.1 Terminal repository (`data/repository/TerminalRepository.kt` — connect/disconnect, sendInput, sendResize, event Flow)
-- [ ] 5.2 Terminal session bridge (`ui/terminal/TerminalSession.kt` — TerminalEmulator ↔ Channel bridge)
-- [ ] 5.3 Terminal ViewModel (`ui/terminal/TerminalViewModel.kt`)
-- [ ] 5.4 Terminal screen (`ui/terminal/TerminalScreen.kt` — AndroidView wrapping TerminalView, keyboard input)
-- [ ] 5.5 Resize behavior (join params, debounced resize events, server-initiated resize)
-- [ ] 5.6 Auto-hide top bar
+- [x] 5.1 Terminal repository (`data/repository/TerminalRepository.kt` — connect/disconnect, sendInput, sendResize, event Flow)
+- [x] 5.2 Terminal session bridge (`ui/terminal/RemoteTerminalSession.kt` — TerminalEmulator ↔ Channel bridge, extends TerminalSession)
+- [x] 5.3 Terminal ViewModel (`ui/terminal/TerminalViewModel.kt`)
+- [x] 5.4 Terminal screen (`ui/terminal/TerminalScreen.kt` — AndroidView wrapping TerminalView, keyboard input)
+- [x] 5.5 Resize behavior (join params with cols/rows, server-initiated resize without echo loop)
+- [x] 5.6 Auto-hide top bar (AnimatedVisibility, 3s timer, tap to toggle)
 - [ ] Verification: Join terminal → history renders
 - [ ] Verification: Keyboard input → characters appear
 - [ ] Verification: Server output streams in real-time
