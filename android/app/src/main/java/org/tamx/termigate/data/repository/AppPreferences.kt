@@ -43,7 +43,16 @@ class AppPreferences @Inject constructor(
 
     var serverUrl: String?
         get() = prefs.getString(KEY_SERVER_URL, null)
-        set(value) = prefs.edit().putString(KEY_SERVER_URL, value).apply()
+        set(value) {
+            val normalized = value?.trimEnd('/')?.let { url ->
+                if (url.isNotEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
+                    "http://$url"
+                } else {
+                    url
+                }
+            }
+            prefs.edit().putString(KEY_SERVER_URL, normalized).apply()
+        }
 
     var lastUsername: String?
         get() = prefs.getString(KEY_LAST_USERNAME, null)
