@@ -8,6 +8,7 @@ import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +29,7 @@ class TerminalViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "TerminalViewModel"
+        private const val RESIZE_DEBOUNCE_MS = 150L
     }
 
     val target: String = savedStateHandle["target"]!!
@@ -49,6 +51,7 @@ class TerminalViewModel @Inject constructor(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var eventCollectionJob: Job? = null
+    private var resizeDebounceJob: Job? = null
     private var serverResizeInProgress = false
 
     private val sessionClient = object : TerminalSessionClient {
@@ -166,7 +169,11 @@ class TerminalViewModel @Inject constructor(
             serverResizeInProgress = false
             return
         }
-        viewModelScope.launch {
+        // Debounce to avoid flooding the server during animated transitions
+        // (keyboard slide, rotation animation)
+        resizeDebounceJob?.cancel()
+        resizeDebounceJob = viewModelScope.launch {
+            delay(RESIZE_DEBOUNCE_MS)
             terminalRepo.sendResize(target, cols, rows)
         }
     }
