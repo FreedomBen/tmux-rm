@@ -236,6 +236,35 @@ defmodule Termigate.TmuxManager do
     end
   end
 
+  @doc """
+  Capture pane content. Options:
+  - `lines:` — number of scrollback lines to capture (default: 0 = visible only)
+  - `escape:` — include ANSI escape sequences (default: false)
+  """
+  @spec capture_pane(String.t(), keyword()) :: {:ok, String.t()} | {:error, atom() | String.t()}
+  def capture_pane(target, opts \\ []) do
+    lines = Keyword.get(opts, :lines, 0)
+    escape = Keyword.get(opts, :escape, false)
+
+    args = ["capture-pane", "-p", "-t", target]
+    args = if escape, do: args ++ ["-e"], else: args
+    args = if lines > 0, do: args ++ ["-S", "-#{lines}"], else: args
+
+    case command_runner().run(args) do
+      {:ok, output} ->
+        {:ok, output}
+
+      {:error, {msg, _code}} ->
+        cond do
+          String.contains?(msg, "can't find") or String.contains?(msg, "no pane") ->
+            {:error, :pane_not_found}
+
+          true ->
+            {:error, msg}
+        end
+    end
+  end
+
   @doc "Validate a session name."
   @spec valid_session_name?(String.t()) :: boolean()
   def valid_session_name?(name) when is_binary(name) do

@@ -60,11 +60,26 @@ defmodule Termigate.PaneStream do
     end
   end
 
-  @doc "Send keyboard input to the pane."
+  @doc "Send keyboard input to the pane. Auto-starts a PaneStream if needed."
   def send_keys(target, data) when is_binary(data) do
-    case lookup(target) do
+    case ensure_started(target) do
       {:ok, pid} -> GenServer.call(pid, {:send_keys, data}, 10_000)
-      {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc "Read the current buffer contents without subscribing as a viewer."
+  def read_buffer(target) do
+    case lookup(target) do
+      {:ok, pid} ->
+        try do
+          GenServer.call(pid, :read_buffer)
+        catch
+          :exit, _ -> {:error, :not_found}
+        end
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 
@@ -192,6 +207,10 @@ defmodule Termigate.PaneStream do
     {:reply, {:ok, history}, %{state | viewers: new_viewers}}
   end
 
+  def handle_call(:read_buffer, _from, state) do
+    {:reply, {:ok, RingBuffer.read(state.buffer)}, state}
+  end
+
   def handle_call({:unsubscribe, pid}, _from, state) do
     old_count = MapSet.size(state.viewers)
     new_viewers = MapSet.delete(state.viewers, pid)
@@ -264,7 +283,10 @@ defmodule Termigate.PaneStream do
         case runner.run(["capture-pane", "-p", "-e", "-t", state.pane_id]) do
           {:ok, screen} ->
             screen_data = build_screen_data(runner, state.pane_id, screen)
-            Logger.debug("resize_and_capture: #{cols}x#{rows}, got #{byte_size(screen_data)} bytes")
+
+            Logger.debug(
+              "resize_and_capture: #{cols}x#{rows}, got #{byte_size(screen_data)} bytes"
+            )
 
             buffer =
               state.buffer

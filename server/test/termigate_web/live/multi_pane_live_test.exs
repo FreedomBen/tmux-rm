@@ -158,11 +158,15 @@ defmodule TermigateWeb.MultiPaneLiveTest do
 
       render(view)
 
-      send(view.pid, {:command_finished, "test:0.0", %{
-        exit_code: 1,
-        command: "make",
-        duration_seconds: 30
-      }})
+      send(
+        view.pid,
+        {:command_finished, "test:0.0",
+         %{
+           exit_code: 1,
+           command: "make",
+           duration_seconds: 30
+         }}
+      )
 
       assert_push_event(view, "notify_command_done", %{
         pane: "test:0.0",
@@ -182,11 +186,15 @@ defmodule TermigateWeb.MultiPaneLiveTest do
 
       # Duration 2s is below min_duration 60s, but LiveView should forward anyway.
       # Filtering by min_duration is the JS hook's responsibility.
-      send(view.pid, {:command_finished, "test:0.0", %{
-        exit_code: 0,
-        command: "ls",
-        duration_seconds: 2
-      }})
+      send(
+        view.pid,
+        {:command_finished, "test:0.0",
+         %{
+           exit_code: 0,
+           command: "ls",
+           duration_seconds: 2
+         }}
+      )
 
       assert_push_event(view, "notify_command_done", %{
         pane: "test:0.0",
@@ -202,11 +210,15 @@ defmodule TermigateWeb.MultiPaneLiveTest do
 
       render(view)
 
-      send(view.pid, {:command_finished, "test:0.0", %{
-        exit_code: 0,
-        command: "make",
-        duration_seconds: 30
-      }})
+      send(
+        view.pid,
+        {:command_finished, "test:0.0",
+         %{
+           exit_code: 0,
+           command: "make",
+           duration_seconds: 30
+         }}
+      )
 
       render(view)
 
@@ -220,11 +232,15 @@ defmodule TermigateWeb.MultiPaneLiveTest do
 
       render(view)
 
-      send(view.pid, {:command_finished, "test:0.0", %{
-        exit_code: 0,
-        command: "make",
-        duration_seconds: 30
-      }})
+      send(
+        view.pid,
+        {:command_finished, "test:0.0",
+         %{
+           exit_code: 0,
+           command: "make",
+           duration_seconds: 30
+         }}
+      )
 
       render(view)
 

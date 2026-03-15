@@ -28,7 +28,7 @@ config :termigate,
   output_coalesce_max_bytes: 32_768,
   auth_session_ttl_days: 30,
   auth_token_max_age: 604_800,
-  rate_limits: %{login: {5, 60}, session_create: {10, 60}, websocket: {10, 60}}
+  rate_limits: %{login: {5, 60}, session_create: {10, 60}, websocket: {10, 60}, mcp: {120, 60}}
 
 # Configure the endpoint
 config :termigate, TermigateWeb.Endpoint,

@@ -1,6 +1,8 @@
 # Not Run Yet
 
-- Let's move on to implementing the android application.  Read through APPLICATION_DESIGN.md , and write an implementation plan to ANDROID_IMPLEMENTATION.md.  
+- Let's begin implementation of the Android app.  Read ANDROID_IMPLEMENTATION.md and start with the first phase.
+
+- Let's continue implementation for the Android app.  Read ANDROID_IMPLEMENTATION.md and continue with the next task.
 
 - In mobile 
 
@@ -13,6 +15,8 @@
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Let's move on to implementing the android application.  Read through APPLICATION_DESIGN.md , and write an implementation plan to ANDROID_IMPLEMENTATION.md.  
 
 - We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
 

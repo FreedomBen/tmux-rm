@@ -26,6 +26,17 @@ defmodule TermigateWeb.Router do
     plug TermigateWeb.Plugs.RateLimit, key: :login
   end
 
+  pipeline :rate_limit_mcp do
+    plug TermigateWeb.Plugs.RateLimit, key: :mcp
+  end
+
+  # MCP - AI agent access
+  scope "/mcp" do
+    pipe_through [:require_auth_token, :rate_limit_mcp]
+
+    forward "/", Hermes.Server.Transport.StreamableHTTP.Plug, server: Termigate.MCP.Server
+  end
+
   # Health check & metrics — unauthenticated
   scope "/", TermigateWeb do
     pipe_through :api

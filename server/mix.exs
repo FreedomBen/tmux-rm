@@ -68,7 +68,8 @@ defmodule Termigate.MixProject do
       {:yaml_elixir, "~> 2.11"},
       {:ymlr, "~> 5.0"},
       {:mox, "~> 1.0", only: :test},
-      {:corsica, "~> 2.0"}
+      {:corsica, "~> 2.0"},
+      {:hermes_mcp, "~> 0.14.1"}
     ]
   end
 

@@ -24,6 +24,8 @@ defmodule Termigate.Application do
       Termigate.Config,
       TermigateWeb.RateLimitStore,
       {DynamicSupervisor, name: Termigate.LayoutPollerSupervisor, strategy: :one_for_one},
+      Hermes.Server.Registry,
+      {Termigate.MCP.Server, transport: :streamable_http},
       TermigateWeb.Endpoint
     ]
 
