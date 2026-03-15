@@ -10,9 +10,9 @@
 
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
-- We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
-
 # Already Run
+
+- We're ready to begin implementing the MCP server as described in MCP_DESIGN.md.
 
 - Let's create an OpenAPI specification doc for this applications.  We should also serve it as a static asset.
 
