@@ -67,7 +67,9 @@
       "WebFetch(domain:github.com)",
       "Bash(wc:*)",
       "mcp__plugin_context-mode_context-mode__execute_file",
-      "mcp__plugin_context-mode_context-mode__fetch_and_index"
+      "mcp__plugin_context-mode_context-mode__fetch_and_index",
+      "mcp__plugin_context-mode_context-mode__search",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

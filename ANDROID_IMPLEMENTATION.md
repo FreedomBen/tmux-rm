@@ -17,7 +17,7 @@ The termigate server already has all required infrastructure:
 - Terminal output: base64-encoded data in JSON text frames (`"output"` event with `{data: "<base64>"}`)
 - Terminal input: accepts both JSON text frames (`"input"` event with `{data: "<bytes>"}`) and raw binary WebSocket frames
 
-No server changes are strictly required. One inconsistency to be aware of: `SessionChannel` sends `created` as an ISO 8601 string (raw DateTime), while the REST API sends it as a Unix timestamp (integer). The Android client handles both via a custom serializer, but a server-side fix to normalize both to Unix timestamps would simplify things.
+No server changes are needed for the Android app.
 
 ## Phase Overview
 
@@ -334,8 +334,7 @@ data class Session(
     val name: String,
     val windows: Int,               // window COUNT, not a list
     val attached: Boolean,
-    @Serializable(with = CreatedTimestampSerializer::class)
-    val created: Long? = null,      // Unix timestamp (seconds), nullable — see note below
+    val created: Long? = null,      // Unix timestamp (seconds), nullable (tmux may have no creation time)
     val panes: List<Pane> = emptyList()  // flat list of all panes across all windows
 )
 
@@ -374,7 +373,7 @@ data class LoginResponse(
 )
 ```
 
-**`created` field serialization**: The REST API (`GET /api/sessions`) sends `created` as a **Unix timestamp** (integer seconds). The Session Channel sends `created` as an **ISO 8601 string** (e.g., `"2025-01-15T10:30:00Z"`). Write a custom `CreatedTimestampSerializer` that handles both formats — parse integers directly, parse ISO 8601 strings via `Instant.parse()` and convert to epoch seconds. The field is nullable because tmux sessions may have no creation time.
+**`created` field**: Both the REST API and Session Channel serialize `created` as a Unix timestamp (integer seconds). The field is nullable because tmux sessions may have no creation time.
 
 ### Verification
 - Unit test PhoenixSocket/Channel with a mock WebSocket (verify JSON framing, heartbeat, reconnect)
@@ -401,8 +400,10 @@ class AuthRepository @Inject constructor(
     private val encryptedPrefs: SharedPreferences  // EncryptedSharedPreferences
 ) {
     val isAuthenticated: StateFlow<Boolean>
+    val authRequired: StateFlow<Boolean?>  // null = unknown, true/false after probe
 
     suspend fun login(serverUrl: String, username: String, password: String): Result<Unit>
+    suspend fun probeAuthRequired(serverUrl: String): Boolean  // try unauthenticated GET /api/sessions
     fun getToken(): String?
     fun clearToken()
     fun getServerUrl(): String?
@@ -413,6 +414,7 @@ class AuthRepository @Inject constructor(
 - Token stored in `EncryptedSharedPreferences` (Android Keystore-backed)
 - Server URL and last username stored in regular `SharedPreferences`
 - On 401 anywhere in the app → `clearToken()` and navigate to Login
+- `probeAuthRequired()`: attempts unauthenticated `GET /api/sessions` — if 200, auth is disabled; if 401, auth is required
 
 #### 3.2 Login ViewModel (`ui/login/LoginViewModel.kt`)
 
@@ -463,7 +465,8 @@ fun AppNavigation(navController: NavHostController) {
 }
 ```
 
-- Start destination: "sessions" if token exists and is valid, "login" otherwise
+- Start destination: "sessions" if token exists and is valid OR auth is disabled, "login" otherwise
+- On first launch with a saved server URL: probe auth requirement before deciding start destination
 - Global 401 handling: navigate to "login", clear back stack
 
 #### 3.5 Theme (`ui/theme/`)
@@ -479,6 +482,8 @@ Material 3 dark theme (matches termigate web dark terminal aesthetic):
 - Login with unreachable server → timeout error
 - App restart with valid token → skips login, goes to sessions
 - App restart with expired token → shows login
+- Server with auth disabled → skips login, goes directly to sessions
+- Rate-limited login attempt → shows "too many attempts" error
 
 ---
 
@@ -759,10 +764,16 @@ AndroidView(
 
 #### 5.5 Resize Behavior
 
-On initial connect, the app sends `cols` and `rows` as join params (calculated from viewport size and font metrics). The server resizes the pane and returns correctly-sized history. After joining, the app does NOT send resize events when the viewport changes (soft keyboard, rotation). Instead:
-- Scale the terminal view to fit via font size adjustment
-- When receiving `"resized"` from server (another viewer resized): reconfigure `TerminalEmulator` with new dimensions, re-render
-- Optional "Fit to screen" button (Phase 6): calculates cols/rows for current viewport, sends resize with confirmation
+On initial connect, the app sends `cols` and `rows` as channel join params (calculated from viewport size and font metrics). The server resizes the pane and returns correctly-sized history.
+
+After joining, the app **does** send resize events when the viewport changes. Termux's `TerminalView` handles this automatically:
+- `TerminalView.onSizeChanged()` fires on any view dimension change (soft keyboard show/hide, rotation, multi-window)
+- It calls `updateSize()` which recalculates cols/rows from the view dimensions and font metrics
+- It notifies the host via the `TerminalViewClient.onEmulatorSet()` callback
+- The app hooks `onEmulatorSet()` to read the new cols/rows from the emulator and calls `viewModel.sendResize(cols, rows)`
+- **Debounce**: resize events should be debounced (~100-200ms) to avoid flooding the server during animated transitions (keyboard slide, rotation animation)
+
+When receiving `"resized"` from the server (another viewer resized): reconfigure `TerminalEmulator` with new dimensions via `emulator.resize(cols, rows)`, re-render. To avoid a resize loop, skip sending a resize back to the server when the resize originated from a server push.
 
 #### 5.6 Auto-Hide Top Bar
 
@@ -1187,7 +1198,7 @@ For client-to-server input, the app sends JSON text frames with the `"input"` ev
 
 ### Session Channel Join Reply
 
-The `"sessions"` channel join reply contains the current session list wrapped in `{"sessions": [...]}`. The `"sessions_updated"` push events use the same format: `{"sessions": [...]}`. Parse with kotlinx.serialization matching the server's JSON format. Note that the Channel serialization of sessions sends `created` as an ISO 8601 string (not a Unix timestamp like the REST API) — see the `CreatedTimestampSerializer` note in Phase 2.
+The `"sessions"` channel join reply contains the current session list wrapped in `{"sessions": [...]}`. The `"sessions_updated"` push events use the same format: `{"sessions": [...]}`. Parse with kotlinx.serialization matching the server's JSON format. Both Channel and REST serialize `created` as a Unix timestamp (integer seconds).
 
 ### Error Recovery
 
@@ -1202,4 +1213,5 @@ The `"sessions"` channel join reply contains the current session list wrapped in
 The server can run with auth disabled (`Termigate.Auth.auth_enabled?()` returns false). When auth is disabled:
 - `POST /api/login` still exists but is unnecessary — all API routes accept requests without a Bearer token
 - WebSocket connects without a token
-- The app should detect this (e.g., try connecting without auth first, or add a `GET /api/config` check) and skip the login screen
+
+Detection: on app start (before showing login), attempt an unauthenticated `GET /api/sessions`. If it succeeds (200), auth is disabled — skip the login screen and proceed directly to the session list. If it fails (401), show the login screen. This probe is fast (single HTTP request) and requires no server changes.
