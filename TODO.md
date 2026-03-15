@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- In the Android app, once we select a pane to attach to, we get an infinite loading circle that never completes.
+
 - Let's update the README.md and CLAUDE.md files based on the recent work we've done, including implementing the android app.
 
 Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implementation plan.  Might do one more pass, then have it implmenet.  MCP finished, but not tested.
