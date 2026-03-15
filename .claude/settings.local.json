@@ -75,7 +75,8 @@
       "Bash(./gradlew assembleDebug 2>&1 | tail -30)",
       "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -30)",
       "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -20)",
-      "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -40)"
+      "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -40)",
+      "Bash(./gradlew :app:compileDebugKotlin 2>&1 | tail -10)"
     ]
   }
 }

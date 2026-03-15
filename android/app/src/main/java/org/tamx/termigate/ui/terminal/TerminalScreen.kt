@@ -88,6 +88,13 @@ fun TerminalScreen(
         }
     }
 
+    // Trigger connect when screen is first composed
+    LaunchedEffect(Unit) {
+        if (!viewModel.uiState.value.isConnected) {
+            viewModel.connect(cols = 80, rows = 24)
+        }
+    }
+
     // Handle superseded target
     LaunchedEffect(state.supersededTarget) {
         state.supersededTarget?.let { onNavigateToTarget(it) }
@@ -256,13 +263,6 @@ private fun TerminalViewComposable(
         },
         modifier = modifier
     )
-
-    // Trigger connect when first composed
-    LaunchedEffect(Unit) {
-        if (!viewModel.uiState.value.isConnected) {
-            viewModel.connect(cols = 80, rows = 24)
-        }
-    }
 }
 
 private fun createViewClient(
