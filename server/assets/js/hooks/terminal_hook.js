@@ -168,16 +168,20 @@ const TerminalHook = {
       // re-renders the CSS Grid (after LayoutPoller updates), which creates
       // a feedback loop (fit → tmux resize → layout update → grid change →
       // observer fires → fit again).
+      this._initialFitDone = false;
       this._multiPaneFit = () => {
         clearTimeout(this._resizeTimer);
         this._resizeTimer = setTimeout(() => {
           const prevCols = this.term.cols;
           const prevRows = this.term.rows;
           this.fitAddon.fit();
-          if (this.channel && this.term &&
+          // Only push resize for user-initiated window resizes, not the
+          // initial mount — viewing the page shouldn't resize tmux panes.
+          if (this._initialFitDone && this.channel && this.term &&
               (this.term.cols !== prevCols || this.term.rows !== prevRows)) {
             this.channel.push("resize", { cols: this.term.cols, rows: this.term.rows });
           }
+          this._initialFitDone = true;
         }, 300);
       };
       // Initial fit once CSS Grid layout has settled
@@ -556,9 +560,11 @@ const TerminalHook = {
       window.userSocket.connect();
     }
 
-    // Send browser dims so tmux pane is resized to match on join
+    // Send browser dims so tmux pane is resized to match on join.
+    // In multi-pane mode, skip — the terminal starts at tmux's own
+    // dimensions and we don't want to resize panes just by viewing.
     const joinParams = {};
-    if (this.term.cols > 0 && this.term.rows > 0) {
+    if (!this._isMultiPane && this.term.cols > 0 && this.term.rows > 0) {
       joinParams.cols = this.term.cols;
       joinParams.rows = this.term.rows;
     }
