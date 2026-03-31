@@ -239,6 +239,22 @@ const TerminalHook = {
         }
       });
 
+      // Re-fit when a pane is maximized (mobile: container goes from
+      // hidden to visible, so the terminal needs to fit the real size).
+      this.handleEvent("pane_maximized", ({ target }) => {
+        if (target === this.el.dataset.target) {
+          setTimeout(() => {
+            const prevCols = this.term.cols;
+            const prevRows = this.term.rows;
+            this.fitAddon.fit();
+            if (this.channel && this.term &&
+                (this.term.cols !== prevCols || this.term.rows !== prevRows)) {
+              this.channel.push("resize", { cols: this.term.cols, rows: this.term.rows });
+            }
+          }, 50);
+        }
+      });
+
       // Auto-focus if this is the only pane (new window)
       if (document.querySelectorAll('[data-mode="multi"]').length === 1) {
         this.term?.focus();

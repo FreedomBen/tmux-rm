@@ -568,7 +568,12 @@ defmodule TermigateWeb.MultiPaneLive do
 
   @impl true
   def handle_event("maximize_pane", %{"target" => target}, socket) do
-    {:noreply, assign(socket, :maximized, target)}
+    socket =
+      socket
+      |> assign(:maximized, target)
+      |> push_event("pane_maximized", %{target: target})
+
+    {:noreply, socket}
   end
 
   def handle_event("restore_pane", _params, socket) do

@@ -2,6 +2,10 @@
 
 - Let's hide our toolbar that has the ^C, ^D and Tab and arrow keys when we're on a desktop, but continue showing that on mobile and tablets.
 
+- On mobile, we're not showing as much of the history/top of the pane as we could.  We our only showing the top few lines after attaching.  Can we  optimize this?
+
+- We need to figure out how to allow scrolling back on desktop and mobile web UI.  In real tmux I hit Ctrl+Q and then use Ctrl+U and Ctrl+D and j and k, but that isn't workable here.  What are some thoughts about how we could implement scrollability?
+
 - In the Android app, the soft keyboard doesn't pop up when tapping on a pane to get focus.  The running device is connected over adb and has the app foregrounded.  Take a look and see why the soft keyboard isn't triggering.
 
 - Let's update the README.md and CLAUDE.md files based on the recent work we've done, including implementing the android app.
