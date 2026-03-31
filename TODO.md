@@ -1,6 +1,8 @@
 # Not Run Yet
 
-- In the Android app, once we select a pane to attach to, we get an infinite loading circle that never completes.
+- Let's hide our toolbar that has the ^C, ^D and Tab and arrow keys when we're on a desktop, but continue showing that on mobile and tablets.
+
+- In the Android app, the soft keyboard doesn't pop up when tapping on a pane to get focus.  The running device is connected over adb and has the app foregrounded.  Take a look and see why the soft keyboard isn't triggering.
 
 - Let's update the README.md and CLAUDE.md files based on the recent work we've done, including implementing the android app.
 
@@ -19,6 +21,10 @@ Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implemen
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- In the Android app, the soft keyboard doesn't pop up when tapping on a pane to get focus.  The running device is connected over adb and has the app foregrounded.  Take a look and see why the soft keyboard isn't triggering.
+
+- In the Android app, once we select a pane to attach to, we get an infinite loading circle that never completes.
 
 - The application is currently running on the attached adb android device.  Take a look using the Android MCP server.  There might be a few bugs here.  One is that the on-screen keyboard doesn't pop up when focusing on the pane.  Another is that the UI buttons are too high, appearing underneath the top bar that shows the clock and battery levels, etc.  Another is the small text size.  Take a look and let's fix the issues, although let's discuss the text size solution
 

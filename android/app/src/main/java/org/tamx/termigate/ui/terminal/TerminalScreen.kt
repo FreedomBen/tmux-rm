@@ -3,6 +3,7 @@ package org.tamx.termigate.ui.terminal
 import android.graphics.Typeface
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -104,6 +105,7 @@ fun TerminalScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .imePadding()
         ) {
             // Quick action bar (below top bar area, above terminal)
@@ -232,9 +234,16 @@ private fun TerminalViewComposable(
     AndroidView(
         factory = { ctx ->
             TerminalView(ctx, null).apply {
+                val termView = this
+                isFocusable = true
+                isFocusableInTouchMode = true
                 setTextSize(DEFAULT_FONT_SIZE)
                 setTypeface(Typeface.MONOSPACE)
-                setTerminalViewClient(createViewClient(viewModel, onTopBarToggle))
+                setTerminalViewClient(createViewClient(viewModel, onTopBarToggle, showKeyboard = {
+                    termView.requestFocus()
+                    val imm = ctx.getSystemService(InputMethodManager::class.java)
+                    imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+                }))
 
                 val session = viewModel.remoteSession ?: return@apply
                 attachSession(session)
@@ -267,13 +276,15 @@ private fun TerminalViewComposable(
 
 private fun createViewClient(
     viewModel: TerminalViewModel,
-    onTopBarToggle: () -> Unit
+    onTopBarToggle: () -> Unit,
+    showKeyboard: () -> Unit
 ): TerminalViewClient {
     return object : TerminalViewClient {
         override fun onScale(scale: Float): Float = scale
 
         override fun onSingleTapUp(e: MotionEvent?) {
             onTopBarToggle()
+            showKeyboard()
         }
 
         override fun shouldBackButtonBeMappedToEscape(): Boolean = false

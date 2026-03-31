@@ -95,10 +95,9 @@ const TerminalHook = {
     // Open terminal in container
     this.term.open(this.el);
 
-    // In multi-pane mode, use tmux dimensions as-is (the CSS grid is
-    // computed from tmux's layout). Calling fitAddon.fit() here would
-    // resize the pane, trigger a LayoutPoller update, and cause a
-    // visible resize flash a couple seconds later.
+    // In multi-pane mode, skip the synchronous fit() so that the initial
+    // history renders at tmux's dimensions. The ResizeObserver below will
+    // re-fit shortly after mount once the CSS Grid layout has settled.
     if (!this._isMultiPane) {
       this.fitAddon.fit();
     }
@@ -151,10 +150,10 @@ const TerminalHook = {
       }
     });
 
-    // Resize handling with debounce (single-pane only — in multi-pane mode,
-    // resizing is driven by tmux layout via LiveView pane_resized events)
+    // Resize handling with debounce
     this._resizeTimer = null;
     if (!this._isMultiPane) {
+      // Single-pane: fitAddon handles everything
       this._resizeObserver = new ResizeObserver(() => {
         clearTimeout(this._resizeTimer);
         this._resizeTimer = setTimeout(() => {
@@ -162,6 +161,29 @@ const TerminalHook = {
         }, 300);
       });
       this._resizeObserver.observe(this.el);
+    } else {
+      // Multi-pane: fit terminal to container on mount and on browser
+      // resize/zoom. We use the window "resize" event rather than a
+      // ResizeObserver because ResizeObserver also fires when the LiveView
+      // re-renders the CSS Grid (after LayoutPoller updates), which creates
+      // a feedback loop (fit → tmux resize → layout update → grid change →
+      // observer fires → fit again).
+      this._multiPaneFit = () => {
+        clearTimeout(this._resizeTimer);
+        this._resizeTimer = setTimeout(() => {
+          const prevCols = this.term.cols;
+          const prevRows = this.term.rows;
+          this.fitAddon.fit();
+          if (this.channel && this.term &&
+              (this.term.cols !== prevCols || this.term.rows !== prevRows)) {
+            this.channel.push("resize", { cols: this.term.cols, rows: this.term.rows });
+          }
+        }, 300);
+      };
+      // Initial fit once CSS Grid layout has settled
+      this._multiPaneFit();
+      // Re-fit on browser window resize or zoom changes
+      window.addEventListener("resize", this._multiPaneFit);
     }
 
     // Handle pane_resized from other viewers or layout changes (via LiveView)
@@ -612,6 +634,9 @@ const TerminalHook = {
     }
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
+    }
+    if (this._multiPaneFit) {
+      window.removeEventListener("resize", this._multiPaneFit);
     }
     if (this._resizeTimer) {
       clearTimeout(this._resizeTimer);
