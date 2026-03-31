@@ -71,7 +71,7 @@ const TerminalHook = {
       fontFamily: prefs.fontFamily,
       cursorStyle: prefs.cursorStyle,
       cursorBlink: prefs.cursorBlink,
-      scrollback: 0,
+      scrollback: this._isMultiPane ? 0 : 1000,
       theme: resolveTheme(prefs),
     };
 

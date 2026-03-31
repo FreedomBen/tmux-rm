@@ -277,10 +277,11 @@ defmodule Termigate.PaneStream do
         Process.sleep(50)
         runner = command_runner()
 
-        # Only capture the visible screen (no -S flag) — old scrollback
-        # contains content formatted at the previous width that won't
-        # reflow cleanly with embedded ANSI escape sequences.
-        case runner.run(["capture-pane", "-p", "-e", "-t", state.pane_id]) do
+        # Capture scrollback history in addition to the visible screen.
+        # After resize, tmux has reflowed content to the new width, so
+        # scrollback is safe to send.  300 lines gives mobile clients
+        # meaningful scroll-back without excessive payload.
+        case runner.run(["capture-pane", "-p", "-e", "-S", "-300", "-t", state.pane_id]) do
           {:ok, screen} ->
             screen_data = build_screen_data(runner, state.pane_id, screen)
 
