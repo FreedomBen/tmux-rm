@@ -346,6 +346,11 @@ body {
   gap: 1px;
 }
 
+.ctl-separator {
+  color: var(--color-primary);
+  margin: 0 4px;
+}
+
 .ctl-btn {
   display: flex;
   align-items: center;
@@ -411,6 +416,12 @@ body {
     flex-wrap: wrap;
     gap: 3px;
   }
+
+  .ctl-separator {
+    display: none;
+  }
+
+
 
   .ctl-btn {
     min-height: 40px;

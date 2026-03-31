@@ -175,6 +175,8 @@ defmodule TermigateWeb.MultiPaneLive do
           </button>
         </div>
 
+        <span class="ctl-separator">|</span>
+
         <div class="ctl-group">
           <button
             :for={
