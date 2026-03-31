@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- On mobile, we're not showing as much of the history/top of the pane as we could.  We are only showing the top few lines after attaching.  Can we optimize this?
-
 - We need to figure out how to allow scrolling back on desktop and mobile web UI.  In real tmux I hit Ctrl+Q and then use Ctrl+U and Ctrl+D and j and k, but that isn't workable here.  What are some thoughts about how we could implement scrollability?
 
 - In the Android app, the soft keyboard doesn't pop up when tapping on a pane to get focus.  The running device is connected over adb and has the app foregrounded.  Take a look and see why the soft keyboard isn't triggering.
@@ -23,6 +21,8 @@ Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implemen
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- On mobile, we're not showing as much of the history/top of the pane as we could.  We are only showing the top few lines after attaching.  Can we optimize this?
 
 - Let's hide our toolbar that has the ^C, ^D and Tab and arrow keys when we're on a desktop, but continue showing that on mobile and tablets.  Let's also move the equal width/height buttons somewhere else, since we don't want those hidden on desktop.  What are some thoughts on where we could move those to?
 
