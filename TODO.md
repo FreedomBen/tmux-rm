@@ -1,6 +1,6 @@
 # Not Run Yet
 
-- On mobile, we're not showing as much of the history/top of the pane as we could.  We our only showing the top few lines after attaching.  Can we optimize this?
+- On mobile, we're not showing as much of the history/top of the pane as we could.  We are only showing the top few lines after attaching.  Can we optimize this?
 
 - We need to figure out how to allow scrolling back on desktop and mobile web UI.  In real tmux I hit Ctrl+Q and then use Ctrl+U and Ctrl+D and j and k, but that isn't workable here.  What are some thoughts about how we could implement scrollability?
 

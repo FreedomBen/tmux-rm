@@ -411,6 +411,12 @@ body {
   background: oklch(28% 0.06 25);
 }
 
+@media (min-width: 640px) {
+  .control-signal-bar {
+    display: none;
+  }
+}
+
 @media (max-width: 639px) {
   .control-signal-bar {
     flex-wrap: wrap;

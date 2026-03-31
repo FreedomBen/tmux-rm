@@ -161,7 +161,7 @@ defmodule TermigateWeb.MultiPaneLive do
       </div>
 
       <%!-- Control signal bar (mobile/tablet only) --%>
-      <div class="control-signal-bar sm:hidden">
+      <div class="control-signal-bar">
         <div class="ctl-group">
           <button
             :for={{label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]}
