@@ -340,6 +340,12 @@ body {
   z-index: 20;
 }
 
+.ctl-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
 .ctl-btn {
   display: flex;
   align-items: center;
@@ -401,6 +407,11 @@ body {
 }
 
 @media (max-width: 639px) {
+  .control-signal-bar {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
   .ctl-btn {
     min-height: 40px;
     min-width: 44px;

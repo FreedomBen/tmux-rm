@@ -162,39 +162,41 @@ defmodule TermigateWeb.MultiPaneLive do
 
       <%!-- Control signal bar --%>
       <div class="control-signal-bar">
-        <button
-          :for={{label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]}
-          class={"ctl-btn #{if key == "\\", do: "ctl-btn-danger"}"}
-          phx-click="send_control"
-          phx-value-key={key}
-          disabled={@active_pane == nil}
-          onmousedown="event.preventDefault()"
-        >
-          <kbd>{label}</kbd>
-        </button>
+        <div class="ctl-group">
+          <button
+            :for={{label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]}
+            class={"ctl-btn #{if key == "\\", do: "ctl-btn-danger"}"}
+            phx-click="send_control"
+            phx-value-key={key}
+            disabled={@active_pane == nil}
+            onmousedown="event.preventDefault()"
+          >
+            <kbd>{label}</kbd>
+          </button>
+        </div>
 
-        <span class="mx-1 text-zinc-600">|</span>
+        <div class="ctl-group">
+          <button
+            :for={
+              {label, key} <- [
+                {"Tab", "tab"},
+                {raw("&#x2191;"), "up"},
+                {raw("&#x2193;"), "down"},
+                {raw("&#x2190;"), "left"},
+                {raw("&#x2192;"), "right"}
+              ]
+            }
+            class="ctl-btn"
+            phx-click="send_special_key"
+            phx-value-key={key}
+            disabled={@active_pane == nil}
+            onmousedown="event.preventDefault()"
+          >
+            <kbd>{label}</kbd>
+          </button>
+        </div>
 
-        <button
-          :for={
-            {label, key} <- [
-              {"Tab", "tab"},
-              {raw("&#x2191;"), "up"},
-              {raw("&#x2193;"), "down"},
-              {raw("&#x2190;"), "left"},
-              {raw("&#x2192;"), "right"}
-            ]
-          }
-          class="ctl-btn"
-          phx-click="send_special_key"
-          phx-value-key={key}
-          disabled={@active_pane == nil}
-          onmousedown="event.preventDefault()"
-        >
-          <kbd>{label}</kbd>
-        </button>
-
-        <div :if={length(@panes) > 1} class="flex items-center gap-1 ml-auto">
+        <div :if={length(@panes) > 1} class="ctl-group ml-auto">
           <button
             class="ctl-btn"
             phx-click="equalize_panes"
