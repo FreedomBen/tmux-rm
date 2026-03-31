@@ -1,6 +1,6 @@
 # Not Run Yet
 
-- Let's hide our toolbar that has the ^C, ^D and Tab and arrow keys when we're on a desktop, but continue showing that on mobile and tablets.
+- Let's hide our toolbar that has the ^C, ^D and Tab and arrow keys when we're on a desktop, but continue showing that on mobile and tablets.  Let's also move the equal width/height buttons somewhere else, since we don't want those hidden on desktop.  What are some thoughts on where we could move those to?
 
 - On mobile, we're not showing as much of the history/top of the pane as we could.  We our only showing the top few lines after attaching.  Can we  optimize this?
 
