@@ -160,8 +160,8 @@ defmodule TermigateWeb.MultiPaneLive do
         </div>
       </div>
 
-      <%!-- Control signal bar --%>
-      <div class="control-signal-bar">
+      <%!-- Control signal bar (mobile/tablet only) --%>
+      <div class="control-signal-bar sm:hidden">
         <div class="ctl-group">
           <button
             :for={{label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]}
@@ -195,29 +195,6 @@ defmodule TermigateWeb.MultiPaneLive do
             onmousedown="event.preventDefault()"
           >
             <kbd>{label}</kbd>
-          </button>
-        </div>
-
-        <div :if={length(@panes) > 1} class="ctl-group ml-auto">
-          <button
-            class="ctl-btn"
-            phx-click="equalize_panes"
-            phx-value-direction="horizontal"
-            title="Equal widths"
-          >
-            <svg viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
-              <path d="M1 2.5A1.5 1.5 0 012.5 1h4A1.5 1.5 0 018 2.5v11A1.5 1.5 0 016.5 15h-4A1.5 1.5 0 011 13.5v-11zM2.5 2a.5.5 0 00-.5.5v11a.5.5 0 00.5.5h4a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5h-4zM9.5 1A1.5 1.5 0 008 2.5v11A1.5 1.5 0 009.5 15h4a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0013.5 1h-4zM9 2.5a.5.5 0 01.5-.5h4a.5.5 0 01.5.5v11a.5.5 0 01-.5.5h-4a.5.5 0 01-.5-.5v-11z" />
-            </svg>
-          </button>
-          <button
-            class="ctl-btn"
-            phx-click="equalize_panes"
-            phx-value-direction="vertical"
-            title="Equal heights"
-          >
-            <svg viewBox="0 0 16 16" fill="currentColor" class="size-3.5">
-              <path d="M2.5 1A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8h11A1.5 1.5 0 0015 6.5v-4A1.5 1.5 0 0013.5 1h-11zM2 2.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v4a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-4zM1 9.5A1.5 1.5 0 012.5 8h11A1.5 1.5 0 0115 9.5v4a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-4zM2.5 9a.5.5 0 00-.5.5v4a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-4a.5.5 0 00-.5-.5h-11z" />
-            </svg>
           </button>
         </div>
       </div>
@@ -392,6 +369,29 @@ defmodule TermigateWeb.MultiPaneLive do
                   <path d="M2 4.5A2.5 2.5 0 014.5 2h11A2.5 2.5 0 0118 4.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 012 15.5v-11zM4 9V4.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5V9H4zm0 2v4.5a.5.5 0 00.5.5h11a.5.5 0 00.5-.5V11H4z" />
                 </svg>
               </button>
+              <%= if length(@panes) > 1 and @maximized == nil do %>
+                <span class="pane-overlay-separator"></span>
+                <button
+                  class="pane-overlay-btn"
+                  phx-click="equalize_panes"
+                  phx-value-direction="horizontal"
+                  title="Equal widths"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" class="size-4">
+                    <path d="M1 2.5A1.5 1.5 0 012.5 1h4A1.5 1.5 0 018 2.5v11A1.5 1.5 0 016.5 15h-4A1.5 1.5 0 011 13.5v-11zM2.5 2a.5.5 0 00-.5.5v11a.5.5 0 00.5.5h4a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5h-4zM9.5 1A1.5 1.5 0 008 2.5v11A1.5 1.5 0 009.5 15h4a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0013.5 1h-4zM9 2.5a.5.5 0 01.5-.5h4a.5.5 0 01.5.5v11a.5.5 0 01-.5.5h-4a.5.5 0 01-.5-.5v-11z" />
+                  </svg>
+                </button>
+                <button
+                  class="pane-overlay-btn"
+                  phx-click="equalize_panes"
+                  phx-value-direction="vertical"
+                  title="Equal heights"
+                >
+                  <svg viewBox="0 0 16 16" fill="currentColor" class="size-4">
+                    <path d="M2.5 1A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8h11A1.5 1.5 0 0015 6.5v-4A1.5 1.5 0 0013.5 1h-11zM2 2.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v4a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-4zM1 9.5A1.5 1.5 0 012.5 8h11A1.5 1.5 0 0115 9.5v4a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-4zM2.5 9a.5.5 0 00-.5.5v4a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-4a.5.5 0 00-.5-.5h-11z" />
+                  </svg>
+                </button>
+              <% end %>
             </div>
           </div>
         <% end %>

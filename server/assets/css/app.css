@@ -1009,6 +1009,12 @@ body {
   background: oklch(30% 0.02 260);
 }
 
+.pane-overlay-separator {
+  width: 1px;
+  height: 20px;
+  background: oklch(50% 0.01 260 / 30%);
+}
+
 @media (max-width: 639px) {
   .pane-overlay-btn {
     width: 44px;
