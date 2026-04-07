@@ -479,9 +479,28 @@ const TerminalHook = {
       window.visualViewport.addEventListener("resize", this._onViewportResize);
     }
 
-    // Tap terminal area to focus (opens soft keyboard)
-    this.el.addEventListener("touchstart", () => {
-      this.term?.focus();
+    // Tap terminal area to focus (opens soft keyboard), but not on scroll
+    this._tapStartX = null;
+    this._tapStartY = null;
+
+    this.el.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) {
+        this._tapStartX = e.touches[0].clientX;
+        this._tapStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    this.el.addEventListener("touchend", (e) => {
+      if (this._tapStartX !== null && e.changedTouches.length === 1) {
+        const dx = Math.abs(e.changedTouches[0].clientX - this._tapStartX);
+        const dy = Math.abs(e.changedTouches[0].clientY - this._tapStartY);
+        // Only focus (open keyboard) if finger moved less than 10px — a tap, not a scroll
+        if (dx < 10 && dy < 10) {
+          this.term?.focus();
+        }
+      }
+      this._tapStartX = null;
+      this._tapStartY = null;
     }, { passive: true });
   },
 
