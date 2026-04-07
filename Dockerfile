@@ -1,5 +1,5 @@
 # Build stage
-FROM elixir:1.17-slim AS build
+FROM elixir:1.19-slim AS build
 
 RUN apt-get update && apt-get install -y git nodejs npm && \
     rm -rf /var/lib/apt/lists/*

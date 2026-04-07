@@ -17,7 +17,7 @@ termigate runs on a host machine and lets you attach to tmux sessions from any w
 
 ## Requirements
 
-- Elixir 1.17+
+- Elixir 1.19+
 - Node.js (for asset building)
 - tmux
 
