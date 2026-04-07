@@ -479,28 +479,34 @@ const TerminalHook = {
       window.visualViewport.addEventListener("resize", this._onViewportResize);
     }
 
-    // Tap terminal area to focus (opens soft keyboard), but not on scroll
-    this._tapStartX = null;
-    this._tapStartY = null;
+    // Tap terminal area to focus (opens soft keyboard), but not on scroll.
+    // We must also block xterm.js's own focus-on-touch behavior, so we
+    // intercept focus events on its textarea and only allow them through
+    // once we've confirmed the gesture was a tap (not a drag/scroll).
+    this._touching = false;
+    this._scrolled = false;
 
     this.el.addEventListener("touchstart", (e) => {
       if (e.touches.length === 1) {
-        this._tapStartX = e.touches[0].clientX;
-        this._tapStartY = e.touches[0].clientY;
+        this._touching = true;
+        this._scrolled = false;
       }
     }, { passive: true });
 
-    this.el.addEventListener("touchend", (e) => {
-      if (this._tapStartX !== null && e.changedTouches.length === 1) {
-        const dx = Math.abs(e.changedTouches[0].clientX - this._tapStartX);
-        const dy = Math.abs(e.changedTouches[0].clientY - this._tapStartY);
-        // Only focus (open keyboard) if finger moved less than 10px — a tap, not a scroll
-        if (dx < 10 && dy < 10) {
-          this.term?.focus();
-        }
+    this.el.addEventListener("touchmove", () => {
+      this._scrolled = true;
+      // If xterm focused its textarea during touchstart, blur it now
+      if (this._touching && document.activeElement === this.term?.textarea) {
+        this.term.textarea.blur();
       }
-      this._tapStartX = null;
-      this._tapStartY = null;
+    }, { passive: true });
+
+    this.el.addEventListener("touchend", () => {
+      if (this._touching && !this._scrolled) {
+        this.term?.focus();
+      }
+      this._touching = false;
+      this._scrolled = false;
     }, { passive: true });
   },
 
