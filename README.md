@@ -65,11 +65,53 @@ bin/build-release.sh
 
 The release is built to `server/_build/prod/rel/termigate/`.
 
-### Docker
+### Container (Podman / Docker)
 
 ```bash
-docker build -t termigate .
-docker run -d -p 4000:4000 termigate
+# Build
+podman build -t termigate -f Containerfile .
+
+# Run with container-local tmux
+podman run -d -p 4000:4000 \
+  -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
+  termigate
+```
+
+#### Using host tmux sessions
+
+To access tmux sessions running on the host, mount the host's tmux socket
+directory into the container and set `TERMIGATE_TMUX_SOCKET` to point at it.
+
+1. Find your tmux socket directory — it's typically `/tmp/tmux-<UID>/`:
+
+   ```bash
+   echo "/tmp/tmux-$(id -u)"
+   ```
+
+2. Run the container with the socket mounted:
+
+   ```bash
+   podman run -d -p 4000:4000 \
+     -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
+     -e TERMIGATE_TMUX_SOCKET=/tmp/tmux-host/default \
+     -v "/tmp/tmux-$(id -u)":/tmp/tmux-host \
+     --user "$(id -u):$(id -g)" \
+     termigate
+   ```
+
+   The `--user` flag ensures the container process runs as your UID/GID so it
+   has permission to read/write the tmux socket. The socket is mounted at
+   `/tmp/tmux-host/default` inside the container.
+
+#### Docker
+
+The same commands work with `docker` in place of `podman`:
+
+```bash
+docker build -t termigate -f Containerfile .
+docker run -d -p 4000:4000 \
+  -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
+  termigate
 ```
 
 ### systemd

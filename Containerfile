@@ -1,5 +1,5 @@
 # Build stage
-FROM elixir:1.19-slim AS build
+FROM docker.io/elixir:1.19-slim AS build
 
 RUN apt-get update && apt-get install -y git nodejs npm && \
     rm -rf /var/lib/apt/lists/*
@@ -20,7 +20,7 @@ COPY server/ ./server/
 RUN cd server && mix assets.deploy && mix release
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM docker.io/debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tmux locales curl && \
