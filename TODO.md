@@ -22,6 +22,8 @@ Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implemen
 
 # Already Run
 
+- Let's write a Containerfile for the server.  It should include tmux so tmux can be used inside the running container.  Also include instructions in the README.md for mounting the tmux socket in for use with host tmux
+
 - On mobile, we're not showing as much of the history/top of the pane as we could.  We are only showing the top few lines after attaching.  Can we optimize this?
 
 - Let's hide our toolbar that has the ^C, ^D and Tab and arrow keys when we're on a desktop, but continue showing that on mobile and tablets.  Let's also move the equal width/height buttons somewhere else, since we don't want those hidden on desktop.  What are some thoughts on where we could move those to?
