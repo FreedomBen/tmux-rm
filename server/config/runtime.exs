@@ -34,6 +34,14 @@ if log_level = System.get_env("LOGGER_LEVEL") do
   config :logger, level: String.to_existing_atom(log_level)
 end
 
+# Allow PORT override in dev (default 8888)
+if config_env() == :dev do
+  port = String.to_integer(System.get_env("PORT") || "8888")
+
+  config :termigate, TermigateWeb.Endpoint,
+    http: [ip: {0, 0, 0, 0}, port: port]
+end
+
 if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||

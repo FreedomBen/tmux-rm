@@ -83,7 +83,8 @@
       "mcp__mobile-mcp__mobile_take_screenshot",
       "Bash(adb:*)",
       "Bash(./gradlew :app:assembleDebug)",
-      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__resize_page"
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__resize_page",
+      "Bash(PORT=8888 mix phx.server)"
     ]
   }
 }
