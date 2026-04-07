@@ -6,10 +6,6 @@
 
 - Let's update the README.md and CLAUDE.md files based on the recent work we've done, including implementing the android app.
 
-Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implementation plan.  Might do one more pass, then have it implmenet.  MCP finished, but not tested.
-
-- Let's review the android implementation plan in ANDROID_IMPLEMENTATION.md before we move on to implementation.  Look for any errors, inconsistencies, ambiguities, or otherwise missing things that need to be corrected prior to implementation.
-
 - Let's write an external test for the MCP server.
 
 - In mobile 
@@ -21,6 +17,10 @@ Left on on Mar 14th.  Pickup the 15th or 16th:  We reviewed the android implemen
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Let's review the android implementation plan in ANDROID_IMPLEMENTATION.md before we move on to implementation.  Look for any errors, inconsistencies, ambiguities, or otherwise missing things that need to be corrected prior to implementation.
+
+- on mobile web app, tapping to scroll up activates the soft keyboard, which is a bit too aggressive.  Let's activate it when the terminal pane is tapped, but not on scroll (touch and drag)
 
 - Let's write a Containerfile for the server.  It should include tmux so tmux can be used inside the running container.  Also include instructions in the README.md for mounting the tmux socket in for use with host tmux
 

@@ -429,7 +429,7 @@ body {
 
   .ctl-group {
     width: 100%;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 3px;
   }
 
