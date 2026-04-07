@@ -427,7 +427,11 @@ body {
     display: none;
   }
 
-
+  .ctl-group {
+    width: 100%;
+    justify-content: center;
+    gap: 3px;
+  }
 
   .ctl-btn {
     min-height: 40px;
