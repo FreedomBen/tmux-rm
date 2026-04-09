@@ -51,7 +51,49 @@ defmodule Termigate.Config do
       "custom_theme" => %{},
       "cursor_style" => "block",
       "cursor_blink" => true,
-      "show_toolbar" => true
+      "show_toolbar" => true,
+      "toolbar_buttons" => %{
+        "main_row" => [
+          %{"key" => "CtrlC", "label" => "^C"},
+          %{"key" => "CtrlD", "label" => "^D"},
+          %{"key" => "ArrowUp", "label" => "↑"},
+          %{"key" => "CtrlZ", "label" => "^Z"},
+          %{"key" => "CtrlL", "label" => "^L"},
+          %{"key" => "CtrlBackslash", "label" => "^\\"}
+        ],
+        "second_row" => [
+          %{"key" => "Tab", "label" => "Tab"},
+          %{"key" => "ArrowLeft", "label" => "←"},
+          %{"key" => "ArrowDown", "label" => "↓"},
+          %{"key" => "ArrowRight", "label" => "→"}
+        ],
+        "compact_row" => [
+          %{"key" => "CtrlC", "label" => "^C"},
+          %{"key" => "CtrlD", "label" => "^D"},
+          %{"key" => "CtrlZ", "label" => "^Z"},
+          %{"key" => "Tab", "label" => "Tab"},
+          %{"key" => "ArrowUp", "label" => "↑"},
+          %{"key" => "ArrowDown", "label" => "↓"}
+        ],
+        "extended_row" => [
+          %{"key" => "F1", "label" => "F1"},
+          %{"key" => "F2", "label" => "F2"},
+          %{"key" => "F3", "label" => "F3"},
+          %{"key" => "F4", "label" => "F4"},
+          %{"key" => "F5", "label" => "F5"},
+          %{"key" => "F6", "label" => "F6"},
+          %{"key" => "F7", "label" => "F7"},
+          %{"key" => "F8", "label" => "F8"},
+          %{"key" => "F9", "label" => "F9"},
+          %{"key" => "F10", "label" => "F10"},
+          %{"key" => "F11", "label" => "F11"},
+          %{"key" => "F12", "label" => "F12"},
+          %{"key" => "PageUp", "label" => "PgUp"},
+          %{"key" => "PageDown", "label" => "PgDn"},
+          %{"key" => "Home", "label" => "Home"},
+          %{"key" => "End", "label" => "End"}
+        ]
+      }
     },
     "notifications" => %{
       "mode" => "disabled",
@@ -119,6 +161,31 @@ defmodule Termigate.Config do
   #   cursor_style:  block, underline, or bar (default: "block")
   #   cursor_blink:  true/false (default: true)
   #   show_toolbar:  Show virtual toolbar on mobile (default: true)
+  #   toolbar_buttons:
+  #     Customize the mobile virtual toolbar buttons. Each row is a list
+  #     of buttons with a "key" and "label". Remove a button to hide it,
+  #     reorder to change position, or change "key" to alter what it sends.
+  #     Set a row to [] to hide it entirely.
+  #
+  #     Rows: main_row, second_row, compact_row, extended_row
+  #
+  #     Valid keys: Escape, Tab, CtrlC, CtrlD, CtrlZ, CtrlL, CtrlBackslash,
+  #       ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+  #       F1–F12, PageUp, PageDown, Home, End
+  #
+  #     Example — swap ^C and ^D, remove ^L from main row:
+  #       toolbar_buttons:
+  #         main_row:
+  #           - key: CtrlD
+  #             label: "^D"
+  #           - key: CtrlC
+  #             label: "^C"
+  #           - key: ArrowUp
+  #             label: "↑"
+  #           - key: CtrlZ
+  #             label: "^Z"
+  #           - key: CtrlBackslash
+  #             label: "^\\"
   """
 
   # --- Public API ---
@@ -443,6 +510,13 @@ defmodule Termigate.Config do
 
   @valid_themes ~w(dark light solarizedDark solarizedLight custom)
   @valid_cursor_styles ~w(block underline bar)
+  @valid_toolbar_keys ~w(
+    Escape Tab CtrlC CtrlD CtrlZ CtrlL CtrlBackslash
+    ArrowUp ArrowDown ArrowLeft ArrowRight
+    F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12
+    PageUp PageDown Home End
+  )
+  @valid_toolbar_rows ~w(main_row second_row compact_row extended_row)
 
   defp normalize_terminal_section(config) do
     defaults = @default_config["terminal"]
@@ -464,11 +538,36 @@ defmodule Termigate.Config do
           else: "block"
         ),
       "cursor_blink" => terminal["cursor_blink"] == true,
-      "show_toolbar" => terminal["show_toolbar"] != false
+      "show_toolbar" => terminal["show_toolbar"] != false,
+      "toolbar_buttons" => normalize_toolbar_buttons(terminal["toolbar_buttons"])
     }
 
     Map.put(config, "terminal", terminal)
   end
+
+  defp normalize_toolbar_buttons(buttons) when is_map(buttons) do
+    defaults = @default_config["terminal"]["toolbar_buttons"]
+
+    Map.new(@valid_toolbar_rows, fn row ->
+      case buttons[row] do
+        list when is_list(list) -> {row, normalize_button_list(list)}
+        _ -> {row, defaults[row]}
+      end
+    end)
+  end
+
+  defp normalize_toolbar_buttons(_), do: @default_config["terminal"]["toolbar_buttons"]
+
+  defp normalize_button_list(buttons) do
+    buttons
+    |> Enum.filter(&valid_button?/1)
+    |> Enum.map(fn btn ->
+      %{"key" => btn["key"], "label" => to_string(btn["label"] || btn["key"])}
+    end)
+  end
+
+  defp valid_button?(%{"key" => key}) when is_binary(key), do: key in @valid_toolbar_keys
+  defp valid_button?(_), do: false
 
   defp normalize_notifications_section(config) do
     defaults = @default_config["notifications"]

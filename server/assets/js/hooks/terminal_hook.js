@@ -291,6 +291,33 @@ const TerminalHook = {
     }
     if (this._toolbar) {
       this._toolbar.classList.toggle("vk-hidden", !local.showToolbar);
+      this._rebuildToolbarButtons(local.toolbarButtons);
+    }
+  },
+
+  _rebuildToolbarButtons(buttons) {
+    if (!buttons || !this._toolbar) return;
+
+    const mainRowEl = this._toolbar.querySelector(".vk-main-row");
+    if (mainRowEl) {
+      mainRowEl.innerHTML = this._buildButtonsHtml(buttons.main_row);
+    }
+
+    const secondRowEl = this._toolbar.querySelector(".vk-second-row");
+    if (secondRowEl) {
+      secondRowEl.innerHTML = this._buildButtonsHtml(buttons.second_row);
+    }
+
+    const extendedRowEl = this._toolbar.querySelector(".vk-extended-row");
+    if (extendedRowEl) {
+      extendedRowEl.innerHTML = this._buildButtonsHtml(buttons.extended_row, "vk-sm");
+    }
+
+    if (this._compactToolbar) {
+      this._compactToolbar.innerHTML = this._buildButtonsHtml(
+        buttons.compact_row,
+        "vk-compact",
+      );
     }
   },
 
@@ -315,6 +342,25 @@ const TerminalHook = {
   },
 
   // --- Virtual Key Toolbar ---
+  _buildButtonsHtml(buttons, extraClass) {
+    if (!buttons || buttons.length === 0) return "";
+    return buttons
+      .map((btn) => {
+        const cls = extraClass ? `vk-btn ${extraClass}` : "vk-btn";
+        const escaped = btn.label
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        return `<button class="${cls}" data-key="${btn.key}">${escaped}</button>`;
+      })
+      .join("\n        ");
+  },
+
+  _getToolbarButtons() {
+    const prefs = this.getLocalPrefs();
+    return prefs.toolbarButtons || null;
+  },
+
   _setupVirtualToolbar() {
     // Only render on mobile/tablet
     if (!isMobile() && !isTablet()) return;
@@ -322,46 +368,23 @@ const TerminalHook = {
     // Respect showToolbar preference
     const localPrefs = this.getLocalPrefs();
     const showToolbar = localPrefs.showToolbar !== false;
+    const buttons = localPrefs.toolbarButtons;
+
+    // Build row HTML from config (or use defaults if no config)
+    const mainRow = buttons ? this._buildButtonsHtml(buttons.main_row) : "";
+    const secondRow = buttons ? this._buildButtonsHtml(buttons.second_row) : "";
+    const extendedRow = buttons
+      ? this._buildButtonsHtml(buttons.extended_row, "vk-sm")
+      : "";
 
     // Create toolbar container
     this._toolbar = document.createElement("div");
     this._toolbar.className = "virtual-toolbar" + (showToolbar ? "" : " vk-hidden");
     this._toolbar.innerHTML = `
-      <div class="vk-main-row">
-        <button class="vk-btn" data-key="CtrlC">^C</button>
-        <button class="vk-btn" data-key="CtrlD">^D</button>
-        <button class="vk-btn" data-key="ArrowUp">↑</button>
-        <button class="vk-btn" data-key="CtrlZ">^Z</button>
-        <button class="vk-btn" data-key="CtrlL">^L</button>
-        <button class="vk-btn" data-key="CtrlBackslash">^\</button>
-      </div>
-      <div class="vk-second-row">
-        <button class="vk-btn" data-key="Tab">Tab</button>
-        <button class="vk-btn" data-key="ArrowLeft">←</button>
-        <button class="vk-btn" data-key="ArrowDown">↓</button>
-        <button class="vk-btn" data-key="ArrowRight">→</button>
-      </div>
-      <div class="vk-extended-row vk-hidden">
-        <button class="vk-btn vk-sm" data-key="F1">F1</button>
-        <button class="vk-btn vk-sm" data-key="F2">F2</button>
-        <button class="vk-btn vk-sm" data-key="F3">F3</button>
-        <button class="vk-btn vk-sm" data-key="F4">F4</button>
-        <button class="vk-btn vk-sm" data-key="F5">F5</button>
-        <button class="vk-btn vk-sm" data-key="F6">F6</button>
-        <button class="vk-btn vk-sm" data-key="F7">F7</button>
-        <button class="vk-btn vk-sm" data-key="F8">F8</button>
-        <button class="vk-btn vk-sm" data-key="F9">F9</button>
-        <button class="vk-btn vk-sm" data-key="F10">F10</button>
-        <button class="vk-btn vk-sm" data-key="F11">F11</button>
-        <button class="vk-btn vk-sm" data-key="F12">F12</button>
-        <button class="vk-btn vk-sm" data-key="PageUp">PgUp</button>
-        <button class="vk-btn vk-sm" data-key="PageDown">PgDn</button>
-        <button class="vk-btn vk-sm" data-key="Home">Home</button>
-        <button class="vk-btn vk-sm" data-key="End">End</button>
-      </div>
-      <div class="vk-expand-handle" data-action="toggle-extended">
-        <span class="vk-expand-chevron">▲</span>
-      </div>
+      ${mainRow ? `<div class="vk-main-row">${mainRow}</div>` : ""}
+      ${secondRow ? `<div class="vk-second-row">${secondRow}</div>` : ""}
+      ${extendedRow ? `<div class="vk-extended-row vk-hidden">${extendedRow}</div>` : ""}
+      ${extendedRow ? `<div class="vk-expand-handle" data-action="toggle-extended"><span class="vk-expand-chevron">▲</span></div>` : ""}
     `;
 
     // Insert after terminal container's parent (the flex column)
@@ -369,16 +392,12 @@ const TerminalHook = {
     termPage.appendChild(this._toolbar);
 
     // Compact modifier row (visible when soft keyboard is open)
+    const compactRow = buttons
+      ? this._buildButtonsHtml(buttons.compact_row, "vk-compact")
+      : "";
     this._compactToolbar = document.createElement("div");
     this._compactToolbar.className = "vk-compact-row vk-hidden";
-    this._compactToolbar.innerHTML = `
-      <button class="vk-btn vk-compact" data-key="CtrlC">^C</button>
-      <button class="vk-btn vk-compact" data-key="CtrlD">^D</button>
-      <button class="vk-btn vk-compact" data-key="CtrlZ">^Z</button>
-      <button class="vk-btn vk-compact" data-key="Tab">Tab</button>
-      <button class="vk-btn vk-compact" data-key="ArrowUp">↑</button>
-      <button class="vk-btn vk-compact" data-key="ArrowDown">↓</button>
-    `;
+    this._compactToolbar.innerHTML = compactRow;
     termPage.appendChild(this._compactToolbar);
 
     // Event delegation for toolbar buttons
