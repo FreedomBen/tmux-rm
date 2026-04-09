@@ -18,6 +18,11 @@ function isTablet() {
 const KEY_SEQUENCES = {
   Escape: "\x1b",
   Tab: "\x09",
+  CtrlC: "\x03",
+  CtrlD: "\x04",
+  CtrlZ: "\x1a",
+  CtrlL: "\x0c",
+  CtrlBackslash: "\x1c",
   ArrowUp: "\x1b[A",
   ArrowDown: "\x1b[B",
   ArrowRight: "\x1b[C",
@@ -323,15 +328,18 @@ const TerminalHook = {
     this._toolbar.className = "virtual-toolbar" + (showToolbar ? "" : " vk-hidden");
     this._toolbar.innerHTML = `
       <div class="vk-main-row">
-        <button class="vk-btn" data-key="Escape">Esc</button>
-        <button class="vk-btn" data-key="Tab">Tab</button>
-        <button class="vk-btn vk-modifier" data-modifier="ctrl">Ctrl</button>
-        <button class="vk-btn vk-modifier" data-modifier="alt">Alt</button>
+        <button class="vk-btn" data-key="CtrlC">^C</button>
+        <button class="vk-btn" data-key="CtrlD">^D</button>
         <button class="vk-btn" data-key="ArrowUp">↑</button>
-        <button class="vk-btn" data-key="ArrowDown">↓</button>
+        <button class="vk-btn" data-key="CtrlZ">^Z</button>
+        <button class="vk-btn" data-key="CtrlL">^L</button>
+        <button class="vk-btn" data-key="CtrlBackslash">^\</button>
+      </div>
+      <div class="vk-second-row">
+        <button class="vk-btn" data-key="Tab">Tab</button>
         <button class="vk-btn" data-key="ArrowLeft">←</button>
+        <button class="vk-btn" data-key="ArrowDown">↓</button>
         <button class="vk-btn" data-key="ArrowRight">→</button>
-        <button class="vk-btn vk-paste" data-action="paste">Paste</button>
       </div>
       <div class="vk-extended-row vk-hidden">
         <button class="vk-btn vk-sm" data-key="F1">F1</button>
@@ -364,9 +372,9 @@ const TerminalHook = {
     this._compactToolbar = document.createElement("div");
     this._compactToolbar.className = "vk-compact-row vk-hidden";
     this._compactToolbar.innerHTML = `
-      <button class="vk-btn vk-compact" data-key="Escape">Esc</button>
-      <button class="vk-btn vk-compact vk-modifier" data-modifier="ctrl">Ctrl</button>
-      <button class="vk-btn vk-compact vk-modifier" data-modifier="alt">Alt</button>
+      <button class="vk-btn vk-compact" data-key="CtrlC">^C</button>
+      <button class="vk-btn vk-compact" data-key="CtrlD">^D</button>
+      <button class="vk-btn vk-compact" data-key="CtrlZ">^Z</button>
       <button class="vk-btn vk-compact" data-key="Tab">Tab</button>
       <button class="vk-btn vk-compact" data-key="ArrowUp">↑</button>
       <button class="vk-btn vk-compact" data-key="ArrowDown">↓</button>

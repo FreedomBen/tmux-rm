@@ -473,6 +473,7 @@ body {
 }
 
 .vk-main-row,
+.vk-second-row,
 .vk-extended-row {
   display: flex;
   gap: 4px;
