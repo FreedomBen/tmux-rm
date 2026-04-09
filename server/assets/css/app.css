@@ -1048,6 +1048,20 @@ body {
   border: none;
 }
 
+/* Mobile: preserve tmux's native dimensions and scroll to view */
+@media (max-width: 639px) {
+  .pane-maximized {
+    overflow: auto !important;
+    scrollbar-width: thin;
+  }
+  .pane-maximized > [data-mode="multi"] {
+    width: max-content !important;
+    height: max-content !important;
+    min-width: 100%;
+    min-height: 100%;
+  }
+}
+
 /* === Pane resize dividers === */
 .pane-divider {
   position: absolute;

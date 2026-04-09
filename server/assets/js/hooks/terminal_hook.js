@@ -161,9 +161,9 @@ const TerminalHook = {
         }, 300);
       });
       this._resizeObserver.observe(this.el);
-    } else {
-      // Multi-pane: fit terminal to container on mount and on browser
-      // resize/zoom. We use the window "resize" event rather than a
+    } else if (!this._isMobile) {
+      // Multi-pane (non-mobile): fit terminal to container on mount and on
+      // browser resize/zoom. We use the window "resize" event rather than a
       // ResizeObserver because ResizeObserver also fires when the LiveView
       // re-renders the CSS Grid (after LayoutPoller updates), which creates
       // a feedback loop (fit → tmux resize → layout update → grid change →
@@ -243,15 +243,20 @@ const TerminalHook = {
       // hidden to visible, so the terminal needs to fit the real size).
       this.handleEvent("pane_maximized", ({ target }) => {
         if (target === this.el.dataset.target) {
-          setTimeout(() => {
-            const prevCols = this.term.cols;
-            const prevRows = this.term.rows;
-            this.fitAddon.fit();
-            if (this.channel && this.term &&
-                (this.term.cols !== prevCols || this.term.rows !== prevRows)) {
-              this.channel.push("resize", { cols: this.term.cols, rows: this.term.rows });
-            }
-          }, 50);
+          if (this._isMobile) {
+            // Mobile: keep tmux's native dimensions, just refresh the display
+            this.term?.refresh(0, this.term.rows - 1);
+          } else {
+            setTimeout(() => {
+              const prevCols = this.term.cols;
+              const prevRows = this.term.rows;
+              this.fitAddon.fit();
+              if (this.channel && this.term &&
+                  (this.term.cols !== prevCols || this.term.rows !== prevRows)) {
+                this.channel.push("resize", { cols: this.term.cols, rows: this.term.rows });
+              }
+            }, 50);
+          }
         }
       });
 
@@ -276,7 +281,9 @@ const TerminalHook = {
     this.term.options.theme = resolveTheme(local);
     this.term.options.cursorStyle = local.cursorStyle;
     this.term.options.cursorBlink = local.cursorBlink;
-    this.fitAddon?.fit();
+    if (!(this._isMobile && this._isMultiPane)) {
+      this.fitAddon?.fit();
+    }
     if (this._toolbar) {
       this._toolbar.classList.toggle("vk-hidden", !local.showToolbar);
     }
