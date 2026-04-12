@@ -130,6 +130,7 @@ defmodule TermigateWeb.MultiPaneLive do
             navigate={~p"/settings"}
             class="text-base-content/50 hover:text-base-content text-sm"
             aria-label="Settings"
+            title="Settings"
           >
             <.icon name="hero-cog-6-tooth-micro" class="size-5" />
           </.link>
