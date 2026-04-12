@@ -88,7 +88,10 @@
       "Bash(PORT=8888 mix phx.server)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "mcp__plugin_context-mode_context-mode__ctx_stats"
+      "mcp__plugin_context-mode_context-mode__ctx_stats",
+      "Bash(MIX_ENV=prod mix release --overwrite)",
+      "Bash(mkdir -p priv/static/images)",
+      "Bash(magick termigate-logo.png -resize 600x priv/static/images/termigate-logo.png)"
     ]
   }
 }

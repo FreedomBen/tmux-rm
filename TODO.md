@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Let's make the Control and tab button section collapsible with a toggle.  When collapsed it should be very thin.
-
 - How hard would it be to make this a progressive web app?
 
 - Notification threshold control doesn't work
@@ -25,6 +23,10 @@
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- let's add tmux to the Containerfile so that when the app is launched in the containerfile without a tmux socket mapped in, it will use the tmux in the container
+
+- Let's make the Control and tab button section collapsible with a toggle.  When collapsed it should be very thin.
 
 - Let's make the Ctrl and arrow and tab buttons configurable in the config file.  Users should be able to disable them (in which case they don't appear on the screen at all), Swap the locations, and/or change their value.
 
