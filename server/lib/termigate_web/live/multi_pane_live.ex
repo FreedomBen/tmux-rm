@@ -119,18 +119,18 @@ defmodule TermigateWeb.MultiPaneLive do
           <button
             type="button"
             id="mobile-keyboard-toggle"
-            class="text-base-content/50 hover:text-base-content text-sm"
+            class="text-base-content/50 hover:text-base-content text-sm tooltip tooltip-bottom"
             aria-label="Toggle on-screen keyboard"
-            title="Toggle on-screen keyboard"
+            data-tip="Toggle on-screen keyboard"
           >
             <.icon name="hero-command-line-micro" class="kb-icon-on size-5" />
             <.icon name="hero-no-symbol-micro" class="kb-icon-off size-5 hidden text-red-400" />
           </button>
           <.link
             navigate={~p"/settings"}
-            class="text-base-content/50 hover:text-base-content text-sm"
+            class="text-base-content/50 hover:text-base-content text-sm tooltip tooltip-left"
             aria-label="Settings"
-            title="Settings"
+            data-tip="Settings"
           >
             <.icon name="hero-cog-6-tooth-micro" class="size-5" />
           </.link>
@@ -142,9 +142,9 @@ defmodule TermigateWeb.MultiPaneLive do
         <button
           type="button"
           id="bars-toggle-btn"
-          class="bars-toggle-btn"
+          class="bars-toggle-btn tooltip tooltip-bottom"
           aria-label="Toggle tab and control bar"
-          title="Collapse/expand tabs and controls"
+          data-tip="Collapse/expand tabs and controls"
         >
           <.icon name="hero-chevron-up-micro" class="bars-chevron-up size-3" />
           <.icon name="hero-chevron-down-micro" class="bars-chevron-down size-3 hidden" />
@@ -166,19 +166,21 @@ defmodule TermigateWeb.MultiPaneLive do
               Window {win.index}{if win.name, do: ": #{win.name}", else: ""}
             </.link>
             <button
-              class="window-close-btn"
+              class="window-close-btn tooltip tooltip-bottom"
               phx-click="close_window"
               phx-value-window={win.index}
               onmousedown="event.preventDefault()"
-              title="Close window"
+              data-tip="Close window"
+              aria-label="Close window"
             >
               &times;
             </button>
           </div>
           <button
-            class="new-window-btn"
+            class="new-window-btn tooltip tooltip-bottom"
             phx-click="create_window"
-            title="New window"
+            data-tip="New window"
+            aria-label="New window"
           >
             <.icon name="hero-plus-micro" class="size-3.5" />
           </button>
@@ -357,39 +359,43 @@ defmodule TermigateWeb.MultiPaneLive do
             <div class="pane-overlay">
               <%= if @maximized == pane.target do %>
                 <button
-                  class="pane-overlay-btn"
+                  class="pane-overlay-btn tooltip tooltip-bottom"
                   phx-click="restore_pane"
-                  title="Restore"
+                  data-tip="Restore"
+                  aria-label="Restore"
                 >
                   <.icon name="hero-arrows-pointing-in-micro" class="size-4" />
                 </button>
               <% else %>
                 <button
-                  class="pane-overlay-btn"
+                  class="pane-overlay-btn tooltip tooltip-bottom"
                   phx-click="maximize_pane"
                   phx-value-target={pane.target}
-                  title="Maximize"
+                  data-tip="Maximize"
+                  aria-label="Maximize"
                 >
                   <.icon name="hero-arrows-pointing-out-micro" class="size-4" />
                 </button>
               <% end %>
               <button
-                class="pane-overlay-btn"
+                class="pane-overlay-btn tooltip tooltip-bottom"
                 phx-click="split_pane"
                 phx-value-target={pane.target}
                 phx-value-direction="horizontal"
-                title="Split horizontally"
+                data-tip="Split horizontally"
+                aria-label="Split horizontally"
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
                   <path d="M2 4.5A2.5 2.5 0 014.5 2h11A2.5 2.5 0 0118 4.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 012 15.5v-11zM9 4H4.5A.5.5 0 004 4.5v11a.5.5 0 00.5.5H9V4zm2 12h4.5a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5H11v12z" />
                 </svg>
               </button>
               <button
-                class="pane-overlay-btn"
+                class="pane-overlay-btn tooltip tooltip-bottom"
                 phx-click="split_pane"
                 phx-value-target={pane.target}
                 phx-value-direction="vertical"
-                title="Split vertically"
+                data-tip="Split vertically"
+                aria-label="Split vertically"
               >
                 <svg viewBox="0 0 20 20" fill="currentColor" class="size-4">
                   <path d="M2 4.5A2.5 2.5 0 014.5 2h11A2.5 2.5 0 0118 4.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 012 15.5v-11zM4 9V4.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5V9H4zm0 2v4.5a.5.5 0 00.5.5h11a.5.5 0 00.5-.5V11H4z" />
@@ -398,20 +404,22 @@ defmodule TermigateWeb.MultiPaneLive do
               <%= if length(@panes) > 1 and @maximized == nil do %>
                 <span class="pane-overlay-separator"></span>
                 <button
-                  class="pane-overlay-btn"
+                  class="pane-overlay-btn tooltip tooltip-bottom"
                   phx-click="equalize_panes"
                   phx-value-direction="horizontal"
-                  title="Equal widths"
+                  data-tip="Equal widths"
+                  aria-label="Equal widths"
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" class="size-4">
                     <path d="M1 2.5A1.5 1.5 0 012.5 1h4A1.5 1.5 0 018 2.5v11A1.5 1.5 0 016.5 15h-4A1.5 1.5 0 011 13.5v-11zM2.5 2a.5.5 0 00-.5.5v11a.5.5 0 00.5.5h4a.5.5 0 00.5-.5v-11a.5.5 0 00-.5-.5h-4zM9.5 1A1.5 1.5 0 008 2.5v11A1.5 1.5 0 009.5 15h4a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0013.5 1h-4zM9 2.5a.5.5 0 01.5-.5h4a.5.5 0 01.5.5v11a.5.5 0 01-.5.5h-4a.5.5 0 01-.5-.5v-11z" />
                   </svg>
                 </button>
                 <button
-                  class="pane-overlay-btn"
+                  class="pane-overlay-btn tooltip tooltip-bottom"
                   phx-click="equalize_panes"
                   phx-value-direction="vertical"
-                  title="Equal heights"
+                  data-tip="Equal heights"
+                  aria-label="Equal heights"
                 >
                   <svg viewBox="0 0 16 16" fill="currentColor" class="size-4">
                     <path d="M2.5 1A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8h11A1.5 1.5 0 0015 6.5v-4A1.5 1.5 0 0013.5 1h-11zM2 2.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v4a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-4zM1 9.5A1.5 1.5 0 012.5 8h11A1.5 1.5 0 0115 9.5v4a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-4zM2.5 9a.5.5 0 00-.5.5v4a.5.5 0 00.5.5h11a.5.5 0 00.5-.5v-4a.5.5 0 00-.5-.5h-11z" />
