@@ -9,7 +9,9 @@ defmodule Termigate.Tmux.CommandRunner do
     tmux_path = tmux_executable()
     full_args = socket_args() ++ args
 
-    Logger.debug("tmux command: #{tmux_path} #{Enum.join(full_args, " ")}")
+    unless noisy?(args) do
+      Logger.debug("tmux command: #{tmux_path} #{Enum.join(full_args, " ")}")
+    end
 
     case System.cmd(tmux_path, full_args, stderr_to_stdout: true) do
       {stdout, 0} ->
@@ -43,6 +45,10 @@ defmodule Termigate.Tmux.CommandRunner do
       socket -> ["-S", socket]
     end
   end
+
+  defp noisy?(["list-panes" | _]), do: true
+  defp noisy?(["list-sessions" | _]), do: true
+  defp noisy?(_), do: false
 
   defp check_version_once do
     unless :persistent_term.get(:tmux_version_checked, false) do
