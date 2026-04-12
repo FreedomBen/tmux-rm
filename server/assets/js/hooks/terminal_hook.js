@@ -358,12 +358,11 @@ const TerminalHook = {
     if (!btn || btn._termigateWired) return;
     btn._termigateWired = true;
 
-    const slash = btn.querySelector(".kb-slash");
+    const onIcon = btn.querySelector(".kb-icon-on");
+    const offIcon = btn.querySelector(".kb-icon-off");
     const applyState = (enabled) => {
-      if (slash) {
-        slash.classList.toggle("hidden", enabled);
-        slash.classList.toggle("flex", !enabled);
-      }
+      onIcon?.classList.toggle("hidden", !enabled);
+      offIcon?.classList.toggle("hidden", enabled);
       btn.setAttribute("aria-pressed", enabled ? "false" : "true");
     };
     applyState(this._getMobileKeyboardEnabled());

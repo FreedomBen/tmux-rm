@@ -119,17 +119,12 @@ defmodule TermigateWeb.MultiPaneLive do
           <button
             type="button"
             id="mobile-keyboard-toggle"
-            class="text-base-content/50 hover:text-base-content text-sm relative"
+            class="text-base-content/50 hover:text-base-content text-sm"
             aria-label="Toggle on-screen keyboard"
             title="Toggle on-screen keyboard"
           >
-            <.icon name="hero-command-line-micro" class="size-5" />
-            <span
-              class="kb-slash pointer-events-none absolute inset-0 items-center justify-center hidden"
-              aria-hidden="true"
-            >
-              <span class="block w-5 h-0.5 bg-current rotate-45"></span>
-            </span>
+            <.icon name="hero-command-line-micro" class="kb-icon-on size-5" />
+            <.icon name="hero-no-symbol-micro" class="kb-icon-off size-5 hidden text-red-400" />
           </button>
           <.link
             navigate={~p"/settings"}
