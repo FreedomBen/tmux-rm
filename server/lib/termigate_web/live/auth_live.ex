@@ -27,7 +27,7 @@ defmodule TermigateWeb.AuthLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col items-center justify-center min-h-screen px-4 py-8 gap-6">
+    <div class="flex flex-col items-center justify-center min-h-screen px-4 py-8 gap-6 sm:gap-12">
       <img
         src={~p"/images/termigate-logo.png"}
         alt="termigate"
