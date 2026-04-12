@@ -1,0 +1,51 @@
+# termigate — Container deployment (Podman)
+#
+# Install:
+#   sudo useradd -r -m -d /var/lib/termigate -s /usr/sbin/nologin termigate
+#   sudo mkdir -p /etc/termigate /var/lib/termigate
+#   sudo chown -R termigate:termigate /var/lib/termigate
+#   # Build or pull the image:
+#   sudo podman build -t localhost/termigate:latest -f Containerfile .
+#   sudo cp deploy/termigate-container.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now termigate-container.service
+#
+# By default this runs tmux *inside* the container. To connect to the host's
+# tmux sessions instead, add a bind mount for the tmux socket directory and
+# set TERMIGATE_TMUX_SOCKET (see Containerfile docs in README.md).
+
+[Unit]
+Description=termigate — Browser-based tmux session manager (container)
+Documentation=https://github.com/anthropics/termigate
+After=network-online.target
+Wants=network-online.target
+Requires=podman.service
+
+[Service]
+Type=exec
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+Environment=TERMIGATE_IMAGE=localhost/termigate:latest
+Environment=TERMIGATE_PORT=4000
+Environment=TERMIGATE_SECRET_KEY_BASE=CHANGE_ME_generate_with_mix_phx_gen_secret
+
+# Remove any stale container before starting
+ExecStartPre=-/usr/bin/podman rm -f termigate
+
+ExecStart=/usr/bin/podman run \
+    --rm \
+    --name termigate \
+    --publish ${TERMIGATE_PORT}:4000 \
+    --env PHX_SERVER=true \
+    --env PHX_HOST=localhost \
+    --env SECRET_KEY_BASE=${TERMIGATE_SECRET_KEY_BASE} \
+    --volume /etc/termigate:/etc/termigate:ro \
+    --volume termigate-data:/var/lib/termigate \
+    ${TERMIGATE_IMAGE}
+
+ExecStop=/usr/bin/podman stop --time 10 termigate
+
+[Install]
+WantedBy=multi-user.target

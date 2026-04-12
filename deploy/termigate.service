@@ -1,29 +1,58 @@
+# termigate — Mix release (no container)
+#
+# Install:
+#   sudo useradd -r -m -d /var/lib/termigate -s /usr/sbin/nologin termigate
+#   sudo mkdir -p /opt/termigate /etc/termigate
+#   sudo tar -xzf termigate-release.tar.gz -C /opt/termigate
+#   sudo chown -R termigate:termigate /opt/termigate /var/lib/termigate
+#   sudo cp deploy/termigate.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now termigate.service
+#
+# Edit the Environment= lines below to suit your deployment.
+
 [Unit]
-Description=termigate — Remote terminal manager
-After=network.target
+Description=termigate — Browser-based tmux session manager
+Documentation=https://github.com/anthropics/termigate
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=exec
-User=ben
-Group=ben
+User=termigate
+Group=termigate
 WorkingDirectory=/opt/termigate
-Environment=HOME=/home/ben
+
+# --- Required ---
+Environment=PHX_SERVER=true
 Environment=PORT=4000
 Environment=PHX_HOST=localhost
-Environment=PHX_SERVER=true
-Environment=SECRET_KEY_BASE=generate-a-secret-key-base-here
-# Uncomment for remote access:
+Environment=SECRET_KEY_BASE=CHANGE_ME_generate_with_mix_phx_gen_secret
+
+# --- Optional ---
 # Environment=PHX_BIND=0.0.0.0
 # Environment=TERMIGATE_AUTH_TOKEN=your-secure-token
+# Environment=TERMIGATE_CONFIG=/etc/termigate/config.yaml
+# Environment=TERMIGATE_TMUX_SOCKET=/tmp/tmux-1000/default
+
 ExecStart=/opt/termigate/bin/termigate start
 ExecStop=/opt/termigate/bin/termigate stop
 Restart=on-failure
 RestartSec=5
+KillMode=process
+TimeoutStopSec=15
+
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/tmp/termigate /home/ben/.config/termigate
-ProtectHome=read-only
+ProtectHome=true
+PrivateTmp=false
+ReadWritePaths=/var/lib/termigate /tmp
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target
