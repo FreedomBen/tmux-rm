@@ -36,14 +36,20 @@
       </p>
     </div>
     <div class="flex items-center gap-2">
-      <.link navigate={~p"/settings"} class="btn btn-ghost btn-sm" aria-label="Settings">
+      <.link
+        navigate={~p"/settings"}
+        class="btn btn-ghost btn-sm tooltip tooltip-bottom"
+        aria-label="Settings"
+        data-tip="Settings"
+      >
         <.icon name="hero-cog-6-tooth-micro" class="size-5" />
       </.link>
       <.link
         href={~p"/logout"}
         method="delete"
-        class="btn btn-ghost btn-sm"
+        class="btn btn-ghost btn-sm tooltip tooltip-bottom"
         aria-label="Log out"
+        data-tip="Log out"
         data-confirm="Log out?"
       >
         <.icon name="hero-arrow-right-start-on-rectangle-micro" class="size-5" />
@@ -51,8 +57,9 @@
       <%!-- Desktop-only new session button --%>
       <button
         :if={@tmux_status not in [:not_found]}
-        class="btn btn-primary btn-sm hidden sm:inline-flex"
+        class="btn btn-primary btn-sm hidden sm:inline-flex tooltip tooltip-bottom"
         phx-click="toggle_new_session_form"
+        data-tip="Create a new tmux session"
       >
         <.icon name="hero-plus-micro" class="size-4" /> New Session
       </button>
@@ -146,12 +153,20 @@
             />
             <button
               type="submit"
-              class="btn btn-ghost btn-xs btn-success"
+              class="btn btn-ghost btn-xs btn-success tooltip tooltip-bottom"
               disabled={@rename_error != nil}
+              data-tip="Save"
+              aria-label="Save rename"
             >
               <.icon name="hero-check-micro" class="size-4" />
             </button>
-            <button type="button" class="btn btn-ghost btn-xs" phx-click="cancel_rename">
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs tooltip tooltip-bottom"
+              phx-click="cancel_rename"
+              data-tip="Cancel"
+              aria-label="Cancel rename"
+            >
               <.icon name="hero-x-mark-micro" class="size-4" />
             </button>
           </form>
@@ -187,7 +202,12 @@
             class="dropdown dropdown-end"
             phx-click-away={JS.remove_attribute("open", to: "details.dropdown")}
           >
-            <summary class="btn btn-ghost btn-xs" onclick="event.stopPropagation();">
+            <summary
+              class="btn btn-ghost btn-xs tooltip tooltip-left"
+              onclick="event.stopPropagation();"
+              data-tip="Session actions"
+              aria-label="Session actions"
+            >
               <.icon name="hero-ellipsis-vertical-micro" class="size-5" />
             </summary>
             <ul class="dropdown-content menu bg-base-100 rounded-box z-10 w-48 p-2 shadow-lg">
@@ -230,9 +250,10 @@
 <%!-- Mobile FAB for new session --%>
 <button
   :if={@tmux_status not in [:not_found]}
-  class="fab btn btn-primary sm:hidden"
+  class="fab btn btn-primary sm:hidden tooltip tooltip-left"
   phx-click="toggle_new_session_form"
   aria-label="New Session"
+  data-tip="New Session"
 >
   <.icon name="hero-plus" class="size-6" />
 </button>
