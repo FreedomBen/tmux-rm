@@ -9,6 +9,7 @@ const DEFAULTS = {
   cursorStyle: "block",
   cursorBlink: true,
   showToolbar: true,
+  mobileKeyboardEnabled: true,
   toolbarButtons: null,
 };
 
@@ -106,6 +107,8 @@ function serverToLocal(serverPrefs) {
     cursorStyle: serverPrefs.cursor_style ?? DEFAULTS.cursorStyle,
     cursorBlink: serverPrefs.cursor_blink ?? DEFAULTS.cursorBlink,
     showToolbar: serverPrefs.show_toolbar ?? DEFAULTS.showToolbar,
+    mobileKeyboardEnabled:
+      serverPrefs.mobile_keyboard_enabled ?? DEFAULTS.mobileKeyboardEnabled,
     toolbarButtons: serverPrefs.toolbar_buttons ?? DEFAULTS.toolbarButtons,
   };
 }
@@ -120,6 +123,7 @@ function localToServer(prefs) {
     cursor_style: prefs.cursorStyle,
     cursor_blink: prefs.cursorBlink,
     show_toolbar: prefs.showToolbar,
+    mobile_keyboard_enabled: prefs.mobileKeyboardEnabled,
   };
   if (prefs.toolbarButtons) {
     result.toolbar_buttons = prefs.toolbarButtons;

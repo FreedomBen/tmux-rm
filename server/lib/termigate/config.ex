@@ -52,6 +52,7 @@ defmodule Termigate.Config do
       "cursor_style" => "block",
       "cursor_blink" => true,
       "show_toolbar" => true,
+      "mobile_keyboard_enabled" => true,
       "toolbar_buttons" => %{
         "main_row" => [
           %{"key" => "CtrlC", "label" => "^C"},
@@ -161,6 +162,10 @@ defmodule Termigate.Config do
   #   cursor_style:  block, underline, or bar (default: "block")
   #   cursor_blink:  true/false (default: true)
   #   show_toolbar:  Show virtual toolbar on mobile (default: true)
+  #   mobile_keyboard_enabled:
+  #                  Default state for the on-screen keyboard popup on mobile
+  #                  (default: true). Users can still toggle per-device via the
+  #                  header button — this sets the initial/default behavior.
   #   toolbar_buttons:
   #     Customize the mobile virtual toolbar buttons. Each row is a list
   #     of buttons with a "key" and "label". Remove a button to hide it,
@@ -539,6 +544,7 @@ defmodule Termigate.Config do
         ),
       "cursor_blink" => terminal["cursor_blink"] == true,
       "show_toolbar" => terminal["show_toolbar"] != false,
+      "mobile_keyboard_enabled" => terminal["mobile_keyboard_enabled"] != false,
       "toolbar_buttons" => normalize_toolbar_buttons(terminal["toolbar_buttons"])
     }
 

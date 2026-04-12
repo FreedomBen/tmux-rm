@@ -337,11 +337,13 @@ const TerminalHook = {
 
   // --- Mobile on-screen keyboard toggle ---
   _getMobileKeyboardEnabled() {
+    const serverDefault =
+      this._serverPrefs?.mobile_keyboard_enabled !== false;
     try {
       const v = localStorage.getItem("termigate:mobileKeyboardEnabled");
-      return v === null ? true : v !== "false";
+      return v === null ? serverDefault : v !== "false";
     } catch {
-      return true;
+      return serverDefault;
     }
   },
 
