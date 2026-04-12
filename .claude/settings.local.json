@@ -91,7 +91,8 @@
       "mcp__plugin_context-mode_context-mode__ctx_stats",
       "Bash(MIX_ENV=prod mix release --overwrite)",
       "Bash(mkdir -p priv/static/images)",
-      "Bash(magick termigate-logo.png -resize 600x priv/static/images/termigate-logo.png)"
+      "Bash(magick termigate-logo.png -resize 600x priv/static/images/termigate-logo.png)",
+      "Bash(magick termigate-logo.png -resize 400x -strip -quality 85 priv/static/images/termigate-logo.png)"
     ]
   }
 }
