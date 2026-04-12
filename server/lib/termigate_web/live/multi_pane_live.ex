@@ -115,13 +115,30 @@ defmodule TermigateWeb.MultiPaneLive do
           <span class="hidden sm:inline">Sessions</span>
         </.link>
         <span class="text-base-content/70 text-sm font-mono tracking-tight">{@session}</span>
-        <.link
-          navigate={~p"/settings"}
-          class="text-base-content/50 hover:text-base-content text-sm"
-          aria-label="Settings"
-        >
-          <.icon name="hero-cog-6-tooth-micro" class="size-5" />
-        </.link>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            id="mobile-keyboard-toggle"
+            class="text-base-content/50 hover:text-base-content text-sm relative"
+            aria-label="Toggle on-screen keyboard"
+            title="Toggle on-screen keyboard"
+          >
+            <.icon name="hero-command-line-micro" class="size-5" />
+            <span
+              class="kb-slash pointer-events-none absolute inset-0 items-center justify-center hidden"
+              aria-hidden="true"
+            >
+              <span class="block w-5 h-0.5 bg-current rotate-45"></span>
+            </span>
+          </button>
+          <.link
+            navigate={~p"/settings"}
+            class="text-base-content/50 hover:text-base-content text-sm"
+            aria-label="Settings"
+          >
+            <.icon name="hero-cog-6-tooth-micro" class="size-5" />
+          </.link>
+        </div>
       </div>
 
       <%!-- Window tabs --%>

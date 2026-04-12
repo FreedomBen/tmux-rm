@@ -100,6 +100,17 @@ const TerminalHook = {
     // Open terminal in container
     this.term.open(this.el);
 
+    // Block textarea focus when on-screen keyboard is disabled by the user.
+    // Covers every focus path (xterm's internal touch handler, our tap-to-
+    // focus logic, programmatic term.focus() calls, etc.).
+    if (this.term.textarea) {
+      this.term.textarea.addEventListener("focus", (e) => {
+        if (!this._getMobileKeyboardEnabled()) {
+          e.target.blur();
+        }
+      });
+    }
+
     // In multi-pane mode, skip the synchronous fit() so that the initial
     // history renders at tmux's dimensions. The ResizeObserver below will
     // re-fit shortly after mount once the CSS Grid layout has settled.
@@ -219,6 +230,8 @@ const TerminalHook = {
       this._setupPreferencesPanel();
     }
 
+    this._setupMobileKeyboardToggle();
+
     // --- Live config updates from server ---
     this.handleEvent("terminal_prefs", (serverPrefs) => {
       this._applyTerminalPrefs(serverPrefs);
@@ -319,6 +332,48 @@ const TerminalHook = {
         "vk-compact",
       );
     }
+  },
+
+  // --- Mobile on-screen keyboard toggle ---
+  _getMobileKeyboardEnabled() {
+    try {
+      const v = localStorage.getItem("termigate:mobileKeyboardEnabled");
+      return v === null ? true : v !== "false";
+    } catch {
+      return true;
+    }
+  },
+
+  _setMobileKeyboardEnabled(enabled) {
+    try {
+      localStorage.setItem(
+        "termigate:mobileKeyboardEnabled",
+        enabled ? "true" : "false",
+      );
+    } catch {}
+  },
+
+  _setupMobileKeyboardToggle() {
+    const btn = document.querySelector("#mobile-keyboard-toggle");
+    if (!btn || btn._termigateWired) return;
+    btn._termigateWired = true;
+
+    const slash = btn.querySelector(".kb-slash");
+    const applyState = (enabled) => {
+      if (slash) {
+        slash.classList.toggle("hidden", enabled);
+        slash.classList.toggle("flex", !enabled);
+      }
+      btn.setAttribute("aria-pressed", enabled ? "false" : "true");
+    };
+    applyState(this._getMobileKeyboardEnabled());
+
+    btn.addEventListener("click", () => {
+      const next = !this._getMobileKeyboardEnabled();
+      this._setMobileKeyboardEnabled(next);
+      applyState(next);
+      if (!next && this.term?.textarea) this.term.textarea.blur();
+    });
   },
 
   // --- Preferences Panel ---
