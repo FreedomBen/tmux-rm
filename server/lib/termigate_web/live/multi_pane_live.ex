@@ -136,8 +136,20 @@ defmodule TermigateWeb.MultiPaneLive do
         </div>
       </div>
 
-      <%!-- Window tabs --%>
-      <div class="window-tabs">
+      <%!-- Window tabs + control signal bar (collapsible) --%>
+      <div class="bars-group" id="bars-group">
+        <button
+          type="button"
+          id="bars-toggle-btn"
+          class="bars-toggle-btn"
+          aria-label="Toggle tab and control bar"
+          title="Collapse/expand tabs and controls"
+        >
+          <.icon name="hero-chevron-up-micro" class="bars-chevron-up size-3" />
+          <.icon name="hero-chevron-down-micro" class="bars-chevron-down size-3 hidden" />
+        </button>
+        <%!-- Window tabs --%>
+        <div class="window-tabs">
         <div class="flex items-center gap-0.5 px-2 flex-1">
           <div :for={win <- @windows} class="window-tab-wrapper">
             <.link
@@ -209,6 +221,7 @@ defmodule TermigateWeb.MultiPaneLive do
             <kbd>{label}</kbd>
           </button>
         </div>
+      </div>
       </div>
 
       <%!-- Quick action bar --%>

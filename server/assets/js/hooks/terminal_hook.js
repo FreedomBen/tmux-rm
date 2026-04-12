@@ -231,6 +231,7 @@ const TerminalHook = {
     }
 
     this._setupMobileKeyboardToggle();
+    this._setupBarsToggle();
 
     // --- Live config updates from server ---
     this.handleEvent("terminal_prefs", (serverPrefs) => {
@@ -372,6 +373,44 @@ const TerminalHook = {
       this._setMobileKeyboardEnabled(next);
       applyState(next);
       if (!next && this.term?.textarea) this.term.textarea.blur();
+    });
+  },
+
+  // --- Collapsible tabs + control bar ---
+  _setupBarsToggle() {
+    const group = document.querySelector("#bars-group");
+    const btn = document.querySelector("#bars-toggle-btn");
+    if (!group || !btn || btn._termigateWired) return;
+    btn._termigateWired = true;
+
+    const upIcon = btn.querySelector(".bars-chevron-up");
+    const downIcon = btn.querySelector(".bars-chevron-down");
+    const key = "termigate:barsCollapsed";
+
+    const isCollapsed = () => {
+      try {
+        return localStorage.getItem(key) === "true";
+      } catch {
+        return false;
+      }
+    };
+    const setCollapsed = (v) => {
+      try {
+        localStorage.setItem(key, v ? "true" : "false");
+      } catch {}
+    };
+    const apply = (collapsed) => {
+      group.classList.toggle("bars-collapsed", collapsed);
+      upIcon?.classList.toggle("hidden", collapsed);
+      downIcon?.classList.toggle("hidden", !collapsed);
+      btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
+    };
+    apply(isCollapsed());
+
+    btn.addEventListener("click", () => {
+      const next = !isCollapsed();
+      setCollapsed(next);
+      apply(next);
     });
   },
 

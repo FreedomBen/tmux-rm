@@ -821,6 +821,54 @@ body {
   }
 }
 
+/* === Collapsible bars wrapper (window tabs + control signal bar) === */
+.bars-group {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.bars-toggle-btn {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 20px;
+  padding: 0;
+  background: oklch(12% 0.005 260 / 70%);
+  color: oklch(55% 0.01 260);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.bars-toggle-btn:hover {
+  background: oklch(22% 0.01 260);
+  color: oklch(85% 0.01 80);
+}
+
+.bars-group.bars-collapsed .window-tabs,
+.bars-group.bars-collapsed .control-signal-bar {
+  display: none;
+}
+
+.bars-group.bars-collapsed {
+  background: oklch(12% 0.005 260);
+  border-bottom: 1px solid oklch(25% 0.01 260);
+}
+
+.bars-group.bars-collapsed .bars-toggle-btn {
+  position: static;
+  width: 100%;
+  height: 12px;
+  border-radius: 0;
+  background: transparent;
+}
+
 /* === Multi-pane window tabs === */
 .window-tabs {
   display: flex;
