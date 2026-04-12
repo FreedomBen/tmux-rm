@@ -181,7 +181,12 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <span class="font-semibold truncate text-base">{session.name}</span>
-              <span :if={session.attached?} class="status-dot status-dot-active" title="attached">
+              <span
+                :if={session.attached?}
+                class="status-dot status-dot-active tooltip tooltip-right"
+                data-tip="Attached"
+                aria-label="Attached"
+              >
               </span>
             </div>
             <div class="text-xs text-base-content/40 mt-0.5">
