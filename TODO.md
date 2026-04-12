@@ -1,6 +1,14 @@
 # Not Run Yet
 
-- We need to figure out how to allow scrolling back on desktop and mobile web UI.  In real tmux I hit Ctrl+Q and then use Ctrl+U and Ctrl+D and j and k, but that isn't workable here.  What are some thoughts about how we could implement scrollability?
+- Let's make the Control and tab button section collapsible with a toggle.  When collapsed it should be very thin.
+
+- How hard would it be to make this a progressive web app?
+
+- Notification threshold control doesn't work
+
+- Let's add support for getting a TLS cert through Let's Encrypt.  We will use DNS-01 so we can get for private IPs without being exposed to the internet.  What are some possible approaches here?
+
+- We need to figure out how to allow scrolling back on desktop and mobile web UI.  In real tmux I hit Ctrl+Q and then use Ctrl+U and Ctrl+D and j and k, but that isn't workable here.  What are some thoughts about how we could implement scroll ability?
 
 - In the Android app, the soft keyboard doesn't pop up when tapping on a pane to get focus.  The running device is connected over adb and has the app foregrounded.  Take a look and see why the soft keyboard isn't triggering.
 
@@ -10,13 +18,21 @@
 
 - In mobile 
 
-- Let's add support for Cloudflare and Tailscale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
+- Let's add support for Cloudflare and TailScale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
 - Let's add support for getting a TLS certificate from Let's Encrypt.  For this the user needs to enter the domain name or select to get an IP address certificate.
 
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Let's make the Ctrl and arrow and tab buttons configurable in the config file.  Users should be able to disable them (in which case they don't appear on the screen at all), Swap the locations, and/or change their value.
+
+X Let's make a change to the Ctrl+C and Tab buttons.  On mobile web only (not on desktop/laptop) Let's have the buttons changes row a bit.  Here's how they should go:
+  - First row: |^C|^D|Up|^Z|^L|^\|
+  - Second row:  |Tab|Left|Down|Right|
+
+- Let's pivot on how we handle things in mobile web.  Let's instead of resizing the tmux pane to fix our screen, let's keep it at the size and length it was when we connected.  In other words, we accept the current dimensions of the pane and do not change them automatically.  Allow a horizontal and vertical scrollbar as necessary to accommodate.  Does that make sense?
 
 - Let's review the android implementation plan in ANDROID_IMPLEMENTATION.md before we move on to implementation.  Look for any errors, inconsistencies, ambiguities, or otherwise missing things that need to be corrected prior to implementation.
 

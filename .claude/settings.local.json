@@ -87,7 +87,8 @@
       "Bash(PORT=8888 mix phx.server)",
       "Bash(PORT=8888 mix phx.server)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "mcp__plugin_context-mode_context-mode__ctx_stats"
     ]
   }
 }
