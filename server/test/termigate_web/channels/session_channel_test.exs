@@ -21,7 +21,7 @@ defmodule TermigateWeb.SessionChannelTest do
         %Termigate.Tmux.Session{
           name: "test-session",
           windows: 1,
-          created: 1_710_000_000,
+          created: DateTime.from_unix!(1_710_000_000),
           attached?: false
         }
       ]

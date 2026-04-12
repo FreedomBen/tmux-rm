@@ -4,12 +4,20 @@ defmodule Termigate.ConfigTest do
   alias Termigate.Config
 
   setup do
-    # Clear quick actions for each test
-    Config.update(fn config -> Map.put(config, "quick_actions", []) end)
+    # Reset mutable sections to defaults so tests don't pollute each other
+    reset = fn ->
+      Config.update(fn config ->
+        config
+        |> Map.put("quick_actions", [])
+        |> put_in(
+          ["terminal", "toolbar_buttons"],
+          Config.defaults()["terminal"]["toolbar_buttons"]
+        )
+      end)
+    end
 
-    on_exit(fn ->
-      Config.update(fn config -> Map.put(config, "quick_actions", []) end)
-    end)
+    reset.()
+    on_exit(reset)
 
     :ok
   end
