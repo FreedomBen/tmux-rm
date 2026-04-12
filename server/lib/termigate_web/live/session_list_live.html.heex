@@ -39,6 +39,15 @@
       <.link navigate={~p"/settings"} class="btn btn-ghost btn-sm" aria-label="Settings">
         <.icon name="hero-cog-6-tooth-micro" class="size-5" />
       </.link>
+      <.link
+        href={~p"/logout"}
+        method="delete"
+        class="btn btn-ghost btn-sm"
+        aria-label="Log out"
+        data-confirm="Log out?"
+      >
+        <.icon name="hero-arrow-right-start-on-rectangle-micro" class="size-5" />
+      </.link>
       <%!-- Desktop-only new session button --%>
       <button
         :if={@tmux_status not in [:not_found]}
