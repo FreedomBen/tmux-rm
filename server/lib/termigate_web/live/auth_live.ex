@@ -27,11 +27,15 @@ defmodule TermigateWeb.AuthLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex items-center justify-center min-h-screen px-4 py-8">
+    <div class="flex flex-col items-center justify-center min-h-screen px-4 py-8 gap-6">
+      <img
+        src={~p"/images/termigate-logo.png"}
+        alt="termigate"
+        class="w-48 h-auto"
+      />
       <div class="card auth-card shadow-xl w-full max-w-sm rounded-2xl">
         <div class="card-body gap-6">
           <div class="text-center">
-            <div class="auth-logo mb-2">termigate</div>
             <p class="text-xs text-base-content/40">Sign in to access your sessions</p>
           </div>
 
