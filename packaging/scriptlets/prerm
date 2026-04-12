@@ -1,0 +1,11 @@
+#!/bin/sh
+# prerm — stop and disable the service before files are removed.
+
+set -e
+
+if command -v systemctl > /dev/null 2>&1; then
+    systemctl stop termigate.service    > /dev/null 2>&1 || :
+    systemctl disable termigate.service > /dev/null 2>&1 || :
+fi
+
+exit 0

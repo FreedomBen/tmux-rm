@@ -1,0 +1,32 @@
+#!/bin/sh
+# postinst — set ownership, reload systemd, notify admin.
+
+set -e
+
+chown -R termigate:termigate /var/lib/termigate /usr/lib/termigate
+chmod 750 /var/lib/termigate
+
+if command -v systemctl > /dev/null 2>&1; then
+    systemctl daemon-reload || :
+fi
+
+cat <<'EOF'
+
+termigate is installed but not enabled.
+
+Next steps:
+  1. Generate a secret key:
+       openssl rand -base64 48
+  2. Edit /usr/lib/systemd/system/termigate.service and replace
+     SECRET_KEY_BASE=CHANGE_ME_... with the generated value.
+     (Or drop a systemd override under
+      /etc/systemd/system/termigate.service.d/override.conf)
+  3. Optionally copy the sample config:
+       cp /etc/termigate/config.example.yaml /etc/termigate/config.yaml
+  4. Enable and start:
+       systemctl daemon-reload
+       systemctl enable --now termigate
+
+EOF
+
+exit 0

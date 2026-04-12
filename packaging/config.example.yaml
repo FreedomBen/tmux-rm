@@ -1,0 +1,18 @@
+# termigate configuration (example)
+#
+# Copy this file to /etc/termigate/config.yaml (or set TERMIGATE_CONFIG_PATH
+# in the systemd unit) to customize.
+
+# Uncomment to set user credentials (bcrypt-hashed, managed by `mix termigate.setup`).
+# auth:
+#   users:
+#     - username: admin
+#       password_hash: $2b$12$...
+
+# actions:
+#   - name: "Start Phoenix"
+#     command: "cd ~/projects/myapp && iex -S mix phx.server"
+#     icon: rocket
+
+# Uncomment to enable the mobile on-screen keyboard by default.
+# mobile_keyboard_enabled: true

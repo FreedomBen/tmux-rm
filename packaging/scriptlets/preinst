@@ -1,0 +1,21 @@
+#!/bin/sh
+# preinst — create termigate system user/group if missing.
+# Runs on first install and on upgrades (before files are laid down).
+
+set -e
+
+if ! getent group termigate > /dev/null 2>&1; then
+    groupadd --system termigate
+fi
+
+if ! getent passwd termigate > /dev/null 2>&1; then
+    useradd \
+        --system \
+        --gid termigate \
+        --home-dir /var/lib/termigate \
+        --shell /usr/sbin/nologin \
+        --comment "termigate service user" \
+        termigate
+fi
+
+exit 0

@@ -12,3 +12,7 @@ Thumbs.db
 # Environment files
 .env
 .env.local
+
+# Packaging build artifacts
+packaging/staging/
+packaging/out/

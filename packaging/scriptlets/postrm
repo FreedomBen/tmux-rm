@@ -1,0 +1,12 @@
+#!/bin/sh
+# postrm — reload systemd. Does not remove /var/lib/termigate (state) or
+# /etc/termigate (config) so a reinstall can pick up where the previous
+# install left off. Remove those manually if you want a clean slate.
+
+set -e
+
+if command -v systemctl > /dev/null 2>&1; then
+    systemctl daemon-reload || :
+fi
+
+exit 0
