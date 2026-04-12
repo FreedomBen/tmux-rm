@@ -16,3 +16,5 @@ Thumbs.db
 # Packaging build artifacts
 packaging/staging/
 packaging/out/
+packaging/.bundle/
+packaging/vendor/

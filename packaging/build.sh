@@ -3,7 +3,10 @@
 #
 # Requirements:
 #   - Elixir/Erlang toolchain (to build the release)
-#   - fpm (https://fpm.readthedocs.io): gem install --no-document fpm
+#   - fpm (https://fpm.readthedocs.io) — install via the bundled Gemfile:
+#       cd packaging && bundle install
+#     Or globally:
+#       gem install --no-document fpm
 #   - rpmbuild (for .rpm output) — package name varies: rpm / rpm-build
 #   - dpkg-deb (for .deb output) — usually preinstalled on Debian/Ubuntu
 #
@@ -35,6 +38,13 @@ case "${ARCH_RPM}" in
 esac
 
 echo "=> termigate ${VERSION} (${ARCH_RPM}/${ARCH_DEB})"
+
+# Prefer bundle exec fpm if a Gemfile + lockfile are present.
+if [[ -f "${PKG_DIR}/Gemfile.lock" ]] && command -v bundle > /dev/null 2>&1; then
+  FPM=(bundle exec --gemfile "${PKG_DIR}/Gemfile" fpm)
+else
+  FPM=(fpm)
+fi
 
 # ---- 1. Build the mix release ----
 echo "=> building mix release"
@@ -83,7 +93,7 @@ COMMON_ARGS=(
 
 build_rpm() {
   echo "=> building RPM"
-  fpm \
+  "${FPM[@]}" \
     "${COMMON_ARGS[@]}" \
     --output-type rpm \
     --architecture "${ARCH_RPM}" \
@@ -97,7 +107,7 @@ build_rpm() {
 
 build_deb() {
   echo "=> building DEB"
-  fpm \
+  "${FPM[@]}" \
     "${COMMON_ARGS[@]}" \
     --output-type deb \
     --architecture "${ARCH_DEB}" \
