@@ -1,0 +1,59 @@
+# Build and smoke-test the termigate .deb in a clean Debian environment.
+#
+# Usage (from repo root):
+#   podman build -f packaging/Containerfile.deb -t termigate-deb-test .
+#
+# Elixir isn't packaged in stock Debian at a recent-enough version, so we
+# install it from the deb.erlang-solutions.com repository.
+
+FROM docker.io/debian:bookworm-slim AS build
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl gnupg \
+        build-essential git tmux \
+        ruby ruby-dev bundler \
+        dpkg-dev fakeroot \
+        nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Erlang Solutions repo for Elixir 1.19
+RUN curl -fsSL https://packages.erlang-solutions.com/debian/erlang_solutions.asc \
+      -o /etc/apt/trusted.gpg.d/erlang_solutions.asc \
+    && echo "deb https://packages.erlang-solutions.com/debian bookworm contrib" \
+      > /etc/apt/sources.list.d/erlang_solutions.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends elixir erlang-dev erlang-xmerl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /repo
+COPY . /repo
+
+RUN mix local.hex --force && mix local.rebar --force
+
+RUN cd packaging && bundle install --path vendor/bundle
+
+RUN packaging/build.sh deb
+
+# --- Smoke-test stage: install the .deb and verify ---
+FROM docker.io/debian:bookworm-slim AS test
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tmux systemd \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /repo/packaging/out/*.deb /tmp/
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/*.deb \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN /usr/bin/termigate version \
+    && test -f /usr/lib/systemd/system/termigate.service \
+    && getent passwd termigate \
+    && systemd-analyze verify /usr/lib/systemd/system/termigate.service
+
+CMD ["/bin/bash"]

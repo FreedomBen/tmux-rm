@@ -1,0 +1,45 @@
+# Build and smoke-test the termigate RPM in a clean Fedora environment.
+#
+# Usage (from repo root):
+#   podman build -f packaging/Containerfile.rpm -t termigate-rpm-test .
+#   # Extract the built RPM:
+#   podman run --rm -v "$PWD/packaging/out:/out:Z" termigate-rpm-test \
+#     cp -r /repo/packaging/out/. /out/
+#
+# The final image has the RPM installed and ready to run under systemd.
+
+FROM docker.io/fedora:41 AS build
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        elixir erlang git nodejs npm \
+        rpm-build rubygem-bundler \
+        tmux tar findutils openssl-libs ncurses-libs \
+    && dnf clean all
+
+WORKDIR /repo
+COPY . /repo
+
+RUN mix local.hex --force && mix local.rebar --force
+
+# Install fpm via the Gemfile and build both targets (rpm is the one we
+# actually care about here; deb just verifies the fpm toolchain).
+RUN cd packaging && bundle install --path vendor/bundle
+
+RUN packaging/build.sh rpm
+
+# --- Smoke-test stage: install the RPM and make sure the unit is valid ---
+FROM docker.io/fedora:41 AS test
+
+RUN dnf install -y --setopt=install_weak_deps=False tmux systemd && dnf clean all
+
+COPY --from=build /repo/packaging/out/*.rpm /tmp/
+
+RUN dnf install -y /tmp/*.rpm && dnf clean all
+
+# Sanity: the binary should be on PATH, unit file installed, user created.
+RUN /usr/bin/termigate version \
+    && test -f /usr/lib/systemd/system/termigate.service \
+    && getent passwd termigate \
+    && systemd-analyze verify /usr/lib/systemd/system/termigate.service
+
+CMD ["/bin/bash"]
