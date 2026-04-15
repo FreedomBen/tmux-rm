@@ -100,6 +100,10 @@ const TerminalHook = {
     // Open terminal in container
     this.term.open(this.el);
 
+    // Expose this hook on the element so sibling hooks (e.g. the mobile
+    // "fit pane to screen" button) can read xterm cell metrics for resizing.
+    this.el._termHook = this;
+
     // Block textarea focus when on-screen keyboard is disabled by the user.
     // Covers every focus path (xterm's internal touch handler, our tap-to-
     // focus logic, programmatic term.focus() calls, etc.).
@@ -835,6 +839,18 @@ const TerminalHook = {
       this.term.dispose();
       this.term = null;
     }
+    if (this.el._termHook === this) {
+      delete this.el._termHook;
+    }
+  },
+
+  // Compute how many xterm columns fit in the current viewport width.
+  // Returns null if the renderer hasn't measured a cell yet.
+  viewportFitCols() {
+    const cellWidth =
+      this.term?._core?._renderService?.dimensions?.css?.cell?.width;
+    if (!cellWidth || cellWidth <= 0) return null;
+    return Math.max(2, Math.floor(window.innerWidth / cellWidth));
   },
 };
 

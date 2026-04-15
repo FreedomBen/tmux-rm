@@ -359,9 +359,11 @@ defmodule TermigateWeb.MultiPaneLive do
             <div class="pane-overlay">
               <%= if @maximized == pane.target do %>
                 <button
+                  id={"restore-or-fit-#{pane.target}"}
                   class="pane-overlay-btn tooltip tooltip-bottom"
-                  phx-click="restore_pane"
-                  data-tip="Restore"
+                  phx-hook="RestoreOrFitHook"
+                  data-target={pane.target}
+                  data-tip="Restore (mobile: fit to screen width)"
                   aria-label="Restore"
                 >
                   <.icon name="hero-arrows-pointing-in-micro" class="size-4" />
@@ -612,6 +614,12 @@ defmodule TermigateWeb.MultiPaneLive do
 
   def handle_event("restore_pane", _params, socket) do
     {:noreply, assign(socket, :maximized, nil)}
+  end
+
+  def handle_event("fit_pane_width", %{"target" => target, "cols" => cols}, socket) do
+    cols = cols |> to_string() |> String.to_integer()
+    TmuxManager.resize_pane(target, x: max(cols, 2))
+    {:noreply, socket}
   end
 
   def handle_event("pane_focused", %{"target" => target}, socket) do

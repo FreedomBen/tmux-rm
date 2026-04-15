@@ -2,6 +2,7 @@ defmodule TermigateWeb.MultiPaneLiveTest do
   use TermigateWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Mox
 
   @test_panes [
     %{
@@ -374,6 +375,46 @@ defmodule TermigateWeb.MultiPaneLiveTest do
       assert html =~ "grid-template-rows"
       assert html =~ "t:0.0"
       assert html =~ "t:0.1"
+    end
+  end
+
+  describe "fit_pane_width" do
+    test "invokes tmux resize-pane with the requested column count", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/sessions/test/windows/0")
+      send(view.pid, {:layout_updated, @test_panes})
+      render(view)
+
+      original = Application.get_env(:termigate, :command_runner)
+      Application.put_env(:termigate, :command_runner, Termigate.MockCommandRunner)
+      on_exit(fn -> Application.put_env(:termigate, :command_runner, original) end)
+
+      Mox.stub_with(Termigate.MockCommandRunner, Termigate.StubCommandRunner)
+
+      Termigate.MockCommandRunner
+      |> expect(:run, fn ["resize-pane", "-t", "test:0.0", "-x", "40"] -> {:ok, ""} end)
+
+      render_click(view, "fit_pane_width", %{"target" => "test:0.0", "cols" => 40})
+
+      verify!(Termigate.MockCommandRunner)
+    end
+
+    test "clamps cols to a sane minimum", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/sessions/test/windows/0")
+      send(view.pid, {:layout_updated, @test_panes})
+      render(view)
+
+      original = Application.get_env(:termigate, :command_runner)
+      Application.put_env(:termigate, :command_runner, Termigate.MockCommandRunner)
+      on_exit(fn -> Application.put_env(:termigate, :command_runner, original) end)
+
+      Mox.stub_with(Termigate.MockCommandRunner, Termigate.StubCommandRunner)
+
+      Termigate.MockCommandRunner
+      |> expect(:run, fn ["resize-pane", "-t", "test:0.0", "-x", "2"] -> {:ok, ""} end)
+
+      render_click(view, "fit_pane_width", %{"target" => "test:0.0", "cols" => 0})
+
+      verify!(Termigate.MockCommandRunner)
     end
   end
 end
