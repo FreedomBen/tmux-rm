@@ -102,7 +102,7 @@ defmodule TermigateWeb.MultiPaneLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col h-dvh bg-black overflow-hidden">
+    <div class="flex flex-col h-dvh bg-black overflow-x-hidden">
       <meta name="channel-token" content={@channel_token} />
 
       <%!-- Header bar --%>
