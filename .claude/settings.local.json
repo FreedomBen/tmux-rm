@@ -92,7 +92,12 @@
       "Bash(MIX_ENV=prod mix release --overwrite)",
       "Bash(mkdir -p priv/static/images)",
       "Bash(magick termigate-logo.png -resize 600x priv/static/images/termigate-logo.png)",
-      "Bash(magick termigate-logo.png -resize 400x -strip -quality 85 priv/static/images/termigate-logo.png)"
+      "Bash(magick termigate-logo.png -resize 400x -strip -quality 85 priv/static/images/termigate-logo.png)",
+      "Bash(nohup mix *)",
+      "Bash(echo \"started, pid=$!\")",
+      "Bash(echo \"pid=$!\")",
+      "Bash(pkill -f \"mix phx.server\")",
+      "Bash(pkill -f \"beam.smp\")"
     ]
   }
 }
