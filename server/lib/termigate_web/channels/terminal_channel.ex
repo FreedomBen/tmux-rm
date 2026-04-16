@@ -40,7 +40,15 @@ defmodule TermigateWeb.TerminalChannel do
           |> assign(:pane_stream_ref, ref)
           |> assign(:pane_dead, false)
 
-        {:ok, %{history: Base.encode64(history)}, socket}
+        reply = %{history: Base.encode64(history)}
+
+        reply =
+          case PaneStream.dimensions(target) do
+            {:ok, {cols, rows}} -> Map.merge(reply, %{cols: cols, rows: rows})
+            _ -> reply
+          end
+
+        {:ok, reply, socket}
 
       {:error, :not_ready} ->
         Logger.warning("Terminal channel join failed (not ready): #{target}")

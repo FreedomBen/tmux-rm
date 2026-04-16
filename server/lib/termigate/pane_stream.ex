@@ -105,6 +105,31 @@ defmodule Termigate.PaneStream do
     end
   end
 
+  @doc "Read current pane dimensions {cols, rows} directly from tmux."
+  def dimensions(target) do
+    case command_runner().run([
+           "display-message",
+           "-p",
+           "-t",
+           target,
+           "\#{pane_width}\t\#{pane_height}"
+         ]) do
+      {:ok, out} ->
+        case String.split(String.trim(out), "\t") do
+          [w, h] ->
+            cols = parse_int(w, 0)
+            rows = parse_int(h, 0)
+            if cols > 0 and rows > 0, do: {:ok, {cols, rows}}, else: {:error, :invalid}
+
+          _ ->
+            {:error, :invalid}
+        end
+
+      {:error, {msg, _}} ->
+        {:error, msg}
+    end
+  end
+
   # --- GenServer Implementation ---
 
   def child_spec(target) do

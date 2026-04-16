@@ -123,6 +123,11 @@ class TerminalRepository @Inject constructor(
                         ByteArray(0)
                     }
 
+                    // Server returns the post-resize tmux pane dimensions so the
+                    // client can render at the pane's true size (mobile parity).
+                    val replyCols = (result.payload["cols"] as? Number)?.toInt() ?: cols
+                    val replyRows = (result.payload["rows"] as? Number)?.toInt() ?: rows
+
                     val events = channel.events.mapNotNull { event ->
                         when (event) {
                             is ChannelEvent.Message -> parseTerminalEvent(event, target)
@@ -132,8 +137,8 @@ class TerminalRepository @Inject constructor(
                     return Result.success(
                         TerminalConnection(
                             history = history,
-                            cols = cols,
-                            rows = rows,
+                            cols = replyCols,
+                            rows = replyRows,
                             events = events
                         )
                     )

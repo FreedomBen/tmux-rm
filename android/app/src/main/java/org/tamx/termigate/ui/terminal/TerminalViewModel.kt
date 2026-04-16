@@ -19,6 +19,7 @@ import org.tamx.termigate.data.network.ApiClient
 import org.tamx.termigate.data.repository.TerminalEvent
 import org.tamx.termigate.data.repository.TerminalRepository
 import javax.inject.Inject
+import kotlin.math.max
 
 @HiltViewModel
 class TerminalViewModel @Inject constructor(
@@ -30,6 +31,7 @@ class TerminalViewModel @Inject constructor(
     companion object {
         private const val TAG = "TerminalViewModel"
         private const val RESIZE_DEBOUNCE_MS = 150L
+        private const val MIN_FIT_COLS = 2
     }
 
     val target: String = savedStateHandle["target"]!!
@@ -47,12 +49,29 @@ class TerminalViewModel @Inject constructor(
         val quickActions: List<QuickAction> = emptyList()
     )
 
+    /**
+     * Tracks the tmux pane's cols/rows and the view's measured cell pixel
+     * dimensions. cols/rows reflect the **server** (updated only by initial
+     * join + server `resized` events), never the view's measured size.
+     * cellWidthPx/cellHeightPx come from the TerminalView's first measure.
+     */
+    data class PaneSize(
+        val cols: Int,
+        val rows: Int,
+        val cellWidthPx: Int = 0,
+        val cellHeightPx: Int = 0
+    ) {
+        val isReady: Boolean get() = cellWidthPx > 0 && cellHeightPx > 0
+    }
+
     private val _uiState = MutableStateFlow(UiState(title = target))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private val _paneSize = MutableStateFlow<PaneSize?>(null)
+    val paneSize: StateFlow<PaneSize?> = _paneSize.asStateFlow()
+
     private var eventCollectionJob: Job? = null
     private var resizeDebounceJob: Job? = null
-    private var serverResizeInProgress = false
 
     private val sessionClient = object : TerminalSessionClient {
         override fun onTextChanged(changedSession: TerminalSession) {}
@@ -95,16 +114,30 @@ class TerminalViewModel @Inject constructor(
         viewModelScope.launch {
             terminalRepo.connect(target, cols, rows)
                 .onSuccess { connection ->
-                    // Create remote session that forwards keyboard input to server
-                    val session = RemoteTerminalSession(sessionClient) { data ->
-                        viewModelScope.launch {
-                            terminalRepo.sendInput(target, data)
+                    // Server's join reply carries the post-resize tmux dims;
+                    // create the session pre-loaded with those so its first
+                    // emulator init uses the pane's true cols/rows, not the
+                    // view's measured dims.
+                    val session = RemoteTerminalSession(
+                        client = sessionClient,
+                        initialCols = connection.cols,
+                        initialRows = connection.rows,
+                        onWrite = { data ->
+                            viewModelScope.launch {
+                                terminalRepo.sendInput(target, data)
+                            }
+                        },
+                        onCellDimensionsChanged = { cellW, cellH ->
+                            _paneSize.update { current ->
+                                current?.copy(cellWidthPx = cellW, cellHeightPx = cellH)
+                                    ?: PaneSize(cols = connection.cols, rows = connection.rows, cellWidthPx = cellW, cellHeightPx = cellH)
+                            }
                         }
-                    }
+                    )
                     remoteSession = session
 
-                    // Feed history into emulator (emulator gets created by TerminalView.attachSession → updateSize)
-                    // We'll feed it after the view attaches and initializes the emulator
+                    _paneSize.value = PaneSize(cols = connection.cols, rows = connection.rows)
+
                     val history = connection.history
 
                     _uiState.update {
@@ -113,13 +146,10 @@ class TerminalViewModel @Inject constructor(
 
                     loadQuickActions()
 
-                    // Feed history once emulator is available
-                    // This is called from the UI after attachSession triggers updateSize
                     if (history.isNotEmpty()) {
                         session.pendingHistory = history
                     }
 
-                    // Collect terminal events
                     eventCollectionJob?.cancel()
                     eventCollectionJob = viewModelScope.launch {
                         connection.events.collect { event ->
@@ -164,13 +194,19 @@ class TerminalViewModel @Inject constructor(
         }
     }
 
-    fun sendResize(cols: Int, rows: Int) {
-        if (serverResizeInProgress) {
-            serverResizeInProgress = false
-            return
-        }
-        // Debounce to avoid flooding the server during animated transitions
-        // (keyboard slide, rotation animation)
+    /**
+     * Compute cols that fit the given viewport width and push a resize to the
+     * server. Mirrors the web's mobile "Restore" → fit-to-screen-width action.
+     */
+    fun fitPaneToScreenWidth(viewportWidthPx: Int) {
+        val current = _paneSize.value ?: return
+        if (current.cellWidthPx <= 0 || viewportWidthPx <= 0) return
+        val cols = max(MIN_FIT_COLS, viewportWidthPx / current.cellWidthPx)
+        val rows = current.rows
+        sendResize(cols, rows)
+    }
+
+    private fun sendResize(cols: Int, rows: Int) {
         resizeDebounceJob?.cancel()
         resizeDebounceJob = viewModelScope.launch {
             delay(RESIZE_DEBOUNCE_MS)
@@ -187,8 +223,11 @@ class TerminalViewModel @Inject constructor(
                 remoteSession?.resetAndFeedInput(event.buffer)
             }
             is TerminalEvent.Resized -> {
-                serverResizeInProgress = true
                 remoteSession?.resizeEmulator(event.cols, event.rows)
+                _paneSize.update { current ->
+                    current?.copy(cols = event.cols, rows = event.rows)
+                        ?: PaneSize(cols = event.cols, rows = event.rows)
+                }
             }
             is TerminalEvent.PaneDead -> {
                 _uiState.update { it.copy(paneDead = true) }

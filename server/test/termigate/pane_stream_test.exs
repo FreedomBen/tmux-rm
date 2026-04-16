@@ -137,6 +137,38 @@ defmodule Termigate.PaneStreamTest do
     end
   end
 
+  describe "dimensions/1" do
+    test "returns current pane dimensions from tmux", %{session: session} do
+      target = "#{session}:0.0"
+
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      assert {:ok, {cols, rows}} = PaneStream.dimensions(target)
+      assert is_integer(cols) and cols > 0
+      assert is_integer(rows) and rows > 0
+    end
+
+    test "returns same shape as resize before/after", %{session: session} do
+      target = "#{session}:0.0"
+
+      {:ok, _history, _pid} = PaneStream.subscribe(target)
+
+      # Detached test sessions can't resize beyond their default window dims,
+      # so we only verify the function reports plausible values, not the exact
+      # ones we asked for.
+      assert {:ok, {c1, r1}} = PaneStream.dimensions(target)
+      assert :ok = PaneStream.resize(target, 60, 20)
+      assert {:ok, {c2, r2}} = PaneStream.dimensions(target)
+
+      assert is_integer(c1) and is_integer(r1)
+      assert is_integer(c2) and is_integer(r2)
+    end
+
+    test "returns error for nonexistent pane" do
+      assert {:error, _} = PaneStream.dimensions("nonexistent:0.0")
+    end
+  end
+
   describe "pane death detection" do
     test "broadcasts pane_dead when pane is killed", %{session: session} do
       target = "#{session}:0.0"
