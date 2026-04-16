@@ -74,7 +74,9 @@ class TerminalViewModel @Inject constructor(
     private var resizeDebounceJob: Job? = null
 
     private val sessionClient = object : TerminalSessionClient {
-        override fun onTextChanged(changedSession: TerminalSession) {}
+        override fun onTextChanged(changedSession: TerminalSession) {
+            (changedSession as? RemoteTerminalSession)?.onScreenUpdated?.invoke()
+        }
         override fun onTitleChanged(changedSession: TerminalSession) {}
         override fun onSessionFinished(finishedSession: TerminalSession) {}
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {}
@@ -114,10 +116,6 @@ class TerminalViewModel @Inject constructor(
         viewModelScope.launch {
             terminalRepo.connect(target, cols, rows)
                 .onSuccess { connection ->
-                    // Server's join reply carries the post-resize tmux dims;
-                    // create the session pre-loaded with those so its first
-                    // emulator init uses the pane's true cols/rows, not the
-                    // view's measured dims.
                     val session = RemoteTerminalSession(
                         client = sessionClient,
                         initialCols = connection.cols,
@@ -138,17 +136,15 @@ class TerminalViewModel @Inject constructor(
 
                     _paneSize.value = PaneSize(cols = connection.cols, rows = connection.rows)
 
-                    val history = connection.history
+                    if (connection.history.isNotEmpty()) {
+                        session.pendingHistory = connection.history
+                    }
 
                     _uiState.update {
                         it.copy(isConnected = true, isLoading = false)
                     }
 
                     loadQuickActions()
-
-                    if (history.isNotEmpty()) {
-                        session.pendingHistory = history
-                    }
 
                     eventCollectionJob?.cancel()
                     eventCollectionJob = viewModelScope.launch {

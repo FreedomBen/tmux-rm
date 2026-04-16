@@ -292,12 +292,7 @@ private fun TerminalViewport(
         bootstrapHeightDp
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .horizontalScroll(rememberScrollState())
-            .verticalScroll(rememberScrollState())
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         TerminalAndroidView(
             viewModel = viewModel,
             onTerminalViewCreated = onTerminalViewCreated,
@@ -330,14 +325,7 @@ private fun TerminalAndroidView(
 
                 val session = viewModel.remoteSession ?: return@apply
                 attachSession(session)
-
-                // After attachSession -> updateSize -> initializeEmulator, feed pending history
-                session.pendingHistory?.let { history ->
-                    session.feedInput(history)
-                    session.pendingHistory = null
-                    invalidate()
-                }
-
+                session.onScreenUpdated = { termView.post { termView.onScreenUpdated() } }
                 requestFocus()
                 onTerminalViewCreated(this)
             }
@@ -346,10 +334,7 @@ private fun TerminalAndroidView(
             val session = viewModel.remoteSession
             if (session != null && view.currentSession !== session) {
                 view.attachSession(session)
-                session.pendingHistory?.let { history ->
-                    session.feedInput(history)
-                    session.pendingHistory = null
-                }
+                session.onScreenUpdated = { view.post { view.onScreenUpdated() } }
                 view.invalidate()
             }
         },

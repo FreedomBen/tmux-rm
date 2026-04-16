@@ -31,6 +31,9 @@ class RemoteTerminalSession(
     /** History data to feed after emulator is initialized by TerminalView. */
     var pendingHistory: ByteArray? = null
 
+    /** Set by TerminalView after attach; called on every emulator screen update. */
+    var onScreenUpdated: (() -> Unit)? = null
+
     var cellWidthPx: Int = 0
         private set
     var cellHeightPx: Int = 0
@@ -40,6 +43,10 @@ class RemoteTerminalSession(
         cellWidthPx = cellWidthPixels
         cellHeightPx = cellHeightPixels
         mEmulator = TerminalEmulator(this, columns, rows, cellWidthPixels, cellHeightPixels, 10000, mClient)
+        pendingHistory?.let { history ->
+            mEmulator.append(history, history.size)
+            pendingHistory = null
+        }
         if (cellWidthPixels > 0 && cellHeightPixels > 0) {
             onCellDimensionsChanged(cellWidthPixels, cellHeightPixels)
         }
@@ -68,13 +75,17 @@ class RemoteTerminalSession(
 
     /** Feed terminal output data from the server into the emulator. */
     fun feedInput(data: ByteArray) {
-        mEmulator?.append(data, data.size)
+        if (mEmulator == null) return
+        mEmulator.append(data, data.size)
+        notifyScreenUpdate()
     }
 
     /** Reset emulator and feed full buffer (used on reconnect). */
     fun resetAndFeedInput(data: ByteArray) {
-        mEmulator?.reset()
-        mEmulator?.append(data, data.size)
+        if (mEmulator == null) return
+        mEmulator.reset()
+        mEmulator.append(data, data.size)
+        notifyScreenUpdate()
     }
 
     fun resizeEmulator(cols: Int, rows: Int) {
