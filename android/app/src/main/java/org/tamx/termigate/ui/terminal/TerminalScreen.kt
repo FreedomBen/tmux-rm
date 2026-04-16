@@ -61,7 +61,8 @@ import com.termux.view.TerminalViewClient
 import kotlinx.coroutines.delay
 
 private const val AUTO_HIDE_DELAY_MS = 3000L
-private const val DEFAULT_FONT_SIZE = 14
+private const val PINCH_ZOOM_THRESHOLD_IN = 1.1f
+private const val PINCH_ZOOM_THRESHOLD_OUT = 0.9f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +73,7 @@ fun TerminalScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val paneSize by viewModel.paneSize.collectAsStateWithLifecycle()
+    val fontSize by viewModel.fontSize.collectAsStateWithLifecycle()
     var showTopBar by remember { mutableStateOf(true) }
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
     var isKeyboardVisible by remember { mutableStateOf(false) }
@@ -145,6 +147,7 @@ fun TerminalScreen(
                     TerminalViewport(
                         viewModel = viewModel,
                         paneSize = paneSize,
+                        fontSize = fontSize,
                         bootstrapWidthDp = maxWidth,
                         bootstrapHeightDp = maxHeight,
                         onTerminalViewCreated = { tv -> terminalView = tv },
@@ -273,6 +276,7 @@ fun TerminalScreen(
 private fun TerminalViewport(
     viewModel: TerminalViewModel,
     paneSize: TerminalViewModel.PaneSize?,
+    fontSize: Int,
     bootstrapWidthDp: androidx.compose.ui.unit.Dp,
     bootstrapHeightDp: androidx.compose.ui.unit.Dp,
     onTerminalViewCreated: (TerminalView) -> Unit,
@@ -295,6 +299,7 @@ private fun TerminalViewport(
     Box(modifier = Modifier.fillMaxSize()) {
         TerminalAndroidView(
             viewModel = viewModel,
+            fontSize = fontSize,
             onTerminalViewCreated = onTerminalViewCreated,
             onTopBarToggle = onTopBarToggle,
             modifier = Modifier.size(widthDp, heightDp)
@@ -305,17 +310,20 @@ private fun TerminalViewport(
 @Composable
 private fun TerminalAndroidView(
     viewModel: TerminalViewModel,
+    fontSize: Int,
     onTerminalViewCreated: (TerminalView) -> Unit,
     onTopBarToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var appliedFontSize by remember { mutableIntStateOf(-1) }
     AndroidView(
         factory = { ctx ->
             TerminalView(ctx, null).apply {
                 val termView = this
                 isFocusable = true
                 isFocusableInTouchMode = true
-                setTextSize(DEFAULT_FONT_SIZE)
+                setTextSize(fontSize)
+                appliedFontSize = fontSize
                 setTypeface(Typeface.MONOSPACE)
                 setTerminalViewClient(createViewClient(viewModel, onTopBarToggle, showKeyboard = {
                     termView.requestFocus()
@@ -337,6 +345,10 @@ private fun TerminalAndroidView(
                 session.onScreenUpdated = { view.post { view.onScreenUpdated() } }
                 view.invalidate()
             }
+            if (appliedFontSize != fontSize) {
+                view.setTextSize(fontSize)
+                appliedFontSize = fontSize
+            }
         },
         modifier = modifier
     )
@@ -348,7 +360,19 @@ private fun createViewClient(
     showKeyboard: () -> Unit
 ): TerminalViewClient {
     return object : TerminalViewClient {
-        override fun onScale(scale: Float): Float = scale
+        override fun onScale(scale: Float): Float {
+            if (scale < PINCH_ZOOM_THRESHOLD_OUT || scale > PINCH_ZOOM_THRESHOLD_IN) {
+                val current = viewModel.fontSize.value
+                val delta = if (scale > 1f) 1 else -1
+                val next = (current + delta).coerceIn(
+                    TerminalViewModel.MIN_FONT_SIZE,
+                    TerminalViewModel.MAX_FONT_SIZE
+                )
+                if (next != current) viewModel.onFontSizeChanged(next)
+                return 1f
+            }
+            return scale
+        }
 
         override fun onSingleTapUp(e: MotionEvent?) {
             onTopBarToggle()

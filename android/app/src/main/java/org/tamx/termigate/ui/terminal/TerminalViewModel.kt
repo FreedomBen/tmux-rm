@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.tamx.termigate.data.model.QuickAction
 import org.tamx.termigate.data.network.ApiClient
+import org.tamx.termigate.data.repository.AppPreferences
 import org.tamx.termigate.data.repository.TerminalEvent
 import org.tamx.termigate.data.repository.TerminalRepository
 import javax.inject.Inject
@@ -25,6 +26,7 @@ import kotlin.math.max
 class TerminalViewModel @Inject constructor(
     private val terminalRepo: TerminalRepository,
     private val apiClient: ApiClient,
+    private val appPreferences: AppPreferences,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -32,6 +34,14 @@ class TerminalViewModel @Inject constructor(
         private const val TAG = "TerminalViewModel"
         private const val RESIZE_DEBOUNCE_MS = 150L
         private const val MIN_FIT_COLS = 2
+        const val MIN_FONT_SIZE = 8
+        const val MAX_FONT_SIZE = 24
+    }
+
+    val fontSize: StateFlow<Int> = appPreferences.fontSizeFlow
+
+    fun onFontSizeChanged(size: Int) {
+        appPreferences.fontSize = size.coerceIn(MIN_FONT_SIZE, MAX_FONT_SIZE)
     }
 
     val target: String = savedStateHandle["target"]!!
