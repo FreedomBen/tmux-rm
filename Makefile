@@ -43,11 +43,31 @@ install: build ## Install release to $(INSTALL_DIR) and systemd unit
 
 .PHONY: android android-clean android-install-debug
 
+# Gradle 8.11.1's bundled Kotlin can't parse Java 25's version string, and the
+# Fedora java-21-openjdk package only ships a JRE (no javac). Pin the build to
+# a JDK 17/21 if one is available; callers can override ANDROID_JAVA_HOME.
+ANDROID_JAVA_HOME ?= $(firstword $(wildcard \
+	/usr/lib/jvm/java-21-openjdk-devel \
+	/usr/lib/jvm/java-17-openjdk-devel \
+	/seconddrive/Downloads/android-studio/jbr \
+	/opt/android-studio/jbr \
+	$(HOME)/android-studio/jbr \
+	/opt/homebrew/opt/openjdk@21 \
+	/opt/homebrew/opt/openjdk@17))
+ANDROID_SDK_ROOT_GUESS ?= $(firstword $(wildcard \
+	$(ANDROID_HOME) \
+	$(ANDROID_SDK_ROOT) \
+	$(HOME)/Android/Sdk \
+	$(HOME)/Library/Android/sdk))
+ANDROID_GRADLE_ENV = \
+	$(if $(ANDROID_JAVA_HOME),JAVA_HOME="$(ANDROID_JAVA_HOME)") \
+	$(if $(ANDROID_SDK_ROOT_GUESS),ANDROID_HOME="$(ANDROID_SDK_ROOT_GUESS)")
+
 android: ## Build the Android debug APK
-	cd android && ./gradlew assembleDebug
+	cd android && $(ANDROID_GRADLE_ENV) ./gradlew assembleDebug
 
 android-clean: ## Clean Android build artifacts
-	cd android && ./gradlew clean
+	cd android && $(ANDROID_GRADLE_ENV) ./gradlew clean
 
 android-install-debug: ## Install the debug APK to a connected device
-	cd android && ./gradlew installDebug
+	cd android && $(ANDROID_GRADLE_ENV) ./gradlew installDebug
