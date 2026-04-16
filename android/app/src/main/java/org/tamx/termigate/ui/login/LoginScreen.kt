@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -84,13 +85,15 @@ fun LoginScreen(
 
             OutlinedTextField(
                 value = state.serverUrl,
-                onValueChange = viewModel::onServerUrlChanged,
+                onValueChange = { viewModel.onServerUrlChanged(it.filterNot { ch -> ch.isWhitespace() }) },
                 label = { Text("Server URL") },
                 placeholder = { Text("https://your-server:4000") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
+                    autoCorrect = false,
+                    capitalization = KeyboardCapitalization.None,
                     imeAction = ImeAction.Next
                 ),
                 keyboardActions = KeyboardActions(
