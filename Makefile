@@ -3,11 +3,19 @@
 INSTALL_DIR := /opt/termigate
 SERVICE_FILE := /etc/systemd/system/termigate.service
 
-## ── Server ──────────────────────────────────────────────
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} \
+		/^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2 } \
+		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
+
+##@ Server
 
 .PHONY: build clean install
 
-build:
+build: ## Build a production release of the server
 	cd server && export MIX_ENV=prod && \
 		mix deps.get --only prod && \
 		mix compile && \
@@ -15,10 +23,10 @@ build:
 		mix assets.deploy && \
 		mix release
 
-clean:
+clean: ## Remove server build artifacts and node_modules
 	rm -rf server/_build server/deps server/assets/node_modules
 
-install: build
+install: build ## Install release to $(INSTALL_DIR) and systemd unit
 	sudo rm -rf $(INSTALL_DIR)
 	sudo mkdir -p $(INSTALL_DIR)
 	sudo cp -r server/_build/prod/rel/termigate/* $(INSTALL_DIR)/
@@ -31,15 +39,15 @@ install: build
 	@echo "  sudo systemctl enable termigate"
 	@echo "  sudo systemctl start termigate"
 
-## ── Android ─────────────────────────────────────────────
+##@ Android
 
 .PHONY: android android-clean android-install-debug
 
-android:
+android: ## Build the Android debug APK
 	cd android && ./gradlew assembleDebug
 
-android-clean:
+android-clean: ## Clean Android build artifacts
 	cd android && ./gradlew clean
 
-android-install-debug:
+android-install-debug: ## Install the debug APK to a connected device
 	cd android && ./gradlew installDebug
