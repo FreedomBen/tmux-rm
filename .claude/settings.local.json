@@ -97,7 +97,10 @@
       "Bash(echo \"started, pid=$!\")",
       "Bash(echo \"pid=$!\")",
       "Bash(pkill -f \"mix phx.server\")",
-      "Bash(pkill -f \"beam.smp\")"
+      "Bash(pkill -f \"beam.smp\")",
+      "Bash(wait)",
+      "Bash(MIX_ENV=test mix test --exclude tmux)",
+      "Bash(make android *)"
     ]
   }
 }
