@@ -62,6 +62,8 @@ ANDROID_SDK_ROOT_GUESS ?= $(firstword $(wildcard \
 ANDROID_GRADLE_ENV = \
 	$(if $(ANDROID_JAVA_HOME),JAVA_HOME="$(ANDROID_JAVA_HOME)") \
 	$(if $(ANDROID_SDK_ROOT_GUESS),ANDROID_HOME="$(ANDROID_SDK_ROOT_GUESS)")
+ANDROID_DEBUG_PACKAGE = org.tamx.termigate.debug
+ADB = $(if $(ANDROID_SDK_ROOT_GUESS),$(ANDROID_SDK_ROOT_GUESS)/platform-tools/adb,adb)
 
 android: ## Build the Android debug APK
 	cd android && $(ANDROID_GRADLE_ENV) ./gradlew assembleDebug
@@ -69,5 +71,6 @@ android: ## Build the Android debug APK
 android-clean: ## Clean Android build artifacts
 	cd android && $(ANDROID_GRADLE_ENV) ./gradlew clean
 
-android-install-debug: ## Install the debug APK to a connected device
+android-install-debug: ## Install the debug APK to a connected device, replacing any prior install
+	-"$(ADB)" uninstall $(ANDROID_DEBUG_PACKAGE)
 	cd android && $(ANDROID_GRADLE_ENV) ./gradlew installDebug
