@@ -249,7 +249,8 @@ private fun SessionCard(
         backgroundContent = {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.error
+                color = MaterialTheme.colorScheme.error,
+                shape = CardDefaults.shape
             ) {
                 Box(
                     modifier = Modifier
