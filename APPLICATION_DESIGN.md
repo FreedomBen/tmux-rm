@@ -825,7 +825,7 @@ config :termigate,
 
 # server/config/dev.exs
 config :termigate, TermigateWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4000]
+  http: [ip: {127, 0, 0, 1}, port: 8888]
   # WebSocket compression is configured on the socket declaration in endpoint.ex,
   # not here — see Bandwidth Optimization section.
 
@@ -1096,7 +1096,7 @@ config :termigate,
   auth_token: System.get_env("TERMIGATE_AUTH_TOKEN")  # optional fallback for headless setups
 
 config :termigate, TermigateWeb.Endpoint,
-  http: [ip: {0, 0, 0, 0}, port: 4000]
+  http: [ip: {0, 0, 0, 0}, port: 8888]
 ```
 
 ### Phoenix Channel + Native Android Client

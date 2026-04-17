@@ -363,8 +363,8 @@ Watch a pane and return when a pattern appears in the output, or timeout.
 ```json
 {
   "matched": true,
-  "match": "Server running at http://localhost:4000",
-  "context": "...\nCompiling 42 files (.ex)\nServer running at http://localhost:4000\n...",
+  "match": "Server running at http://localhost:8888",
+  "context": "...\nCompiling 42 files (.ex)\nServer running at http://localhost:8888\n...",
   "timed_out": false
 }
 ```
@@ -509,8 +509,8 @@ The MCP route will use `RateLimitStore` with MCP-specific limits. Default: 120 r
 ← {target: "dev-server:0.0"}
 → tmux_send_keys(target: "dev-server:0.0", data: "cd server && mix phx.server\n")
 → tmux_wait_for_output(target: "dev-server:0.0", pattern: "Running.*endpoint", timeout_ms: 30000)
-← {matched: true, match: "Running TermigateWeb.Endpoint with Bandit at http://localhost:4000"}
-→ tmux_run_command_in_new_session(command: "curl -s localhost:4000/healthz")
+← {matched: true, match: "Running TermigateWeb.Endpoint with Bandit at http://localhost:8888"}
+→ tmux_run_command_in_new_session(command: "curl -s localhost:8888/healthz")
 ← {output: "ok", exit_code: 0}
 → tmux_kill_session(name: "dev-server")
 ```

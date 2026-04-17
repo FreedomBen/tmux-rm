@@ -35,8 +35,8 @@ ENV PHX_SERVER=true
 COPY --from=build /app/server/_build/prod/rel/termigate /app
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:4000/healthz || exit 1
+  CMD curl -f http://localhost:8888/healthz || exit 1
 
-EXPOSE 4000
+EXPOSE 8888
 
 CMD ["/app/bin/termigate", "start"]

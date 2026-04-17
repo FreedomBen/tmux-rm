@@ -210,7 +210,7 @@ Minimal Kotlin implementation of the Phoenix Channel protocol on top of OkHttp W
 **PhoenixSocket**:
 ```kotlin
 class PhoenixSocket(
-    private val baseUrl: String,       // e.g. "https://myserver:4000"
+    private val baseUrl: String,       // e.g. "https://myserver:8888"
     private val params: Map<String, String>,  // {"token": "..."} — sent as URL query params
     private val client: OkHttpClient
 ) {

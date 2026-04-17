@@ -87,7 +87,7 @@ fun LoginScreen(
                 value = state.serverUrl,
                 onValueChange = { viewModel.onServerUrlChanged(it.filterNot { ch -> ch.isWhitespace() }) },
                 label = { Text("Server URL") },
-                placeholder = { Text("https://your-server:4000") },
+                placeholder = { Text("https://your-server:8888") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(

@@ -28,7 +28,7 @@ RestartSec=5
 TimeoutStopSec=30
 
 Environment=TERMIGATE_IMAGE=localhost/termigate:latest
-Environment=TERMIGATE_PORT=4000
+Environment=TERMIGATE_PORT=8888
 Environment=TERMIGATE_SECRET_KEY_BASE=CHANGE_ME_generate_with_mix_phx_gen_secret
 
 # Remove any stale container before starting
@@ -37,7 +37,7 @@ ExecStartPre=-/usr/bin/podman rm -f termigate
 ExecStart=/usr/bin/podman run \
     --rm \
     --name termigate \
-    --publish ${TERMIGATE_PORT}:4000 \
+    --publish ${TERMIGATE_PORT}:8888 \
     --env PHX_SERVER=true \
     --env PHX_HOST=localhost \
     --env SECRET_KEY_BASE=${TERMIGATE_SECRET_KEY_BASE} \

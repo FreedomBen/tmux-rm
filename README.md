@@ -29,7 +29,7 @@ mix setup
 mix phx.server
 ```
 
-Then open [http://localhost:4000](http://localhost:4000). On first launch you'll be guided through initial setup (username/password).
+Then open [http://localhost:8888](http://localhost:8888). On first launch you'll be guided through initial setup (username/password).
 
 ## Auth
 
@@ -72,7 +72,7 @@ The release is built to `server/_build/prod/rel/termigate/`.
 podman build -t termigate -f Containerfile .
 
 # Run with container-local tmux
-podman run -d -p 4000:4000 \
+podman run -d -p 8888:8888 \
   -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
   termigate
 ```
@@ -91,7 +91,7 @@ directory into the container and set `TERMIGATE_TMUX_SOCKET` to point at it.
 2. Run the container with the socket mounted:
 
    ```bash
-   podman run -d -p 4000:4000 \
+   podman run -d -p 8888:8888 \
      -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
      -e TERMIGATE_TMUX_SOCKET=/tmp/tmux-host/default \
      -v "/tmp/tmux-$(id -u)":/tmp/tmux-host \
@@ -109,7 +109,7 @@ The same commands work with `docker` in place of `podman`:
 
 ```bash
 docker build -t termigate -f Containerfile .
-docker run -d -p 4000:4000 \
+docker run -d -p 8888:8888 \
   -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
   termigate
 ```

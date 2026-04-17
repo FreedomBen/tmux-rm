@@ -4,10 +4,10 @@ services:
       context: .
       dockerfile: Containerfile
     ports:
-      - "4000:4000"
+      - "8888:8888"
     environment:
       - SECRET_KEY_BASE=generate-me
-      - PORT=4000
+      - PORT=8888
       - PHX_HOST=localhost
       # Uncomment for host tmux access:
       # - TERMIGATE_TMUX_SOCKET=/tmp/tmux-host/default

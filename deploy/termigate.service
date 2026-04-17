@@ -25,7 +25,7 @@ WorkingDirectory=/opt/termigate
 
 # --- Required ---
 Environment=PHX_SERVER=true
-Environment=PORT=4000
+Environment=PORT=8888
 Environment=PHX_HOST=localhost
 Environment=SECRET_KEY_BASE=CHANGE_ME_generate_with_mix_phx_gen_secret
 

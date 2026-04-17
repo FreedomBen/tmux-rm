@@ -17,7 +17,7 @@ cd server
 mix setup              # Install deps + setup assets
 
 # Development
-mix phx.server         # Start dev server at localhost:4000
+mix phx.server         # Start dev server at localhost:8888
 
 # Testing
 mix test               # Run all tests
