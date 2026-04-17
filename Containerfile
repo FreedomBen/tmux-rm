@@ -31,6 +31,7 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 ENV PHX_SERVER=true
+ENV PHX_BIND=0.0.0.0
 
 COPY --from=build /app/server/_build/prod/rel/termigate /app
 
