@@ -85,6 +85,7 @@ defmodule Termigate.MixProject do
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind termigate", "esbuild termigate"],
       "assets.deploy": [
+        "compile",
         "tailwind termigate --minify",
         "esbuild termigate --minify",
         "phx.digest"

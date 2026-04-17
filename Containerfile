@@ -20,7 +20,7 @@ COPY server/ ./server/
 RUN cd server && mix assets.deploy && mix release
 
 # Runtime stage
-FROM docker.io/debian:bookworm-slim
+FROM docker.io/debian:trixie-slim
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends tmux locales curl && \
