@@ -113,7 +113,8 @@
       "Bash(awk NR>=820 && NR<=835 *)",
       "Bash(awk NR>=1090 && NR<=1105 *)",
       "Bash(awk 'NR>=360 && NR<=375' /home/ben/gitclone/termigate/MCP_DESIGN.md)",
-      "Bash(awk 'NR>=508 && NR<=520' /home/ben/gitclone/termigate/MCP_DESIGN.md)"
+      "Bash(awk 'NR>=508 && NR<=520' /home/ben/gitclone/termigate/MCP_DESIGN.md)",
+      "Bash(make help *)"
     ]
   }
 }
