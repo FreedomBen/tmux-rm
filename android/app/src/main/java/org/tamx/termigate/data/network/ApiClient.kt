@@ -125,14 +125,13 @@ class ApiClient(
         client.get(url("/api/config")).body<ConfigResponse>().config
     }
 
-    // Unauthenticated probe to check if auth is required
-    suspend fun probeAuthRequired(): Boolean {
-        return try {
-            val response: HttpResponse = client.get(url("/api/sessions"))
-            !response.status.isSuccess()
-        } catch (_: Exception) {
-            true
-        }
+    // Unauthenticated probe against a specific base URL to check if auth is
+    // required. Throws on network-level failures so callers can fall back to
+    // another candidate URL; a non-success HTTP status means "reachable, auth
+    // required" and is returned as `true`.
+    suspend fun probeAuthRequiredAt(baseUrl: String): Boolean {
+        val response: HttpResponse = client.get("${baseUrl.trimEnd('/')}/api/sessions")
+        return !response.status.isSuccess()
     }
 
     private inline fun <T> runApi(block: () -> T): Result<T> {

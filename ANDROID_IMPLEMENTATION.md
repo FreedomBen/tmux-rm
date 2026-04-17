@@ -466,6 +466,8 @@ Compose UI:
 - Error message display (wrong credentials, server unreachable, timeout)
 - Loading indicator during auth request
 
+**Server URL port resolution** (`data/network/ServerUrl.kt`): when the user enters a URL with no explicit port, the auth probe tries the scheme-default port first (80 for `http`, 443 for `https`) and falls back to `:8888` if that fails. If the URL specifies a port, only that URL is tried. The winning URL is saved to preferences so subsequent API calls and WebSocket connections use the resolved address.
+
 #### 3.4 Navigation Setup (`ui/navigation/AppNavigation.kt`)
 
 ```kotlin
