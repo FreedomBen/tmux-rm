@@ -39,6 +39,27 @@ install: build ## Install release to $(INSTALL_DIR) and systemd unit
 	@echo "  sudo systemctl enable termigate"
 	@echo "  sudo systemctl start termigate"
 
+##@ Container
+
+.PHONY: run
+
+CONTAINER_IMAGE ?= termigate:latest
+CONTAINER_PORT ?= 8888
+CONFIG_DIR ?= ${HOME}/.config/termigate
+
+run: ## Run the container, persisting config to $(CONFIG_DIR). Override SECRET_KEY_BASE, CONTAINER_IMAGE, CONTAINER_PORT, or CONFIG_DIR as needed.
+	@mkdir -p "${CONFIG_DIR}"
+	@if [ -z "$${SECRET_KEY_BASE:-}" ]; then \
+		echo "SECRET_KEY_BASE not set; generating an ephemeral one (sessions/API tokens will invalidate on next run)." >&2; \
+		SECRET_KEY_BASE=$$(openssl rand -base64 48); \
+	fi; \
+	podman run --rm -it \
+		--name termigate \
+		-p ${CONTAINER_PORT}:8888 \
+		-e SECRET_KEY_BASE="$${SECRET_KEY_BASE}" \
+		-v "${CONFIG_DIR}":/root/.config/termigate:Z \
+		${CONTAINER_IMAGE}
+
 ##@ Android
 
 .PHONY: android android-clean android-install-debug
