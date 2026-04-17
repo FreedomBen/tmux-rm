@@ -1,5 +1,9 @@
 # Not Run Yet
 
+- In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.  
+
+- For the android app, test the font size in the settings menu.  Use the test tmux session for attaching.  
+
 - How hard would it be to make this a progressive web app?
 
 - Notification threshold control doesn't work
@@ -24,7 +28,7 @@
 
 # Already Run
 
-- let's add tmux to the Containerfile so that when the app is launched in the containerfile without a tmux socket mapped in, it will use the tmux in the container
+- let's add tmux to the Containerfile so that when the app is launched in the Containerfile without a tmux socket mapped in, it will use the tmux in the container
 
 - Let's make the Control and tab button section collapsible with a toggle.  When collapsed it should be very thin.
 

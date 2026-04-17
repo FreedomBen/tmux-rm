@@ -105,7 +105,10 @@
       "Read(//home/ben/android-sdk/system-images/**)",
       "Read(//home/ben/.android/avd/**)",
       "Bash(make android-install-debug *)",
-      "Bash(android screen *)"
+      "Bash(android screen *)",
+      "Bash(android layout *)",
+      "mcp__mobile-mcp__mobile_click_on_screen_at_coordinates",
+      "mcp__mobile-mcp__mobile_type_keys"
     ]
   }
 }
