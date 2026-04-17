@@ -13,7 +13,7 @@ help: ## Show this help
 
 ##@ Server
 
-.PHONY: build clean install
+.PHONY: build clean install run
 
 build: ## Build a production release of the server
 	cd server && export MIX_ENV=prod && \
@@ -25,6 +25,14 @@ build: ## Build a production release of the server
 
 clean: ## Remove server build artifacts and node_modules
 	rm -rf server/_build server/deps server/assets/node_modules
+
+run: ## Run the built release from server/_build/prod. Run 'make build' first.
+	@if [ -z "$${SECRET_KEY_BASE:-}" ]; then \
+		echo "SECRET_KEY_BASE not set; generating an ephemeral one (sessions/API tokens will invalidate on next run)." >&2; \
+		SECRET_KEY_BASE=$$(openssl rand -base64 48); \
+	fi; \
+	SECRET_KEY_BASE="$${SECRET_KEY_BASE}" \
+		server/_build/prod/rel/termigate/bin/termigate start
 
 install: build ## Install release to $(INSTALL_DIR) and systemd unit
 	sudo rm -rf $(INSTALL_DIR)
@@ -41,24 +49,31 @@ install: build ## Install release to $(INSTALL_DIR) and systemd unit
 
 ##@ Container
 
-.PHONY: run
+.PHONY: build-container run-container clean-container
 
+PODMAN ?= podman
 CONTAINER_IMAGE ?= termigate:latest
 CONTAINER_PORT ?= 8888
 CONFIG_DIR ?= ${HOME}/.config/termigate
 
-run: ## Run the container, persisting config to $(CONFIG_DIR). Override SECRET_KEY_BASE, CONTAINER_IMAGE, CONTAINER_PORT, or CONFIG_DIR as needed.
+build-container: ## Build the container image. Override PODMAN or CONTAINER_IMAGE as needed.
+	${PODMAN} build -t ${CONTAINER_IMAGE} -f Containerfile .
+
+run-container: ## Run the container, persisting config to $(CONFIG_DIR). Override SECRET_KEY_BASE, PODMAN, CONTAINER_IMAGE, CONTAINER_PORT, or CONFIG_DIR as needed.
 	@mkdir -p "${CONFIG_DIR}"
 	@if [ -z "$${SECRET_KEY_BASE:-}" ]; then \
 		echo "SECRET_KEY_BASE not set; generating an ephemeral one (sessions/API tokens will invalidate on next run)." >&2; \
 		SECRET_KEY_BASE=$$(openssl rand -base64 48); \
 	fi; \
-	podman run --rm -it \
+	${PODMAN} run --rm -it \
 		--name termigate \
 		-p ${CONTAINER_PORT}:8888 \
 		-e SECRET_KEY_BASE="$${SECRET_KEY_BASE}" \
 		-v "${CONFIG_DIR}":/root/.config/termigate:Z \
 		${CONTAINER_IMAGE}
+
+clean-container: ## Remove the container image
+	-${PODMAN} rmi ${CONTAINER_IMAGE}
 
 ##@ Android
 
