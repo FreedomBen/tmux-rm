@@ -100,7 +100,12 @@
       "Bash(pkill -f \"beam.smp\")",
       "Bash(wait)",
       "Bash(MIX_ENV=test mix test --exclude tmux)",
-      "Bash(make android *)"
+      "Bash(make android *)",
+      "Bash(android emulator *)",
+      "Read(//home/ben/android-sdk/system-images/**)",
+      "Read(//home/ben/.android/avd/**)",
+      "Bash(make android-install-debug *)",
+      "Bash(android screen *)"
     ]
   }
 }
