@@ -11,7 +11,15 @@ defmodule Termigate.LayoutPoller do
   @poll_interval 2_000
   @grace_period 30_000
 
-  defstruct [:session, :window, :layout, :timer_ref, :grace_timer_ref, :subscriber_count]
+  defstruct [
+    :session,
+    :window,
+    :layout,
+    :timer_ref,
+    :grace_timer_ref,
+    :subscriber_count,
+    window_gone?: false
+  ]
 
   # --- Public API ---
 
@@ -71,7 +79,8 @@ defmodule Termigate.LayoutPoller do
       layout: nil,
       timer_ref: nil,
       grace_timer_ref: nil,
-      subscriber_count: 0
+      subscriber_count: 0,
+      window_gone?: false
     }
 
     {:ok, state, {:continue, :initial_poll}}
@@ -151,6 +160,10 @@ defmodule Termigate.LayoutPoller do
   defp do_poll(state) do
     case fetch_layout(state.session, state.window) do
       {:ok, panes} ->
+        if state.window_gone? do
+          Logger.info("LayoutPoller: window #{state.session}:#{state.window} is back")
+        end
+
         if panes != state.layout do
           Phoenix.PubSub.broadcast(
             Termigate.PubSub,
@@ -159,19 +172,23 @@ defmodule Termigate.LayoutPoller do
           )
         end
 
-        %{state | layout: panes}
+        %{state | layout: panes, window_gone?: false}
 
       {:error, :window_not_found} ->
-        # Window was killed
-        Phoenix.PubSub.broadcast(
-          Termigate.PubSub,
-          topic(state.session, state.window),
-          {:layout_updated, []}
-        )
+        if state.window_gone? do
+          # Already reported — stay silent to avoid log/broadcast spam
+          state
+        else
+          Phoenix.PubSub.broadcast(
+            Termigate.PubSub,
+            topic(state.session, state.window),
+            {:layout_updated, []}
+          )
 
-        Logger.info("LayoutPoller: window #{state.session}:#{state.window} no longer exists")
-        # Will be cleaned up by grace period or stopped
-        %{state | layout: []}
+          Logger.info("LayoutPoller: window #{state.session}:#{state.window} no longer exists")
+          # Remain polling in case the window is recreated; grace-period shutdown still applies
+          %{state | layout: [], window_gone?: true}
+        end
 
       {:error, _reason} ->
         state

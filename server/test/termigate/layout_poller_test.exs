@@ -42,6 +42,61 @@ defmodule Termigate.LayoutPollerTest do
       assert panes == []
     end
 
+    test "broadcasts empty layout only once while window stays missing", %{unique: n} do
+      session = "lp_silence_#{n}"
+
+      Termigate.MockCommandRunner
+      |> stub(:run, fn
+        ["list-panes", "-t", _, "-F", _] -> {:error, {"can't find window", 1}}
+        args -> Termigate.StubCommandRunner.run(args)
+      end)
+
+      Phoenix.PubSub.subscribe(Termigate.PubSub, LayoutPoller.topic(session, "0"))
+
+      {:ok, []} = LayoutPoller.get(session, "0")
+      assert_receive {:layout_updated, []}, 500
+
+      [{pid, _}] = Registry.lookup(Termigate.PaneRegistry, {:layout_poller, session, "0"})
+      send(pid, :poll)
+      send(pid, :poll)
+      # Flush: a synchronous call after the sends ensures both :poll messages were processed
+      _ = :sys.get_state(pid)
+
+      refute_receive {:layout_updated, _}, 50
+    end
+
+    test "re-broadcasts layout when window comes back", %{unique: n} do
+      session = "lp_recover_#{n}"
+      pid_holder = self()
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      Termigate.MockCommandRunner
+      |> stub(:run, fn
+        ["list-panes", "-t", _, "-F", _] ->
+          count = Agent.get_and_update(counter, &{&1, &1 + 1})
+
+          if count == 0 do
+            {:error, {"can't find window", 1}}
+          else
+            send(pid_holder, {:polled, count})
+            {:ok, "%0\t0\t0\t80\t24\t0\tbash\n"}
+          end
+
+        args ->
+          Termigate.StubCommandRunner.run(args)
+      end)
+
+      Phoenix.PubSub.subscribe(Termigate.PubSub, LayoutPoller.topic(session, "0"))
+
+      {:ok, []} = LayoutPoller.get(session, "0")
+      assert_receive {:layout_updated, []}, 500
+
+      [{pid, _}] = Registry.lookup(Termigate.PaneRegistry, {:layout_poller, session, "0"})
+      send(pid, :poll)
+
+      assert_receive {:layout_updated, [%{pane_id: "%0"}]}, 500
+    end
+
     test "parses tab-separated pane layout lines", %{unique: n} do
       session = "lp_parse_#{n}"
 
