@@ -151,80 +151,82 @@ defmodule TermigateWeb.MultiPaneLive do
         </button>
         <%!-- Window tabs --%>
         <div class="window-tabs">
-        <div class="flex items-center gap-0.5 px-2 flex-1">
-          <div :for={win <- @windows} class="window-tab-wrapper">
-            <.link
-              navigate={"/sessions/#{@session}/windows/#{win.index}"}
-              class={[
-                "window-tab",
-                if(to_string(win.index) == @window,
-                  do: "window-tab-active",
-                  else: "window-tab-inactive"
-                )
-              ]}
-            >
-              Window {win.index}{if win.name, do: ": #{win.name}", else: ""}
-            </.link>
+          <div class="flex items-center gap-0.5 px-2 flex-1">
+            <div :for={win <- @windows} class="window-tab-wrapper">
+              <.link
+                navigate={"/sessions/#{@session}/windows/#{win.index}"}
+                class={[
+                  "window-tab",
+                  if(to_string(win.index) == @window,
+                    do: "window-tab-active",
+                    else: "window-tab-inactive"
+                  )
+                ]}
+              >
+                Window {win.index}{if win.name, do: ": #{win.name}", else: ""}
+              </.link>
+              <button
+                class="window-close-btn tooltip tooltip-bottom"
+                phx-click="close_window"
+                phx-value-window={win.index}
+                onmousedown="event.preventDefault()"
+                data-tip="Close window"
+                aria-label="Close window"
+              >
+                &times;
+              </button>
+            </div>
             <button
-              class="window-close-btn tooltip tooltip-bottom"
-              phx-click="close_window"
-              phx-value-window={win.index}
-              onmousedown="event.preventDefault()"
-              data-tip="Close window"
-              aria-label="Close window"
+              class="new-window-btn tooltip tooltip-bottom"
+              phx-click="create_window"
+              data-tip="New window"
+              aria-label="New window"
             >
-              &times;
+              <.icon name="hero-plus-micro" class="size-3.5" />
             </button>
           </div>
-          <button
-            class="new-window-btn tooltip tooltip-bottom"
-            phx-click="create_window"
-            data-tip="New window"
-            aria-label="New window"
-          >
-            <.icon name="hero-plus-micro" class="size-3.5" />
-          </button>
-        </div>
-      </div>
-
-      <%!-- Control signal bar (mobile/tablet only) --%>
-      <div class="control-signal-bar">
-        <div class="ctl-group">
-          <button
-            :for={{label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]}
-            class={"ctl-btn #{if key == "\\", do: "ctl-btn-danger"}"}
-            phx-click="send_control"
-            phx-value-key={key}
-            disabled={@active_pane == nil}
-            onmousedown="event.preventDefault()"
-          >
-            <kbd>{label}</kbd>
-          </button>
         </div>
 
-        <span class="ctl-separator">|</span>
+        <%!-- Control signal bar (mobile/tablet only) --%>
+        <div class="control-signal-bar">
+          <div class="ctl-group">
+            <button
+              :for={
+                {label, key} <- [{"^C", "c"}, {"^D", "d"}, {"^Z", "z"}, {"^L", "l"}, {"^\\", "\\"}]
+              }
+              class={"ctl-btn #{if key == "\\", do: "ctl-btn-danger"}"}
+              phx-click="send_control"
+              phx-value-key={key}
+              disabled={@active_pane == nil}
+              onmousedown="event.preventDefault()"
+            >
+              <kbd>{label}</kbd>
+            </button>
+          </div>
 
-        <div class="ctl-group">
-          <button
-            :for={
-              {label, key} <- [
-                {"Tab", "tab"},
-                {raw("&#x2191;"), "up"},
-                {raw("&#x2193;"), "down"},
-                {raw("&#x2190;"), "left"},
-                {raw("&#x2192;"), "right"}
-              ]
-            }
-            class="ctl-btn"
-            phx-click="send_special_key"
-            phx-value-key={key}
-            disabled={@active_pane == nil}
-            onmousedown="event.preventDefault()"
-          >
-            <kbd>{label}</kbd>
-          </button>
+          <span class="ctl-separator">|</span>
+
+          <div class="ctl-group">
+            <button
+              :for={
+                {label, key} <- [
+                  {"Tab", "tab"},
+                  {raw("&#x2191;"), "up"},
+                  {raw("&#x2193;"), "down"},
+                  {raw("&#x2190;"), "left"},
+                  {raw("&#x2192;"), "right"}
+                ]
+              }
+              class="ctl-btn"
+              phx-click="send_special_key"
+              phx-value-key={key}
+              disabled={@active_pane == nil}
+              onmousedown="event.preventDefault()"
+            >
+              <kbd>{label}</kbd>
+            </button>
+          </div>
         </div>
-      </div>
       </div>
 
       <%!-- Quick action bar --%>

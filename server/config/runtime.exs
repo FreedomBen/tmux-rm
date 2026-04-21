@@ -38,8 +38,7 @@ end
 if config_env() == :dev do
   port = String.to_integer(System.get_env("PORT") || "8888")
 
-  config :termigate, TermigateWeb.Endpoint,
-    http: [ip: {0, 0, 0, 0}, port: port]
+  config :termigate, TermigateWeb.Endpoint, http: [ip: {0, 0, 0, 0}, port: port]
 end
 
 if config_env() == :prod do
