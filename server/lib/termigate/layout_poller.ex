@@ -158,6 +158,10 @@ defmodule Termigate.LayoutPoller do
   # --- Private ---
 
   defp do_poll(state) do
+    # Backfill window_gone? for processes whose state was created before this field existed
+    # (e.g. surviving a hot code reload).
+    state = Map.put_new(state, :window_gone?, false)
+
     case fetch_layout(state.session, state.window) do
       {:ok, panes} ->
         if state.window_gone? do
