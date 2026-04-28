@@ -31,11 +31,15 @@ defmodule TermigateWeb.SetupLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex items-center justify-center min-h-screen px-4 py-8">
+    <div class="flex flex-col items-center justify-center min-h-screen px-4 py-8 gap-6 sm:gap-12">
+      <img
+        src={~p"/images/termigate-logo.png"}
+        alt="termigate"
+        class="w-48 h-auto"
+      />
       <div class="card auth-card shadow-xl w-full max-w-sm rounded-2xl">
         <div class="card-body gap-5">
           <div class="text-center">
-            <div class="auth-logo mb-2">termigate</div>
             <p class="text-xs text-base-content/40">
               Create an account to secure your terminal access
             </p>
