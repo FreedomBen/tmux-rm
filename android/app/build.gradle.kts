@@ -63,6 +63,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -106,8 +112,13 @@ dependencies {
     // Security
     implementation(libs.security.crypto)
 
-    // Testing
-    testImplementation(libs.junit5)
+    // Unit testing (Robolectric — runs on the JVM, no device required)
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+
+    // On-device instrumentation tests
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test)
     debugImplementation(libs.compose.ui.test.manifest)

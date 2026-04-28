@@ -77,7 +77,7 @@ clean-container: ## Remove the container image
 
 ##@ Android
 
-.PHONY: android android-clean android-install-debug
+.PHONY: android android-clean android-install-debug android-test
 
 # Gradle 8.11.1's bundled Kotlin can't parse Java 25's version string, and the
 # Fedora java-21-openjdk package only ships a JRE (no javac). Pin the build to
@@ -90,14 +90,20 @@ ANDROID_JAVA_HOME ?= $(firstword $(wildcard \
 	$(HOME)/android-studio/jbr \
 	/opt/homebrew/opt/openjdk@21 \
 	/opt/homebrew/opt/openjdk@17))
-ANDROID_SDK_ROOT_GUESS ?= $(firstword $(wildcard \
-	$(ANDROID_HOME) \
-	$(ANDROID_SDK_ROOT) \
-	$(HOME)/Android/Sdk \
-	$(HOME)/Library/Android/sdk))
+# Pick the first SDK that actually has the platform we compile against
+# installed; an empty $ANDROID_HOME directory is worse than no override at
+# all because gradle then refuses to fall back to anything else. Both
+# ANDROID_HOME and ANDROID_SDK_ROOT are set to the same path so gradle
+# does not complain about conflicting locations.
+ANDROID_SDK_PLATFORM ?= android-35
+ANDROID_SDK_ROOT_GUESS ?= $(patsubst %/platforms/$(ANDROID_SDK_PLATFORM),%,$(firstword $(wildcard \
+	$(ANDROID_HOME)/platforms/$(ANDROID_SDK_PLATFORM) \
+	$(ANDROID_SDK_ROOT)/platforms/$(ANDROID_SDK_PLATFORM) \
+	$(HOME)/Android/Sdk/platforms/$(ANDROID_SDK_PLATFORM) \
+	$(HOME)/Library/Android/sdk/platforms/$(ANDROID_SDK_PLATFORM))))
 ANDROID_GRADLE_ENV = \
 	$(if $(ANDROID_JAVA_HOME),JAVA_HOME="$(ANDROID_JAVA_HOME)") \
-	$(if $(ANDROID_SDK_ROOT_GUESS),ANDROID_HOME="$(ANDROID_SDK_ROOT_GUESS)")
+	$(if $(ANDROID_SDK_ROOT_GUESS),ANDROID_HOME="$(ANDROID_SDK_ROOT_GUESS)" ANDROID_SDK_ROOT="$(ANDROID_SDK_ROOT_GUESS)")
 ANDROID_DEBUG_PACKAGE = org.tamx.termigate.debug
 ADB = $(if $(ANDROID_SDK_ROOT_GUESS),$(ANDROID_SDK_ROOT_GUESS)/platform-tools/adb,adb)
 
@@ -110,3 +116,6 @@ android-clean: ## Clean Android build artifacts
 android-install-debug: ## Install the debug APK to a connected device, replacing any prior install
 	-"$(ADB)" uninstall $(ANDROID_DEBUG_PACKAGE)
 	cd android && $(ANDROID_GRADLE_ENV) ./gradlew installDebug
+
+android-test: ## Run Android unit tests on the JVM (Robolectric, no device required)
+	cd android && $(ANDROID_GRADLE_ENV) ./gradlew testDebugUnitTest
