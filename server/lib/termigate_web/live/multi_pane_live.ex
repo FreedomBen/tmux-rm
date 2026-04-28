@@ -257,7 +257,11 @@ defmodule TermigateWeb.MultiPaneLive do
         >
           {String.split(@active_pane, ".") |> List.last() |> then(&"pane #{&1}")}
         </span>
-        <button class="btn btn-ghost btn-xs ml-auto shrink-0" phx-click="toggle_actions">
+        <button
+          class="btn btn-ghost btn-xs ml-auto shrink-0"
+          phx-click="toggle_actions"
+          aria-label="Hide quick actions"
+        >
           <.icon name="hero-chevron-up-micro" class="size-3" />
         </button>
       </div>
@@ -266,7 +270,11 @@ defmodule TermigateWeb.MultiPaneLive do
         :if={@quick_actions_enabled and @quick_actions != [] and not @show_actions}
         class="quick-action-bar py-0.5"
       >
-        <button class="btn btn-ghost btn-xs text-base-content/40" phx-click="toggle_actions">
+        <button
+          class="btn btn-ghost btn-xs text-base-content/40"
+          phx-click="toggle_actions"
+          aria-label="Show quick actions"
+        >
           <.icon name="hero-chevron-down-micro" class="size-3" />
           <span class="text-xs">{length(@quick_actions)} actions</span>
         </button>

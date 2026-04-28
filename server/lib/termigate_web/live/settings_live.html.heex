@@ -172,6 +172,7 @@
             class="btn btn-ghost btn-xs px-0"
             phx-click="move_up"
             phx-value-id={action["id"]}
+            aria-label={"Move quick action #{action["label"]} up"}
           >
             <.icon name="hero-chevron-up-micro" class="size-3" />
           </button>
@@ -179,6 +180,7 @@
             class="btn btn-ghost btn-xs px-0"
             phx-click="move_down"
             phx-value-id={action["id"]}
+            aria-label={"Move quick action #{action["label"]} down"}
           >
             <.icon name="hero-chevron-down-micro" class="size-3" />
           </button>
@@ -197,7 +199,12 @@
         </div>
 
         <div class="flex gap-1">
-          <button class="btn btn-ghost btn-xs" phx-click="edit_action" phx-value-id={action["id"]}>
+          <button
+            class="btn btn-ghost btn-xs"
+            phx-click="edit_action"
+            phx-value-id={action["id"]}
+            aria-label={"Edit quick action #{action["label"]}"}
+          >
             <.icon name="hero-pencil-micro" class="size-4" />
           </button>
           <button
@@ -205,6 +212,7 @@
             phx-click="delete_action"
             phx-value-id={action["id"]}
             data-confirm="Delete this quick action?"
+            aria-label={"Delete quick action #{action["label"]}"}
           >
             <.icon name="hero-trash-micro" class="size-4" />
           </button>
