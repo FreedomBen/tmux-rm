@@ -49,9 +49,39 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "localhost"
+  configured_host = System.get_env("PHX_HOST")
+  host = configured_host || "localhost"
   port = String.to_integer(System.get_env("PORT") || "8888")
   bind_ip = if System.get_env("PHX_BIND") == "0.0.0.0", do: {0, 0, 0, 0}, else: {127, 0, 0, 1}
+
+  # Phoenix's default :conn check rejects WebSocket connections whose Origin host
+  # does not match PHX_HOST. When PHX_HOST is left at the default "localhost",
+  # any request hitting the server by IP or other hostname (common with rootless
+  # podman, port-forwarded LANs, Tailscale, etc.) silently fails: LiveView's
+  # /setup form just does nothing on submit. Default to disabled origin checks
+  # in that case so first-run "just works", but still let operators tighten this
+  # via TERMIGATE_CHECK_ORIGIN when they have configured a real host.
+  default_check_origin = if configured_host, do: :conn, else: false
+
+  check_origin =
+    case System.get_env("TERMIGATE_CHECK_ORIGIN") do
+      nil -> default_check_origin
+      "false" -> false
+      "true" -> true
+      "conn" -> :conn
+      val -> val |> String.split(",") |> Enum.map(&String.trim/1)
+    end
+
+  if bind_ip == {0, 0, 0, 0} and configured_host in [nil, "localhost"] do
+    require Logger
+
+    Logger.warning(
+      "termigate is binding 0.0.0.0 with PHX_HOST=localhost. Browsers visiting " <>
+        "by IP or hostname will see this URL configured for localhost. Set PHX_HOST " <>
+        "to the address users will visit (e.g. 127.0.0.1, your LAN IP, or DNS name) " <>
+        "to silence this warning."
+    )
+  end
 
   config :termigate, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -59,5 +89,6 @@ if config_env() == :prod do
     url: [host: host, port: port],
     http: [ip: bind_ip, port: port],
     secret_key_base: secret_key_base,
+    check_origin: check_origin,
     server: true
 end
