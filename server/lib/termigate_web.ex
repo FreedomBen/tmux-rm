@@ -18,8 +18,7 @@ defmodule TermigateWeb do
   """
 
   def static_paths,
-    do:
-      ~w(assets fonts images favicon apple-touch-icon icon-192 icon-512 robots openapi manifest)
+    do: ~w(assets fonts images favicon apple-touch-icon icon-192 icon-512 robots openapi manifest)
 
   def router do
     quote do

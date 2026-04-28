@@ -92,6 +92,23 @@ starts. Once you decide on the host/IP you'll actually visit, set
 Override explicitly with `TERMIGATE_CHECK_ORIGIN=false`, `=true`,
 `=conn`, or a comma-separated list of allowed origins.
 
+#### HTTPS / force_ssl
+
+The default container speaks plain HTTP. Front it with a TLS terminator
+(nginx, Caddy, Traefik, …) when serving over the public Internet.
+
+To bake HTTPS-only redirects directly into the release (HSTS + 301 to
+`https://`), build with `TERMIGATE_FORCE_SSL=true`:
+
+```bash
+TERMIGATE_FORCE_SSL=true podman build --format docker -t termigate -f Containerfile .
+```
+
+This is a build-time setting because Phoenix reads `:force_ssl` at
+compile time. Loopback (`localhost`, `127.0.0.1`) and the Android
+emulator's host alias (`10.0.2.2`) are left in the exclude list so local
+clients keep working.
+
 #### Using host tmux sessions
 
 To access tmux sessions running on the host, mount the host's tmux socket

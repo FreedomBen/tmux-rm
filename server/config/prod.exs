@@ -7,17 +7,36 @@ import Config
 # before starting your production server.
 config :termigate, TermigateWeb.Endpoint, cache_static_manifest: "priv/static/cache_manifest.json"
 
-# Force using SSL in production. This also sets the "strict-security-transport" header,
-# known as HSTS. If you have a health check endpoint, you may want to exclude it below.
-# Note `:force_ssl` is required to be set at compile-time.
-config :termigate, TermigateWeb.Endpoint,
-  force_ssl: [
-    rewrite_on: [:x_forwarded_proto],
-    exclude: [
-      # paths: ["/health"],
-      hosts: ["localhost", "127.0.0.1"]
-    ]
-  ]
+# Force using SSL in production. Phoenix reads `:force_ssl` at compile time
+# (`Application.compile_env/2` in `Phoenix.Endpoint`), so this is a build-time
+# decision driven by `TERMIGATE_FORCE_SSL`.
+#
+# Default: disabled. Most termigate deployments are containers fronted by a
+# TLS terminator (nginx, Caddy, Traefik) or accessed from same-host clients
+# (LAN, the Android emulator on `10.0.2.2`, an `adb reverse` tunnel). With
+# the previous narrow exclude list `["localhost", "127.0.0.1"]`, every other
+# host was 301-redirected to `https://…`, which silently broke connectivity
+# over plain HTTP. See ANDROID_DRIVE_01.md Bug 1.
+#
+# Opt in with `TERMIGATE_FORCE_SSL=true` at build time when termigate
+# terminates TLS itself; the exclude list still keeps loopback and the
+# Android emulator host alias reachable.
+force_ssl =
+  case System.get_env("TERMIGATE_FORCE_SSL") do
+    "true" ->
+      [
+        rewrite_on: [:x_forwarded_proto],
+        exclude: [
+          # paths: ["/health"],
+          hosts: ["localhost", "127.0.0.1", "10.0.2.2"]
+        ]
+      ]
+
+    _ ->
+      false
+  end
+
+config :termigate, TermigateWeb.Endpoint, force_ssl: force_ssl
 
 # Do not print debug messages in production
 config :logger, level: :info

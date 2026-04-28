@@ -10,7 +10,7 @@ Date: 2026-04-28 · Build SHA: `a386f28` (main, plus untracked drive log files).
 
 ## Fix progress
 
-- [ ] Bug 1 — `force_ssl` excludes only `localhost`/`127.0.0.1`, breaks Android emulator (and LAN access)
+- [x] Bug 1 — `force_ssl` excludes only `localhost`/`127.0.0.1`, breaks Android emulator (and LAN access)
 - [ ] Bug 2 — Tapping the terminal does not raise the soft keyboard
 - [ ] Bug 3 — Terminal viewport renders the buffer at the top *and* at the bottom of the screen
 - [ ] Bug 4 — Terminal viewport is sized to the 80×24 cell grid in pixels, not to the available screen
