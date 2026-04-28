@@ -1,5 +1,9 @@
 # Not Run Yet
 
+- Build and Run the prod container using the Makefile.  Use the MCP browser to explore and test it.  Create a new test session, attach to it, run some commands to verify.  Make notes of any bugs you find in CONTAINER_DRIVE_01.md . 
+
+- Build and run the prod container using the Makefile.  Connect via the browser to complete initial setup, using the tmux inside the container so it doesn't touch the real termigate server on this host machine.  Then Build the android app and and run it in the emulator using adb and/or the Android MCP server.  Login the android app to the running server and test out all the functionality.  Try to exercise as much of the android app as possible, and make note of any bugs you encounter by writing to ANDROID_DRIVE_01.md . 
+
 - In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.  
 
 - For the android app, test the font size in the settings menu.  Use the test tmux session for attaching.  
