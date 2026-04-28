@@ -1,8 +1,10 @@
 package org.tamx.termigate.ui.terminal
 
+import android.content.Context
 import android.graphics.Typeface
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -64,6 +66,35 @@ import kotlinx.coroutines.delay
 private const val AUTO_HIDE_DELAY_MS = 3000L
 private const val PINCH_ZOOM_THRESHOLD_IN = 1.1f
 private const val PINCH_ZOOM_THRESHOLD_OUT = 0.9f
+
+/**
+ * Raise the soft keyboard for [termView]. See ANDROID_DRIVE_01.md Bug 2:
+ * tapping the terminal did not raise the IME on a stock AVD even though
+ * `mServedView` was wired up — the IMM saw `mInputShown=false` and
+ * refused the implicit show. Two changes get the keyboard up reliably:
+ *
+ *   1. requestFocus then *post* the show, so the IMM call lands after
+ *      focus has actually moved to [termView]. Without the post, the
+ *      show races the focus change.
+ *   2. Also ask the WindowInsetsController to show Type.ime() — newer
+ *      Android versions prefer this path and it succeeds where
+ *      SHOW_IMPLICIT silently drops on the floor.
+ *
+ * Pulled out as a top-level function so the keyboard-raise contract can
+ * be exercised under Robolectric without standing up the full
+ * Compose/Hilt screen graph.
+ */
+internal fun raiseSoftKeyboard(termView: View, ctx: Context) {
+    termView.requestFocus()
+    termView.post {
+        val imm = ctx.getSystemService(InputMethodManager::class.java)
+        imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+        (ctx as? android.app.Activity)?.let { activity ->
+            WindowCompat.getInsetsController(activity.window, termView)
+                .show(WindowInsetsCompat.Type.ime())
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -327,28 +358,7 @@ private fun TerminalAndroidView(
                 appliedFontSize = fontSize
                 setTypeface(Typeface.MONOSPACE)
                 setTerminalViewClient(createViewClient(viewModel, onTopBarToggle, showKeyboard = {
-                    // Bug 2: tapping the terminal didn't raise the IME on a
-                    // stock AVD even though `mServedView` was wired up — the
-                    // IMM saw `mInputShown=false` and refused the implicit
-                    // show. Two changes that together get the keyboard up:
-                    //
-                    //   1. requestFocus then post the show, so the IMM
-                    //      receives the request after focus has actually
-                    //      moved to the TerminalView. Without the post, the
-                    //      show races the focus change.
-                    //   2. Also ask the WindowInsetsController to show
-                    //      Type.ime() — newer Android versions prefer this
-                    //      path and it succeeds where SHOW_IMPLICIT silently
-                    //      drops on the floor.
-                    termView.requestFocus()
-                    termView.post {
-                        val imm = ctx.getSystemService(InputMethodManager::class.java)
-                        imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
-                        (ctx as? android.app.Activity)?.let { activity ->
-                            WindowCompat.getInsetsController(activity.window, termView)
-                                .show(WindowInsetsCompat.Type.ime())
-                        }
-                    }
+                    raiseSoftKeyboard(termView, ctx)
                 }))
 
                 val session = viewModel.remoteSession ?: return@apply
