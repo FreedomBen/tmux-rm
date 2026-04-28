@@ -41,6 +41,19 @@ defmodule Termigate.ProdConfigTest do
       assert Keyword.get(endpoint_config(), :force_ssl) == false
     end
 
+    # Regression: protect against a typo silently becoming "on".
+    # The opt-in is "true" exactly; anything else (yes, on, 1, …) must
+    # fall into the disabled branch so we never enable HSTS / 301
+    # redirects by accident.
+    test "is disabled when TERMIGATE_FORCE_SSL holds an unrecognized value" do
+      for junk <- ["yes", "on", "1", "TRUE", "True", "enable", ""] do
+        System.put_env("TERMIGATE_FORCE_SSL", junk)
+
+        assert Keyword.get(endpoint_config(), :force_ssl) == false,
+               "expected force_ssl to be disabled for TERMIGATE_FORCE_SSL=#{inspect(junk)}"
+      end
+    end
+
     test "opt-in via TERMIGATE_FORCE_SSL=true keeps Android emulator (10.0.2.2) excluded" do
       System.put_env("TERMIGATE_FORCE_SSL", "true")
 
