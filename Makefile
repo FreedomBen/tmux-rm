@@ -57,7 +57,7 @@ CONTAINER_PORT ?= 8888
 CONFIG_DIR ?= ${HOME}/.config/termigate
 
 build-container: ## Build the container image. Override PODMAN or CONTAINER_IMAGE as needed.
-	${PODMAN} build -t ${CONTAINER_IMAGE} -f Containerfile .
+	${PODMAN} build --format docker -t ${CONTAINER_IMAGE} -f Containerfile .
 
 run-container: ## Run the container, persisting config to $(CONFIG_DIR). Override SECRET_KEY_BASE, PODMAN, CONTAINER_IMAGE, CONTAINER_PORT, or CONFIG_DIR as needed.
 	@mkdir -p "${CONFIG_DIR}"
