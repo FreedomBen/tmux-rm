@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="csrf-token" content={get_csrf_token()} />
@@ -12,6 +13,7 @@
     <link rel="icon" href={~p"/favicon.ico"} sizes="any" />
     <link rel="icon" type="image/png" sizes="192x192" href={~p"/icon-192.png"} />
     <link rel="apple-touch-icon" href={~p"/apple-touch-icon.png"} />
+    <link rel="manifest" href={~p"/manifest.webmanifest"} />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
