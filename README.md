@@ -69,13 +69,28 @@ The release is built to `server/_build/prod/rel/termigate/`.
 
 ```bash
 # Build
-podman build -t termigate -f Containerfile .
+podman build --format docker -t termigate -f Containerfile .
 
 # Run with container-local tmux
 podman run -d -p 8888:8888 \
   -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
   termigate
 ```
+
+> **Note (rootless podman on Linux):** with the default pasta networking,
+> the published port listens on `0.0.0.0` (IPv4) only. `localhost` resolves
+> to `::1` first on most distributions, so `curl http://localhost:8888/`
+> may fail with "connection reset by peer". Use `http://127.0.0.1:8888/`
+> instead.
+
+#### Origin check / PHX_HOST
+
+By default the prod release sets `check_origin: false` whenever `PHX_HOST`
+is unset, so the container is reachable from any browser the moment it
+starts. Once you decide on the host/IP you'll actually visit, set
+`PHX_HOST` to that value to turn the standard origin check back on.
+Override explicitly with `TERMIGATE_CHECK_ORIGIN=false`, `=true`,
+`=conn`, or a comma-separated list of allowed origins.
 
 #### Using host tmux sessions
 
