@@ -27,8 +27,7 @@ defmodule TermigateWeb.Endpoint do
     at: "/",
     from: :termigate,
     gzip: not code_reloading?,
-    only: TermigateWeb.static_paths(),
-    raise_on_missing_only: code_reloading?
+    only_matching: TermigateWeb.static_paths()
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
