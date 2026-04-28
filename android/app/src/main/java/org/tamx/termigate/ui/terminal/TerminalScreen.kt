@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -326,9 +327,28 @@ private fun TerminalAndroidView(
                 appliedFontSize = fontSize
                 setTypeface(Typeface.MONOSPACE)
                 setTerminalViewClient(createViewClient(viewModel, onTopBarToggle, showKeyboard = {
+                    // Bug 2: tapping the terminal didn't raise the IME on a
+                    // stock AVD even though `mServedView` was wired up — the
+                    // IMM saw `mInputShown=false` and refused the implicit
+                    // show. Two changes that together get the keyboard up:
+                    //
+                    //   1. requestFocus then post the show, so the IMM
+                    //      receives the request after focus has actually
+                    //      moved to the TerminalView. Without the post, the
+                    //      show races the focus change.
+                    //   2. Also ask the WindowInsetsController to show
+                    //      Type.ime() — newer Android versions prefer this
+                    //      path and it succeeds where SHOW_IMPLICIT silently
+                    //      drops on the floor.
                     termView.requestFocus()
-                    val imm = ctx.getSystemService(InputMethodManager::class.java)
-                    imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+                    termView.post {
+                        val imm = ctx.getSystemService(InputMethodManager::class.java)
+                        imm.showSoftInput(termView, InputMethodManager.SHOW_IMPLICIT)
+                        (ctx as? android.app.Activity)?.let { activity ->
+                            WindowCompat.getInsetsController(activity.window, termView)
+                                .show(WindowInsetsCompat.Type.ime())
+                        }
+                    }
                 }))
 
                 val session = viewModel.remoteSession ?: return@apply

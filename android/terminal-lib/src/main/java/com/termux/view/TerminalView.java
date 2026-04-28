@@ -336,9 +336,27 @@ public final class TerminalView extends View {
 
         // Note that IME_ACTION_NONE cannot be used as that makes it impossible to input newlines using the on-screen
         // keyboard on Android TV (see https://github.com/termux/termux-app/issues/221).
-        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        //
+        // IME_FLAG_NO_EXTRACT_UI tells the IME service not to render the
+        // "extracted text view" (a mirror of the InputConnection's content)
+        // above its keyboard pane. Without it, on adjustResize windows some
+        // IMEs render the extracted view inside the reserved insets area
+        // even when the keyboard itself is hidden, which paints the visible
+        // terminal cells a second time at the bottom of the screen. See
+        // ANDROID_DRIVE_01.md Bug 3.
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
 
         return new BaseInputConnection(this, true) {
+
+            @Override
+            public android.view.inputmethod.ExtractedText getExtractedText(
+                    android.view.inputmethod.ExtractedTextRequest request, int flags) {
+                // The IME treats a non-null return as "this view exposes editable
+                // text". Returning null prevents the IME from snapshotting the
+                // terminal cells (which would otherwise leak into the extracted
+                // text view). See ANDROID_DRIVE_01.md Bug 3.
+                return null;
+            }
 
             @Override
             public boolean finishComposingText() {
