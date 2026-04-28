@@ -1,12 +1,10 @@
 # Not Run Yet
 
-- Build and Run the prod container using the Makefile.  Use the MCP browser to explore and test it.  Create a new test session, attach to it, run some commands to verify.  Make notes of any bugs you find in CONTAINER_DRIVE_01.md . 
+ Build and run the prod container using the Makefile.  Connect via the browser to complete initial setup, using the tmux inside the container so it doesn't touch the real termigate server on this host machine.  Start an android emulator using the `android` command/CLI.  You can also use the android CLI for other functions to augment or replace the android MCP server as needed.  Verify that the running emulator it is reachable over adb before continuing.  Then Build the termigate android app and run it on the emulator using adb and/or the Android MCP server or the android CLI tool.  Login the android app to the running server and test out all the functionality.  Try to exercise as much of the android app as possible, and make note of any bugs you encounter by writing to ANDROID_DRIVE_01.md .
 
-- Build and run the prod container using the Makefile.  Connect via the browser to complete initial setup, using the tmux inside the container so it doesn't touch the real termigate server on this host machine.  Start an android emulator using the `android` command/CLI.  You can also use the android CLI for other functions to augment or replace the android MCP server as needed.  Verify that the running emulator it is reachable over adb before continuing.  Then Build the termigate android app and run it on the emulator using adb and/or the Android MCP server or the android CLI tool.  Login the android app to the running server and test out all the functionality.  Try to exercise as much of the android app as possible, and make note of any bugs you encounter by writing to ANDROID_DRIVE_01.md .   
+- In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.
 
-- In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.  
-
-- For the android app, test the font size in the settings menu.  Use the test tmux session for attaching.  
+- For the android app, test the font size in the settings menu.  Use the test tmux session for attaching.
 
 - How hard would it be to make this a progressive web app?
 
@@ -22,7 +20,7 @@
 
 - Let's write an external test for the MCP server.
 
-- In mobile 
+- In mobile
 
 - Let's add support for Cloudflare and TailScale, so if an API key is present and the setting is enabled, we can update DNS and/or enable a tunnel.
 
@@ -31,6 +29,8 @@
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Build and Run the prod container using the Makefile.  Use the MCP browser to explore and test it.  Create a new test session, attach to it, run some commands to verify.  Make notes of any bugs you find in CONTAINER_DRIVE_01.md .
 
 - let's add tmux to the Containerfile so that when the app is launched in the Containerfile without a tmux socket mapped in, it will use the tmux in the container
 
@@ -94,11 +94,11 @@ X Let's make a change to the Ctrl+C and Tab buttons.  On mobile web only (not on
 
 - The enable/disable toggle in the settings page for quick actions doesn't appear to work.  It animates a bit but always comes back enabled.
 
-- When first loading an existing pane, the formatting is very messed up.  It also gets mangled when tools like claude code edit text in place.  This is not an issue that real tmux experiences.  What are we doing differently that real tmux does when attaching to a session and opening a pane?  For an example, you can use the open browser to take a look yourself. attach to the "Termigate" session,window 1. If we need to resize the tmux pane to match our dimensions, I think that's acceptable.  That's how multiple tmux on different screens would do it after all.  
+- When first loading an existing pane, the formatting is very messed up.  It also gets mangled when tools like claude code edit text in place.  This is not an issue that real tmux experiences.  What are we doing differently that real tmux does when attaching to a session and opening a pane?  For an example, you can use the open browser to take a look yourself. attach to the "Termigate" session,window 1. If we need to resize the tmux pane to match our dimensions, I think that's acceptable.  That's how multiple tmux on different screens would do it after all.
 
 - Let's add a notification feature.  This is intended for long-running commands.  When a command finishes, pop up a notification informing the user.  Clicking on the notification should take you to the browser tab and put focus on the pane that triggered the notification.
 
-- I don't see anywhere in the settings to configure the notification feature we added in @NOTIFICATIONS_DESIGN.md.  
+- I don't see anywhere in the settings to configure the notification feature we added in @NOTIFICATIONS_DESIGN.md.
 
 - Let's continue implementation of the notifications feature as defined in @NOTIFICATIONS_DESIGN.md.  Continue with the first phase.  Update the document as you go to track what has been completed.
 
@@ -122,7 +122,7 @@ X Let's make a change to the Ctrl+C and Tab buttons.  On mobile web only (not on
 
 - Let's make sure the reset to default button in settings doesn't override the saved password info.
 
-- Where did the quick action buttons go?  Let's also add one for Ctrl+d, Ctrl+c, 
+- Where did the quick action buttons go?  Let's also add one for Ctrl+d, Ctrl+c,
 
 - Let's add a control for creating a new window in a session.
 
@@ -142,7 +142,7 @@ X Let's make a change to the Ctrl+C and Tab buttons.  On mobile web only (not on
 
 - /init for each thing
 
-- Let's write up a comprehensive implementation plan.  Break into phases if necessary.  Write each phase to a separate file in implementation-docs directory with names like PHASE_01_DO_SOMETHING.md.  Don't plan implementation for the android app quite yet, but do the entire server.  Make sure all features from APPLICATION_DESIGN.md are planned, and make sure we implement the tech stack from TECH_STACK.md.  
+- Let's write up a comprehensive implementation plan.  Break into phases if necessary.  Write each phase to a separate file in implementation-docs directory with names like PHASE_01_DO_SOMETHING.md.  Don't plan implementation for the android app quite yet, but do the entire server.  Make sure all features from APPLICATION_DESIGN.md are planned, and make sure we implement the tech stack from TECH_STACK.md.
 
 - Let's add the design details for the android app to APPLICATION_DESIGN.md .  Start with everything you already know and can infer from the rest of the document, and then make a list of things we need to decide on.
 
