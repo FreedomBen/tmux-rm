@@ -199,7 +199,7 @@ defmodule TermigateWeb.TerminalChannel do
   end
 
   defp maybe_resize_and_recapture(_target, params, history) do
-    Logger.info("No cols/rows in join params: #{inspect(Map.keys(params))}")
+    Logger.debug("No cols/rows in join params: #{inspect(Map.keys(params))}")
     history
   end
 
