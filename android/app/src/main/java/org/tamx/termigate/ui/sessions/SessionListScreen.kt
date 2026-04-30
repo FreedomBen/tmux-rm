@@ -281,7 +281,21 @@ private fun SessionCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { expanded = !expanded }
+                        // Bug 10 in ANDROID_DRIVE_01.md: tapping a session
+                        // row only toggled an expand state, which felt like
+                        // "nothing happened" — users expected the tap to
+                        // open the session. When there is exactly one pane
+                        // the tap is unambiguous, so navigate straight to
+                        // it; otherwise fall back to expanding so the user
+                        // can pick a pane.
+                        .clickable {
+                            val singlePane = session.panes.singleOrNull()
+                            if (singlePane != null) {
+                                onPaneClicked(singlePane.target)
+                            } else {
+                                expanded = !expanded
+                            }
+                        }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
