@@ -114,6 +114,21 @@ defmodule TermigateWeb.Layouts do
   end
 
   @doc """
+  Resolves the DaisyUI page-chrome theme ("dark" or "light") from the saved
+  Config terminal theme. Solarized variants map to their light/dark base; any
+  unknown value falls back to "dark".
+  """
+  def resolve_page_theme do
+    theme = get_in(Termigate.Config.get(), ["terminal", "theme"]) || "dark"
+
+    case theme do
+      "light" -> "light"
+      "solarizedLight" -> "light"
+      _ -> "dark"
+    end
+  end
+
+  @doc """
   Provides dark vs light theme toggle based on themes defined in app.css.
 
   See <head> in root.html.heex which applies the theme before page load.
