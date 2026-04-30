@@ -9,15 +9,9 @@ defmodule TermigateWeb.SetupLive do
     if Auth.auth_enabled?() do
       {:ok, push_navigate(socket, to: "/login")}
     else
-      default_username =
-        case System.cmd("whoami", [], stderr_to_stdout: true) do
-          {name, 0} -> String.trim(name)
-          _ -> ""
-        end
-
       socket =
         socket
-        |> assign(:username, default_username)
+        |> assign(:username, "")
         |> assign(:password, "")
         |> assign(:password_confirm, "")
         |> assign(:session_ttl_hours, "168")
