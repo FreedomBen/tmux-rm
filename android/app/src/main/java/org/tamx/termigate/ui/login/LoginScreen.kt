@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -135,11 +138,23 @@ fun LoginScreen(
                     PasswordVisualTransformation()
                 },
                 trailingIcon = {
+                    // Bug 7 in ANDROID_DRIVE_01.md — the previous "Show"/"Hide"
+                    // text inside the IconButton blended with field labels and
+                    // did not look tappable. The eye / eye-off icons are the
+                    // Material 3 idiom for password visibility and read as a
+                    // button at a glance.
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Text(
-                            text = if (passwordVisible) "Hide" else "Show",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
+                            contentDescription = if (passwordVisible) {
+                                "Hide password"
+                            } else {
+                                "Show password"
+                            }
                         )
                     }
                 },
