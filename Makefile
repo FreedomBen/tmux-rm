@@ -67,9 +67,10 @@ run-container: ## Run the container, persisting config to $(CONFIG_DIR). Overrid
 	fi; \
 	${PODMAN} run --rm -it \
 		--name termigate \
+		--userns=keep-id:uid=10001,gid=10001 \
 		-p ${CONTAINER_PORT}:8888 \
 		-e SECRET_KEY_BASE="$${SECRET_KEY_BASE}" \
-		-v "${CONFIG_DIR}":/root/.config/termigate:Z \
+		-v "${CONFIG_DIR}":/home/termigate/.config/termigate:Z \
 		${CONTAINER_IMAGE}
 
 clean-container: ## Remove the container image

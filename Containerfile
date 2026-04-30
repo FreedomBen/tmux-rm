@@ -27,14 +27,20 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
+RUN useradd --system --create-home --uid 10001 --shell /usr/sbin/nologin termigate
+
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 ENV PHX_SERVER=true
 ENV PHX_BIND=0.0.0.0
+ENV HOME=/home/termigate
 
-COPY --from=build /app/server/_build/prod/rel/termigate /app
-COPY --chmod=0755 deploy/container-entrypoint.sh /app/entrypoint.sh
+COPY --from=build --chown=termigate:termigate /app/server/_build/prod/rel/termigate /app
+COPY --chmod=0755 --chown=termigate:termigate deploy/container-entrypoint.sh /app/entrypoint.sh
+
+USER termigate
+WORKDIR /home/termigate
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8888/healthz || exit 1

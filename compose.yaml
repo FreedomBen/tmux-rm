@@ -11,7 +11,10 @@ services:
       - PHX_HOST=localhost
       # Uncomment for host tmux access:
       # - TERMIGATE_TMUX_SOCKET=/tmp/tmux-host/default
-    # user: "1000:1000"  # Must match host UID:GID for tmux socket access
+    # Image default is uid 10001 (built-in `termigate` user). Override to your
+    # host UID:GID only when mounting a host tmux socket below.
+    user: "10001:10001"
     # volumes:
-      # Uncomment for host tmux access (replace 1000 with your UID):
+      # Uncomment for host tmux access (replace 1000 with your UID, and set
+      # `user: "1000:1000"` above to match):
       # - /tmp/tmux-1000:/tmp/tmux-host
