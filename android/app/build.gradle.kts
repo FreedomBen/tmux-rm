@@ -117,6 +117,14 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.ext.junit)
+    // Compose UI testing on the JVM via Robolectric. The BOM has to be
+    // re-declared in the test classpath so the ui-test-junit4 artifact
+    // resolves to the same version family as the production Compose
+    // libraries. ui-test-manifest stays on debugImplementation — that
+    // is what registers the empty ComponentActivity used by
+    // createComposeRule().
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test)
 
     // On-device instrumentation tests
     androidTestImplementation(platform(libs.compose.bom))

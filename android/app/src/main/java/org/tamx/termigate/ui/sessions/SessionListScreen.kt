@@ -224,8 +224,11 @@ fun SessionListScreen(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+// internal (rather than private) so Robolectric Compose UI tests can
+// drive the row's tap behavior directly without going through the
+// hilt-backed SessionListScreen.
 @Composable
-private fun SessionCard(
+internal fun SessionCard(
     session: Session,
     onPaneClicked: (String) -> Unit,
     onRename: () -> Unit,
