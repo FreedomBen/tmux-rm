@@ -43,6 +43,12 @@ defmodule TermigateWeb.ConnCase do
     # Ensure the application is running (may have been restarted by supervisor)
     Application.ensure_all_started(:termigate)
 
+    # Reset the rate-limit bucket so tests can hit rate-limited routes without
+    # bleeding state between tests (or test runs within the same minute).
+    if :ets.whereis(:rate_limit_store) != :undefined do
+      :ets.delete_all_objects(:rate_limit_store)
+    end
+
     session =
       if tags[:skip_auth],
         do: %{},

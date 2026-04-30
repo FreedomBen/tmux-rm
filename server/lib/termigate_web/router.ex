@@ -77,10 +77,14 @@ defmodule TermigateWeb.Router do
       live "/setup", SetupLive, :index
     end
 
-    post "/login", AuthController, :web_login
     delete "/logout", AuthController, :logout
     get "/logout", AuthController, :logout
     get "/post-setup", AuthController, :post_setup
+
+    scope "/" do
+      pipe_through :rate_limit_login
+      post "/login", AuthController, :web_login
+    end
   end
 
   # Authenticated web routes

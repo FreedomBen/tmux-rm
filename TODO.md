@@ -1,5 +1,5 @@
-# Not Run Yet
 
+# Not Run Yet
 
 - Let's work through the bug findings in  .  After each bug fix, make a commit and then continue.
 
@@ -30,6 +30,8 @@
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Let's add a LICENSE to this project.  Use the AGPLv3
 
 - Write a project-level skill that does the following.  Have the first argument be a filename to write the findings to.  When no argument is passed, write to SERVER_DRIVE_yyyy-mm-dd.md where yyyy-mm-dd is the current date by year, month, day.  Build and Run the prod container using the Makefile.  Use the MCP browser to explore and test it.  Create a new test session, attach to it, run some commands to verify.  Make notes of any bugs you find in the specified file .
 

@@ -73,6 +73,57 @@ defmodule TermigateWeb.AuthControllerTest do
     end
   end
 
+  describe "POST /login (web) — rate limit" do
+    test "redirects to /login with flash after exceeding the per-IP limit", %{conn: conn} do
+      original = Application.get_env(:termigate, :auth_token)
+
+      try do
+        Application.put_env(:termigate, :auth_token, "test-secret-token")
+
+        # Burn the 5-attempts-per-60s budget for this IP.
+        for _ <- 1..5 do
+          conn
+          |> init_test_session(%{})
+          |> post("/login", %{username: "admin", password: "wrong"})
+        end
+
+        rate_limited =
+          conn
+          |> init_test_session(%{})
+          |> post("/login", %{username: "admin", password: "wrong"})
+
+        assert redirected_to(rate_limited) == "/login"
+        assert Phoenix.Flash.get(rate_limited.assigns.flash, :error) =~ "Too many login attempts"
+        assert [retry_after] = get_resp_header(rate_limited, "retry-after")
+        assert String.to_integer(retry_after) >= 0
+      after
+        if original,
+          do: Application.put_env(:termigate, :auth_token, original),
+          else: Application.delete_env(:termigate, :auth_token)
+      end
+    end
+  end
+
+  describe "POST /api/login — rate limit" do
+    test "returns 429 JSON after exceeding the per-IP limit", %{conn: conn} do
+      for _ <- 1..5 do
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/login", %{username: "admin", password: "wrong"})
+      end
+
+      rate_limited =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/login", %{username: "admin", password: "wrong"})
+
+      body = json_response(rate_limited, 429)
+      assert body["error"] == "rate_limited"
+      assert is_integer(body["retry_after"])
+      assert [_retry_after] = get_resp_header(rate_limited, "retry-after")
+    end
+  end
+
   describe "DELETE /logout" do
     test "clears session and redirects to /login", %{conn: conn} do
       conn =

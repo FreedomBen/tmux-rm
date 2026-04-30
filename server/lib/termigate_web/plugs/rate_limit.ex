@@ -1,7 +1,7 @@
 defmodule TermigateWeb.Plugs.RateLimit do
   @moduledoc "Rate limiting plug. Configure per-route: `plug RateLimit, key: :login`."
   import Plug.Conn
-  import Phoenix.Controller, only: [json: 2]
+  import Phoenix.Controller, only: [json: 2, put_flash: 3, redirect: 2, get_format: 1]
 
   require Logger
 
@@ -26,9 +26,25 @@ defmodule TermigateWeb.Plugs.RateLimit do
 
       {:error, :rate_limited, retry_after} ->
         Logger.warning("Rate limit exceeded: #{ip} on #{key}")
+        rate_limited_response(conn, retry_after)
+    end
+  end
 
+  defp rate_limited_response(conn, retry_after) do
+    conn = put_resp_header(conn, "retry-after", to_string(retry_after))
+
+    case get_format(conn) do
+      "html" ->
         conn
-        |> put_resp_header("retry-after", to_string(retry_after))
+        |> put_flash(
+          :error,
+          "Too many login attempts. Please wait #{retry_after} seconds and try again."
+        )
+        |> redirect(to: "/login")
+        |> halt()
+
+      _ ->
+        conn
         |> put_status(429)
         |> json(%{error: "rate_limited", retry_after: retry_after})
         |> halt()
