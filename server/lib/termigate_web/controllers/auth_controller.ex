@@ -68,7 +68,7 @@ defmodule TermigateWeb.AuthController do
     end
   end
 
-  @doc "DELETE /logout — clears session, redirects to login."
+  @doc "DELETE/GET /logout — clears session, redirects to login."
   def logout(conn, _params) do
     conn
     |> clear_session()

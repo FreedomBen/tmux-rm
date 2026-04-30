@@ -84,6 +84,18 @@ defmodule TermigateWeb.AuthControllerTest do
     end
   end
 
+  describe "GET /logout" do
+    test "clears session and redirects to /login", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{"authenticated_at" => System.system_time(:second)})
+        |> get("/logout")
+
+      assert redirected_to(conn) == "/login"
+      refute get_session(conn, "authenticated_at")
+    end
+  end
+
   describe "GET /post-setup" do
     @describetag :skip_auth
 
