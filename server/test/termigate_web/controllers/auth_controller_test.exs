@@ -83,4 +83,32 @@ defmodule TermigateWeb.AuthControllerTest do
       assert redirected_to(conn) == "/login"
     end
   end
+
+  describe "GET /post-setup" do
+    @describetag :skip_auth
+
+    test "with a valid token, sets session and redirects to /", %{conn: conn} do
+      token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "post_setup", %{username: "admin"})
+
+      conn = get(conn, "/post-setup", %{"token" => token})
+
+      assert redirected_to(conn) == "/"
+      assert get_session(conn, "authenticated_at")
+    end
+
+    test "with an invalid token, redirects to /login with flash error", %{conn: conn} do
+      conn = get(conn, "/post-setup", %{"token" => "not-a-real-token"})
+
+      assert redirected_to(conn) == "/login"
+      refute get_session(conn, "authenticated_at")
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Setup link expired"
+    end
+
+    test "without a token, redirects to /login", %{conn: conn} do
+      conn = get(conn, "/post-setup")
+
+      assert redirected_to(conn) == "/login"
+    end
+  end
 end

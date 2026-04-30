@@ -148,10 +148,10 @@ defmodule TermigateWeb.SetupLive do
 
         case Auth.write_credentials(username, password, session_ttl_hours) do
           :ok ->
-            {:noreply,
-             socket
-             |> put_flash(:info, "Account created. Please log in.")
-             |> redirect(to: "/login")}
+            token =
+              Phoenix.Token.sign(TermigateWeb.Endpoint, "post_setup", %{username: username})
+
+            {:noreply, redirect(socket, to: "/post-setup?token=#{token}")}
 
           {:error, reason} ->
             {:noreply, assign(socket, :error, "Failed to create account: #{inspect(reason)}")}

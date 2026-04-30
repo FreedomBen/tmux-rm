@@ -79,6 +79,7 @@ defmodule TermigateWeb.Router do
 
     post "/login", AuthController, :web_login
     delete "/logout", AuthController, :logout
+    get "/post-setup", AuthController, :post_setup
   end
 
   # Authenticated web routes

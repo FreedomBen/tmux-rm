@@ -75,6 +75,32 @@ defmodule TermigateWeb.AuthController do
     |> redirect(to: "/login")
   end
 
+  @doc """
+  GET /post-setup — verifies a one-time setup token and signs the user in.
+  Used by SetupLive to hand off to a regular HTTP request that can set the
+  session cookie, so the user does not have to retype their credentials right
+  after creating the account.
+  """
+  def post_setup(conn, %{"token" => token}) do
+    case Phoenix.Token.verify(TermigateWeb.Endpoint, "post_setup", token, max_age: 60) do
+      {:ok, %{username: username}} ->
+        Logger.info("Post-setup auto-login: #{username} from #{format_ip(conn)}")
+
+        conn
+        |> put_session("authenticated_at", System.system_time(:second))
+        |> redirect(to: "/")
+
+      {:error, _reason} ->
+        conn
+        |> put_flash(:error, "Setup link expired. Please log in.")
+        |> redirect(to: "/login")
+    end
+  end
+
+  def post_setup(conn, _params) do
+    redirect(conn, to: "/login")
+  end
+
   defp format_ip(conn) do
     conn.remote_ip |> :inet.ntoa() |> to_string()
   end
