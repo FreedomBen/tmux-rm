@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Build and run the prod container using the Makefile.  Connect via the browser to complete initial setup, using the tmux inside the container so it doesn't touch the real termigate server on this host machine.  Start an android emulator using the `android` command/CLI.  You can also use the android CLI for other functions to augment or replace the android MCP server as needed.  Verify that the running emulator it is reachable over adb before continuing.  Then Build the termigate android app and run it on the emulator using adb and/or the Android MCP server or the android CLI tool.  Login the android app to the running server and test out all the functionality.  Try to exercise as much of the android app as possible, and make note of any bugs you encounter by writing to ANDROID_DRIVE_01.md .
-
 - In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.
 
 - For the android app, test the font size in the settings menu.  Use the test tmux session for attaching.
@@ -30,7 +28,11 @@
 
 # Already Run
 
+- Write a project-level skill that does the following.  Have the first argument be a filename to write the findings to.  When no argument is passed, write to SERVER_DRIVE_yyyy-mm-dd.md where yyyy-mm-dd is the current date by year, month, day.  Build and Run the prod container using the Makefile.  Use the MCP browser to explore and test it.  Create a new test session, attach to it, run some commands to verify.  Make notes of any bugs you find in the specified file .
+
 - Write a project-level skill that does the following.  Have the first argument be a filename to write the findings to.  When no argument is passed, write to ANDROID_DRIVE_yyyy-mm-dd.md where yyyy-mm-dd is the current date by year, month, day.  Build and run the prod container using the Makefile.  Connect via the browser to complete initial setup, using the tmux inside the container so it doesn't touch the real termigate server on this host machine.  Start an android emulator using the `android` command/CLI.  You can also use the android CLI for other functions to augment or replace the android MCP server as needed.  Verify that the running emulator it is reachable over adb before continuing.  Then Build the termigate android app and run it on the emulator using adb and/or the Android MCP server or the android CLI tool.  Login the android app to the running server and test out all the functionality.  Try to exercise as much of the android app as possible, and make note of any bugs you encounter by writing to the specified file .
+
+- Build and run the prod container using the Makefile.  Connect via the browser to complete initial setup, using the tmux inside the container so it doesn't touch the real termigate server on this host machine.  Start an android emulator using the `android` command/CLI.  You can also use the android CLI for other functions to augment or replace the android MCP server as needed.  Verify that the running emulator it is reachable over adb before continuing.  Then Build the termigate android app and run it on the emulator using adb and/or the Android MCP server or the android CLI tool.  Login the android app to the running server and test out all the functionality.  Try to exercise as much of the android app as possible, and make note of any bugs you encounter by writing to ANDROID_DRIVE_01.md .
 
 - Build and Run the prod container using the Makefile.  Use the MCP browser to explore and test it.  Create a new test session, attach to it, run some commands to verify.  Make notes of any bugs you find in CONTAINER_DRIVE_01.md .
 
