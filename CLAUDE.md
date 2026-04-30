@@ -72,6 +72,6 @@ Dual auth: username/password (bcrypt) and token-based (`TERMIGATE_AUTH_TOKEN` en
 
 ## Key Documentation
 
-- `APPLICATION_DESIGN.md` — comprehensive architecture spec
-- `TECH_STACK.md` — technology decisions
+- `docs/APPLICATION_DESIGN.md` — comprehensive architecture spec
+- `docs/TECH_STACK.md` — technology decisions
 - `implementation-docs/` — phase-based implementation docs

@@ -65,7 +65,7 @@ import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 import kotlinx.coroutines.delay
 
-// Bug 5 in ANDROID_DRIVE_01.md: the previous 3 s auto-hide was short
+// Bug 5 in docs/ANDROID_DRIVE_01.md: the previous 3 s auto-hide was short
 // enough that the bar disappeared before a user could read the title
 // or hit the "Fit to screen width" action. 8 s leaves ample time to
 // orient and tap an action while still freeing the screen for cells
@@ -75,7 +75,7 @@ private const val PINCH_ZOOM_THRESHOLD_IN = 1.1f
 private const val PINCH_ZOOM_THRESHOLD_OUT = 0.9f
 
 /**
- * Raise the soft keyboard for [termView]. See ANDROID_DRIVE_01.md Bug 2:
+ * Raise the soft keyboard for [termView]. See docs/ANDROID_DRIVE_01.md Bug 2:
  * tapping the terminal did not raise the IME on a stock AVD even though
  * `mServedView` was wired up — the IMM saw `mInputShown=false` and
  * refused the implicit show. Two changes get the keyboard up reliably:

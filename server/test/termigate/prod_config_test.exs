@@ -27,7 +27,7 @@ defmodule Termigate.ProdConfigTest do
   end
 
   describe "force_ssl" do
-    # Regression: ANDROID_DRIVE_01.md Bug 1.
+    # Regression: docs/ANDROID_DRIVE_01.md Bug 1.
     # The previous prod.exs hardcoded
     #   force_ssl: [exclude: [hosts: ["localhost", "127.0.0.1"]]]
     # which 301-redirected the Android emulator (10.0.2.2) and any LAN

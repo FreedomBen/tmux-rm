@@ -21,7 +21,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 
 /**
- * Regression tests for ANDROID_DRIVE_01.md Bug 3 — the soft keyboard
+ * Regression tests for docs/ANDROID_DRIVE_01.md Bug 3 — the soft keyboard
  * was rendering a duplicate of the terminal cells at the bottom of the
  * screen because the IME's extracted-text mirror was active.
  *

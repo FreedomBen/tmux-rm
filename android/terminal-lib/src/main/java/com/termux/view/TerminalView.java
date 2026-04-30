@@ -343,7 +343,7 @@ public final class TerminalView extends View {
         // IMEs render the extracted view inside the reserved insets area
         // even when the keyboard itself is hidden, which paints the visible
         // terminal cells a second time at the bottom of the screen. See
-        // ANDROID_DRIVE_01.md Bug 3.
+        // docs/ANDROID_DRIVE_01.md Bug 3.
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
 
         return new BaseInputConnection(this, true) {
@@ -354,7 +354,7 @@ public final class TerminalView extends View {
                 // The IME treats a non-null return as "this view exposes editable
                 // text". Returning null prevents the IME from snapshotting the
                 // terminal cells (which would otherwise leak into the extracted
-                // text view). See ANDROID_DRIVE_01.md Bug 3.
+                // text view). See docs/ANDROID_DRIVE_01.md Bug 3.
                 return null;
             }
 

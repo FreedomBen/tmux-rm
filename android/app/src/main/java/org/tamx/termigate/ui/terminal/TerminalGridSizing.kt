@@ -9,7 +9,7 @@ import kotlin.math.max
  * when the viewport is too small or the cell metrics have not yet
  * been measured.
  *
- * Bug 4 fix in ANDROID_DRIVE_01.md — earlier code hardcoded an 80×24
+ * Bug 4 fix in docs/ANDROID_DRIVE_01.md — earlier code hardcoded an 80×24
  * grid and the Compose layer sized the Android view to exactly that
  * grid in pixels, leaving most of the screen empty.
  */

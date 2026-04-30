@@ -16,7 +16,7 @@ config :termigate, TermigateWeb.Endpoint, cache_static_manifest: "priv/static/ca
 # (LAN, the Android emulator on `10.0.2.2`, an `adb reverse` tunnel). With
 # the previous narrow exclude list `["localhost", "127.0.0.1"]`, every other
 # host was 301-redirected to `https://…`, which silently broke connectivity
-# over plain HTTP. See ANDROID_DRIVE_01.md Bug 1.
+# over plain HTTP. See docs/ANDROID_DRIVE_01.md Bug 1.
 #
 # Opt in with `TERMIGATE_FORCE_SSL=true` at build time when termigate
 # terminates TLS itself; the exclude list still keeps loopback and the

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Regression tests for ANDROID_DRIVE_01.md Bug 4 — the terminal was
+ * Regression tests for docs/ANDROID_DRIVE_01.md Bug 4 — the terminal was
  * connecting with a hardcoded 80×24 grid and the Compose viewport
  * sized the Android view to exactly `cols * cellWidthPx × rows *
  * cellHeightPx`. On most phones this leaves a small terminal in a

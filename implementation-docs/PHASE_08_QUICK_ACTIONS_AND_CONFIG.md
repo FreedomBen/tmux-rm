@@ -13,7 +13,7 @@ Implement the `Config` GenServer, YAML config file management, quick action butt
 
 **`server/lib/termigate/config.ex`**:
 
-Implement the full GenServer as specified in APPLICATION_DESIGN.md (the design doc includes complete code). Key points:
+Implement the full GenServer as specified in `docs/APPLICATION_DESIGN.md` (the design doc includes complete code). Key points:
 
 - **Location**: `$TERMIGATE_CONFIG_PATH` env var → `~/.config/termigate/config.yaml` → defaults
 - **Startup**: Read + validate config file. Generate missing IDs and rewrite if needed. If no file exists, write default config (empty quick_actions list).

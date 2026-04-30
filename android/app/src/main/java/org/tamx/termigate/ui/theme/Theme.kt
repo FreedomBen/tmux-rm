@@ -25,7 +25,7 @@ private val DarkColorScheme = darkColorScheme(
     surface = DarkSurface,
     onBackground = Color(0xFFE0E0E0),
     onSurface = Color(0xFFE0E0E0),
-    // Bug 8 in ANDROID_DRIVE_01.md: leaving these to M3's defaults
+    // Bug 8 in docs/ANDROID_DRIVE_01.md: leaving these to M3's defaults
     // gave us a purple-tinged onSurfaceVariant / outline pair that
     // disappeared against our custom #1E1E1E surface — so unfocused
     // OutlinedTextFields rendered with no visible label or border

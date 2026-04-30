@@ -79,7 +79,7 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Bug 9 in ANDROID_DRIVE_01.md: the login screen previously
+            // Bug 9 in docs/ANDROID_DRIVE_01.md: the login screen previously
             // showed only the "termigate" wordmark in text, leaving the
             // upper third of the screen feeling unbranded. The T glyph
             // mirrors the launcher icon and the server's web login.
@@ -152,7 +152,7 @@ fun LoginScreen(
                     PasswordVisualTransformation()
                 },
                 trailingIcon = {
-                    // Bug 7 in ANDROID_DRIVE_01.md — the previous "Show"/"Hide"
+                    // Bug 7 in docs/ANDROID_DRIVE_01.md — the previous "Show"/"Hide"
                     // text inside the IconButton blended with field labels and
                     // did not look tappable. The eye / eye-off icons are the
                     // Material 3 idiom for password visibility and read as a

@@ -284,7 +284,7 @@ internal fun SessionCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        // Bug 10 in ANDROID_DRIVE_01.md: tapping a session
+                        // Bug 10 in docs/ANDROID_DRIVE_01.md: tapping a session
                         // row only toggled an expand state, which felt like
                         // "nothing happened" — users expected the tap to
                         // open the session. When there is exactly one pane

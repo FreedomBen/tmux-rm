@@ -16,7 +16,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
 
 /**
- * Regression tests for ANDROID_DRIVE_01.md Bug 2 — tapping the terminal
+ * Regression tests for docs/ANDROID_DRIVE_01.md Bug 2 — tapping the terminal
  * did not raise the soft keyboard on a stock Android emulator. The fix
  * lives in [raiseSoftKeyboard] which moves focus to the target view,
  * posts a SHOW_IMPLICIT to InputMethodManager, and (when the context is

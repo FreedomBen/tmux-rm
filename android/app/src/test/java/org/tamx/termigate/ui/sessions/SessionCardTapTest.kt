@@ -15,7 +15,7 @@ import org.tamx.termigate.data.model.Pane
 import org.tamx.termigate.data.model.Session
 
 /**
- * Compose UI regression tests for ANDROID_DRIVE_01.md Bug 10. Tapping
+ * Compose UI regression tests for docs/ANDROID_DRIVE_01.md Bug 10. Tapping
  * a single-pane session row must navigate straight to that pane;
  * multi-pane rows must keep their original toggle-expand behavior so
  * the user can choose a pane.

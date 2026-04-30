@@ -165,7 +165,7 @@ The server is a Phoenix LiveView app with no database. Core OTP processes:
 
 Frontend uses xterm.js 5.x for terminal rendering, connected to LiveView via a custom hook.
 
-See [APPLICATION_DESIGN.md](APPLICATION_DESIGN.md) and [TECH_STACK.md](TECH_STACK.md) for full details.
+See [APPLICATION_DESIGN.md](docs/APPLICATION_DESIGN.md) and [TECH_STACK.md](docs/TECH_STACK.md) for full details.
 
 ## License
 

@@ -75,7 +75,7 @@ fun QuickActionBar(
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
-                // Bug 6 in ANDROID_DRIVE_01.md — when the pills overflowed
+                // Bug 6 in docs/ANDROID_DRIVE_01.md — when the pills overflowed
                 // the row, the user had no way to tell more were hiding
                 // off-screen. The Box wraps the scrolling Row so we can
                 // overlay a horizontal-gradient fade at whichever edge
