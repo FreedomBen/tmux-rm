@@ -65,7 +65,12 @@ import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 import kotlinx.coroutines.delay
 
-private const val AUTO_HIDE_DELAY_MS = 3000L
+// Bug 5 in ANDROID_DRIVE_01.md: the previous 3 s auto-hide was short
+// enough that the bar disappeared before a user could read the title
+// or hit the "Fit to screen width" action. 8 s leaves ample time to
+// orient and tap an action while still freeing the screen for cells
+// when the user is just reading output.
+private const val AUTO_HIDE_DELAY_MS = 8000L
 private const val PINCH_ZOOM_THRESHOLD_IN = 1.1f
 private const val PINCH_ZOOM_THRESHOLD_OUT = 0.9f
 
