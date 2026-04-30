@@ -34,6 +34,7 @@ class TerminalViewModel @Inject constructor(
         private const val TAG = "TerminalViewModel"
         private const val RESIZE_DEBOUNCE_MS = 150L
         private const val MIN_FIT_COLS = 2
+        private const val MIN_FIT_ROWS = 2
         const val MIN_FONT_SIZE = 8
         const val MAX_FONT_SIZE = 24
     }
@@ -209,6 +210,30 @@ class TerminalViewModel @Inject constructor(
         if (current.cellWidthPx <= 0 || viewportWidthPx <= 0) return
         val cols = max(MIN_FIT_COLS, viewportWidthPx / current.cellWidthPx)
         val rows = current.rows
+        sendResize(cols, rows)
+    }
+
+    /**
+     * Bug 4 fix: derive cols/rows from the viewport pixel area and the
+     * measured cell pixel dims, then ask the server to resize the pane
+     * to match. Called from the Compose layer once both numbers are
+     * known. No-op until cell dims have been measured at least once
+     * and skipped when the computed grid already matches the current
+     * pane to avoid a debounce-loop on every onSizeChanged tick.
+     */
+    fun fitPaneToViewport(viewportWidthPx: Int, viewportHeightPx: Int) {
+        val current = _paneSize.value ?: return
+        if (current.cellWidthPx <= 0 || current.cellHeightPx <= 0) return
+        if (viewportWidthPx <= 0 || viewportHeightPx <= 0) return
+        val (cols, rows) = fitGridToViewport(
+            viewportWidthPx = viewportWidthPx,
+            viewportHeightPx = viewportHeightPx,
+            cellWidthPx = current.cellWidthPx,
+            cellHeightPx = current.cellHeightPx,
+            minCols = MIN_FIT_COLS,
+            minRows = MIN_FIT_ROWS
+        )
+        if (cols == current.cols && rows == current.rows) return
         sendResize(cols, rows)
     }
 

@@ -48,9 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -328,7 +330,23 @@ private fun TerminalViewport(
         bootstrapHeightDp
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Bug 4 fix: once we know the viewport's pixel area and the cell
+    // pixel dims, ask the server to resize the pane so cols × cellW
+    // and rows × cellH actually fill the screen rather than leaving an
+    // 80×24 grid in the corner. fitPaneToViewport is debounced and
+    // bails when the computed grid already matches.
+    var viewportPx by remember { mutableStateOf(IntSize.Zero) }
+    LaunchedEffect(viewportPx, ready) {
+        if (ready && viewportPx.width > 0 && viewportPx.height > 0) {
+            viewModel.fitPaneToViewport(viewportPx.width, viewportPx.height)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { viewportPx = it }
+    ) {
         TerminalAndroidView(
             viewModel = viewModel,
             fontSize = fontSize,
