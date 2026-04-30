@@ -1,6 +1,6 @@
 ---
 name: android-drive
-description: End-to-end Android app drive test for termigate. Builds and runs the prod container in isolation from the host's termigate, brings up an Android emulator, builds & installs the debug APK, logs the app in, exercises every surface, and writes findings to a Markdown report. Trigger with `/android-drive [REPORT.md]`. With no argument, writes to `ANDROID_DRIVE_yyyy-mm-dd.md` at the repo root using today's date.
+description: End-to-end Android app drive test for termigate. Builds and runs the prod container in isolation from the host's termigate, brings up an Android emulator, builds & installs the debug APK, logs the app in, exercises every surface, and writes findings to a Markdown report. Trigger with `/android-drive [REPORT.md]`. With no argument, writes to `archived-docs/ANDROID_DRIVE_yyyy-mm-dd.md` at the repo root using today's date.
 ---
 
 # Android drive test
@@ -14,7 +14,7 @@ report file.
 The path to the report file is the skill argument (for example,
 `/android-drive my-report.md` writes findings to `my-report.md`).
 
-If no argument is supplied, default to `ANDROID_DRIVE_yyyy-mm-dd.md`
+If no argument is supplied, default to `archived-docs/ANDROID_DRIVE_yyyy-mm-dd.md`
 at the repo root, where `yyyy-mm-dd` is today's date (compute with
 `date +%Y-%m-%d`). Resolve relative paths from the repo root.
 

@@ -140,7 +140,11 @@
       "Bash(git -C /home/ben/gitclone/termigate add android/app/src/main/java/org/tamx/termigate/ui/terminal/TerminalScreen.kt android/app/src/test/java/org/tamx/termigate/ui/terminal/RaiseSoftKeyboardTest.kt)",
       "Bash(git -C /home/ben/gitclone/termigate commit -m ' *)",
       "Bash(git -C /home/ben/gitclone/termigate add android/terminal-lib/src/test/java/com/termux/view/TerminalViewInputConnectionTest.java)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__handle_dialog",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__press_key",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__select_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__close_page"
     ]
   }
 }
