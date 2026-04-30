@@ -1,6 +1,6 @@
 ---
 name: android-drive
-description: End-to-end Android app drive test for termigate. Builds and runs the prod container in isolation from the host's termigate, brings up an Android emulator, builds & installs the debug APK, logs the app in, exercises every surface, and writes findings to a Markdown report. Trigger with `/android-drive [REPORT.md]`. With no argument, writes to `archived-docs/ANDROID_DRIVE_yyyy-mm-dd.md` at the repo root using today's date.
+description: End-to-end Android app drive test for termigate. Builds and runs the prod container in isolation from the host's termigate, brings up an Android emulator, builds & installs the debug APK, logs the app in, exercises every surface, and writes findings to a Markdown report. Trigger with `/android-drive [REPORT.md]`. With no argument, writes to `archived-docs/ANDROID_DRIVE_yyyy-mm-dd_HH-MM-SS.md` at the repo root using the current date and time.
 ---
 
 # Android drive test
@@ -14,9 +14,10 @@ report file.
 The path to the report file is the skill argument (for example,
 `/android-drive my-report.md` writes findings to `my-report.md`).
 
-If no argument is supplied, default to `archived-docs/ANDROID_DRIVE_yyyy-mm-dd.md`
-at the repo root, where `yyyy-mm-dd` is today's date (compute with
-`date +%Y-%m-%d`). Resolve relative paths from the repo root.
+If no argument is supplied, default to `archived-docs/ANDROID_DRIVE_yyyy-mm-dd_HH-MM-SS.md`
+at the repo root, where the timestamp is the current date and time
+(compute with `date +%Y-%m-%d_%H-%M-%S`). Resolve relative paths from
+the repo root.
 
 If the file already exists, ask the user whether to overwrite, append
 to, or pick a new path before proceeding.

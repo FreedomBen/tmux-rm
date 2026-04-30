@@ -1,6 +1,6 @@
 ---
 name: server-drive
-description: End-to-end browser drive test of the termigate server. Builds and runs the prod container in isolation from the host's termigate, drives it via the Chrome DevTools MCP browser, completes initial setup, creates a test session, attaches to it, runs commands to verify the streaming pipeline, and writes findings to a Markdown report. Trigger with `/server-drive [REPORT.md]`. With no argument, writes to `archived-docs/SERVER_DRIVE_yyyy-mm-dd.md` at the repo root using today's date.
+description: End-to-end browser drive test of the termigate server. Builds and runs the prod container in isolation from the host's termigate, drives it via the Chrome DevTools MCP browser, completes initial setup, creates a test session, attaches to it, runs commands to verify the streaming pipeline, and writes findings to a Markdown report. Trigger with `/server-drive [REPORT.md]`. With no argument, writes to `archived-docs/SERVER_DRIVE_yyyy-mm-dd_HH-MM-SS.md` at the repo root using the current date and time.
 ---
 
 # Server drive test
@@ -13,9 +13,10 @@ tools. All findings go into a Markdown report file.
 
 The path is the skill argument (e.g. `/server-drive my-report.md`).
 
-If no argument is given, default to `archived-docs/SERVER_DRIVE_yyyy-mm-dd.md` at
-the repo root, where `yyyy-mm-dd` is today's date (compute with
-`date +%Y-%m-%d`). Resolve relative paths from the repo root.
+If no argument is given, default to `archived-docs/SERVER_DRIVE_yyyy-mm-dd_HH-MM-SS.md`
+at the repo root, where the timestamp is the current date and time
+(compute with `date +%Y-%m-%d_%H-%M-%S`). Resolve relative paths from
+the repo root.
 
 If the file already exists, ask the user whether to overwrite, append,
 or pick a different path before continuing.
