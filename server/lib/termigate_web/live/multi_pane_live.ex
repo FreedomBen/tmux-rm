@@ -553,9 +553,18 @@ defmodule TermigateWeb.MultiPaneLive do
      )}
   end
 
-  def handle_info({:sessions_updated, _sessions}, socket) do
-    windows = fetch_windows(socket.assigns.session)
-    {:noreply, assign(socket, :windows, windows)}
+  def handle_info({:sessions_updated, sessions}, socket) do
+    session_name = socket.assigns.session
+
+    if Enum.any?(sessions, &(&1.name == session_name)) do
+      windows = fetch_windows(session_name)
+      {:noreply, assign(socket, :windows, windows)}
+    else
+      {:noreply,
+       socket
+       |> put_flash(:info, "Session \"#{session_name}\" was killed.")
+       |> push_navigate(to: ~p"/")}
+    end
   end
 
   def handle_info({:config_changed, config}, socket) do
