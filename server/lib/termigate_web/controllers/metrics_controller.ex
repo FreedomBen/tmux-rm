@@ -6,8 +6,12 @@ defmodule TermigateWeb.MetricsController do
 
     if metrics_token do
       case get_req_header(conn, "authorization") do
-        ["Bearer " <> token] when token == metrics_token ->
-          json(conn, collect_metrics())
+        ["Bearer " <> token] ->
+          if Plug.Crypto.secure_compare(token, metrics_token) do
+            json(conn, collect_metrics())
+          else
+            conn |> put_status(401) |> json(%{error: "unauthorized"})
+          end
 
         _ ->
           conn |> put_status(401) |> json(%{error: "unauthorized"})

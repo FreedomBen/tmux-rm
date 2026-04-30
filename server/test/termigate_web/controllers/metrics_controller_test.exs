@@ -45,5 +45,43 @@ defmodule TermigateWeb.MetricsControllerTest do
           else: Application.delete_env(:termigate, :metrics_token)
       end
     end
+
+    test "returns 401 when wrong token provided", %{conn: conn} do
+      original = Application.get_env(:termigate, :metrics_token)
+
+      try do
+        Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
+
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer wrong-token")
+          |> get("/metrics")
+
+        assert json_response(conn, 401)["error"] == "unauthorized"
+      after
+        if original,
+          do: Application.put_env(:termigate, :metrics_token, original),
+          else: Application.delete_env(:termigate, :metrics_token)
+      end
+    end
+
+    test "returns 401 when token differs only in length", %{conn: conn} do
+      original = Application.get_env(:termigate, :metrics_token)
+
+      try do
+        Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
+
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer secret-metrics-token-extra")
+          |> get("/metrics")
+
+        assert json_response(conn, 401)["error"] == "unauthorized"
+      after
+        if original,
+          do: Application.put_env(:termigate, :metrics_token, original),
+          else: Application.delete_env(:termigate, :metrics_token)
+      end
+    end
   end
 end
