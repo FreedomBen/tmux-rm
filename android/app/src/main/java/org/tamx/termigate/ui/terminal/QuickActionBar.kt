@@ -3,15 +3,19 @@ package org.tamx.termigate.ui.terminal
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -31,6 +35,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.tamx.termigate.data.model.QuickAction
+
+private val SCROLL_FADE_WIDTH = 24.dp
 
 @Composable
 fun QuickActionBar(
@@ -69,23 +75,63 @@ fun QuickActionBar(
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                ) {
-                    quickActions.forEach { action ->
-                        Spacer(modifier = Modifier.width(4.dp))
-                        QuickActionPill(
-                            action = action,
-                            onClick = {
-                                if (action.confirm) {
-                                    confirmAction = action
-                                } else {
-                                    onActionExecute(action)
+                // Bug 6 in ANDROID_DRIVE_01.md — when the pills overflowed
+                // the row, the user had no way to tell more were hiding
+                // off-screen. The Box wraps the scrolling Row so we can
+                // overlay a horizontal-gradient fade at whichever edge
+                // still has hidden content. The fade colour is the bar's
+                // own surface so the pills look like they're sliding
+                // under the chrome rather than getting hard-clipped.
+                val scrollState = rememberScrollState()
+                val edgeColor = MaterialTheme.colorScheme.surfaceContainerLow
+
+                Box {
+                    Row(
+                        modifier = Modifier.horizontalScroll(scrollState)
+                    ) {
+                        quickActions.forEach { action ->
+                            Spacer(modifier = Modifier.width(4.dp))
+                            QuickActionPill(
+                                action = action,
+                                onClick = {
+                                    if (action.confirm) {
+                                        confirmAction = action
+                                    } else {
+                                        onActionExecute(action)
+                                    }
                                 }
-                            }
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    if (scrollState.canScrollBackward) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxHeight()
+                                .width(SCROLL_FADE_WIDTH)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(edgeColor, Color.Transparent)
+                                    )
+                                )
                         )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+
+                    if (scrollState.canScrollForward) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .width(SCROLL_FADE_WIDTH)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color.Transparent, edgeColor)
+                                    )
+                                )
+                        )
+                    }
                 }
             }
         }
