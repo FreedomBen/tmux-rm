@@ -1,5 +1,8 @@
 # Not Run Yet
 
+
+- Let's work through the bug findings in  .  After each bug fix, make a commit and then continue.
+
 - In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.
 
 - For the android app, test the font size in the settings menu.  Use the test tmux session for attaching.

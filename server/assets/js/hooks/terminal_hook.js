@@ -108,6 +108,15 @@ const TerminalHook = {
     // Covers every focus path (xterm's internal touch handler, our tap-to-
     // focus logic, programmatic term.focus() calls, etc.).
     if (this.term.textarea) {
+      // xterm's helper textarea has aria-label but no id/name, which
+      // trips the DevTools "form field needs id or name" a11y check and
+      // also invites password managers to autofill it. Give it a stable
+      // per-pane name and disable autofill.
+      this.term.textarea.name = `terminal-input-${target || "default"}`;
+      this.term.textarea.setAttribute("autocomplete", "off");
+      this.term.textarea.setAttribute("data-1p-ignore", "");
+      this.term.textarea.setAttribute("data-lpignore", "true");
+
       this.term.textarea.addEventListener("focus", (e) => {
         if (!this._getMobileKeyboardEnabled()) {
           e.target.blur();
