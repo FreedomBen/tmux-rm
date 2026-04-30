@@ -134,7 +134,13 @@
       "mcp__mobile-mcp__mobile_launch_app",
       "mcp__mobile-mcp__mobile_list_elements_on_screen",
       "mcp__mobile-mcp__mobile_press_button",
-      "mcp__mobile-mcp__mobile_swipe_on_screen"
+      "mcp__mobile-mcp__mobile_swipe_on_screen",
+      "Bash(make android-test *)",
+      "Bash(make -C /home/ben/gitclone/termigate android-test)",
+      "Bash(git -C /home/ben/gitclone/termigate add android/app/src/main/java/org/tamx/termigate/ui/terminal/TerminalScreen.kt android/app/src/test/java/org/tamx/termigate/ui/terminal/RaiseSoftKeyboardTest.kt)",
+      "Bash(git -C /home/ben/gitclone/termigate commit -m ' *)",
+      "Bash(git -C /home/ben/gitclone/termigate add android/terminal-lib/src/test/java/com/termux/view/TerminalViewInputConnectionTest.java)",
+      "Bash(git *)"
     ]
   }
 }
