@@ -1,5 +1,6 @@
 package org.tamx.termigate.ui.login
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import org.tamx.termigate.R
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -77,6 +79,18 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Bug 9 in ANDROID_DRIVE_01.md: the login screen previously
+            // showed only the "termigate" wordmark in text, leaving the
+            // upper third of the screen feeling unbranded. The T glyph
+            // mirrors the launcher icon and the server's web login.
+            Image(
+                painter = painterResource(R.drawable.termigate_logo),
+                contentDescription = "termigate logo",
+                modifier = Modifier.size(96.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
                 text = "termigate",
                 style = MaterialTheme.typography.headlineLarge,
