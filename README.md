@@ -169,4 +169,4 @@ See [APPLICATION_DESIGN.md](docs/APPLICATION_DESIGN.md) and [TECH_STACK.md](docs
 
 ## License
 
-All rights reserved.
+Licensed under the GNU Affero General Public License v3.0 (AGPLv3). See [LICENSE](LICENSE) for the full text.
