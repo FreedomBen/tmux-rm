@@ -27,7 +27,13 @@ WorkingDirectory=/opt/termigate
 Environment=PHX_SERVER=true
 Environment=PORT=8888
 Environment=PHX_HOST=localhost
-Environment=SECRET_KEY_BASE=CHANGE_ME_generate_with_mix_phx_gen_secret
+# SECRET_KEY_BASE is required and intentionally not shipped here. Generate one
+# with `openssl rand -base64 48` and supply it via a drop-in:
+#   sudo systemctl edit termigate.service
+# adding:
+#   [Service]
+#   Environment=SECRET_KEY_BASE=<generated-value>
+# The server will refuse to start without a real value.
 
 # --- Optional ---
 # Environment=PHX_BIND=0.0.0.0

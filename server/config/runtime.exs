@@ -43,11 +43,40 @@ end
 
 if config_env() == :prod do
   secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
-      """
+    case System.get_env("SECRET_KEY_BASE") do
+      nil ->
+        raise """
+        environment variable SECRET_KEY_BASE is missing.
+        Generate one with: mix phx.gen.secret  (or: openssl rand -base64 48)
+        """
+
+      "" ->
+        raise """
+        environment variable SECRET_KEY_BASE is empty.
+        Generate one with: mix phx.gen.secret  (or: openssl rand -base64 48)
+        """
+
+      "CHANGE_ME" <> _ ->
+        raise """
+        environment variable SECRET_KEY_BASE is the deploy template placeholder.
+        Generate one with: mix phx.gen.secret  (or: openssl rand -base64 48)
+        """
+
+      "generate-me" ->
+        raise """
+        environment variable SECRET_KEY_BASE is the deploy template placeholder.
+        Generate one with: mix phx.gen.secret  (or: openssl rand -base64 48)
+        """
+
+      value when byte_size(value) < 32 ->
+        raise """
+        environment variable SECRET_KEY_BASE is too short (need >= 32 bytes).
+        Generate one with: mix phx.gen.secret  (or: openssl rand -base64 48)
+        """
+
+      value ->
+        value
+    end
 
   configured_host = System.get_env("PHX_HOST")
   host = configured_host || "localhost"

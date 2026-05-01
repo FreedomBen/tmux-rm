@@ -29,7 +29,13 @@ TimeoutStopSec=30
 
 Environment=TERMIGATE_IMAGE=localhost/termigate:latest
 Environment=TERMIGATE_PORT=8888
-Environment=TERMIGATE_SECRET_KEY_BASE=CHANGE_ME_generate_with_mix_phx_gen_secret
+# TERMIGATE_SECRET_KEY_BASE is required and intentionally not shipped here.
+# Generate one with `openssl rand -base64 48` and supply it via a drop-in:
+#   sudo systemctl edit termigate-container.service
+# adding:
+#   [Service]
+#   Environment=TERMIGATE_SECRET_KEY_BASE=<generated-value>
+# The server will refuse to start without a real value.
 
 # Remove any stale container before starting
 ExecStartPre=-/usr/bin/podman rm -f termigate

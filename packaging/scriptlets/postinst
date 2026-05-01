@@ -17,10 +17,12 @@ termigate is installed but not enabled.
 Next steps:
   1. Generate a secret key:
        openssl rand -base64 48
-  2. Edit /usr/lib/systemd/system/termigate.service and replace
-     SECRET_KEY_BASE=CHANGE_ME_... with the generated value.
-     (Or drop a systemd override under
-      /etc/systemd/system/termigate.service.d/override.conf)
+  2. Add it via a systemd drop-in (the shipped service file does NOT include
+     a placeholder — the server refuses to start without a real value):
+       sudo systemctl edit termigate.service
+     and paste:
+       [Service]
+       Environment=SECRET_KEY_BASE=<generated-value>
   3. Optionally copy the sample config:
        cp /etc/termigate/config.example.yaml /etc/termigate/config.yaml
   4. Enable and start:

@@ -5,8 +5,12 @@ services:
       dockerfile: Containerfile
     ports:
       - "8888:8888"
+    # SECRET_KEY_BASE must be set in your shell or a sibling .env file before
+    # running `podman compose up`. Generate one with:
+    #   openssl rand -base64 48
+    # The server refuses to start without it (or with a placeholder value).
     environment:
-      - SECRET_KEY_BASE=generate-me
+      - SECRET_KEY_BASE
       - PORT=8888
       - PHX_HOST=localhost
       # Uncomment for host tmux access:
