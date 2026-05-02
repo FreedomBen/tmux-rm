@@ -1,7 +1,5 @@
 # Not Run Yet
 
-- Let's put our logo at the top of the README.md
-
 - Let's work through the bug findings in.  After each bug fix, make a commit and then continue.
 
 - In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.
@@ -31,6 +29,8 @@
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Let's put our logo at the top of the README.md
 
 - Let's add a LICENSE to this project.  Use the AGPLv3
 
