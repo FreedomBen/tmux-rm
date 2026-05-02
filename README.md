@@ -8,6 +8,15 @@ Termigate gives you browser-based access to tmux sessions with real-time termina
   <img src="server/priv/static/images/termigate-logo.png" alt="termigate logo" width="200">
 </p>
 
+
+## Note on project maturity
+
+*This project is in early development. Consider it "Alpha"\* software (even though I'm already using it personally and am actively fixing any issues I encounter).*
+
+*The core streaming functionality is working, but expect rough edges here and there, missing features, and breaking changes as I iterate towards a stable 1.0 release.*
+
+\* The server is late state alpha, the android app is early alpha
+
 ## What it does
 
 termigate runs on a host machine and lets you attach to tmux sessions from any web browser. It streams terminal output in real-time and sends your keyboard input back to the pane — so you get a fully interactive terminal over HTTP.

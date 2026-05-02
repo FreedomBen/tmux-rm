@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- Setup a vagrant VM that creates a fresh linux VM with tmux installed.  This will be used for testing and development so we don't have to worry about breaking our host machine's tmux sessions, and so we can test the setup process in an automated fashion as well.
+
 - Let's work through the bug findings in.  After each bug fix, make a commit and then continue.
 
 - In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.
