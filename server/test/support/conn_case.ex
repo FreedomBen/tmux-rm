@@ -43,10 +43,15 @@ defmodule TermigateWeb.ConnCase do
     # Ensure the application is running (may have been restarted by supervisor)
     Application.ensure_all_started(:termigate)
 
-    # Reset the rate-limit bucket so tests can hit rate-limited routes without
-    # bleeding state between tests (or test runs within the same minute).
+    # Reset the rate-limit buckets that production routes use so ConnCase tests
+    # don't bleed state between each other (or across runs in the same minute).
+    # Don't wipe the whole table — async unit tests in rate_limit_test.exs use
+    # their own keys (:test_endpoint, :test_indep, etc.) and a global wipe here
+    # would race with their assertions.
     if :ets.whereis(:rate_limit_store) != :undefined do
-      :ets.delete_all_objects(:rate_limit_store)
+      for key <- Application.get_env(:termigate, :rate_limits, %{}) |> Map.keys() do
+        :ets.match_delete(:rate_limit_store, {{:_, key, :_}, :_})
+      end
     end
 
     session =

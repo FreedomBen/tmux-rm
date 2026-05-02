@@ -36,8 +36,12 @@ defmodule TermigateWeb.SessionChannelTest do
       {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
       {:ok, _reply, socket} = subscribe_and_join(socket, "sessions")
 
-      # Send the same empty list (matching initial state)
-      send(socket.channel_pid, {:sessions_updated, []})
+      # Concurrent tests can broadcast on "sessions:state" via SessionPoller,
+      # which mutates the channel's last_sessions assignment. Sync the channel
+      # to drain in-flight messages, then echo its current state back so the
+      # comparison is deterministically "unchanged".
+      current = :sys.get_state(socket.channel_pid).assigns.last_sessions
+      send(socket.channel_pid, {:sessions_updated, current})
 
       refute_push "sessions_updated", _
     end

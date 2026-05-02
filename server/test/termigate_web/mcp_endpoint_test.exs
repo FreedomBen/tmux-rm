@@ -49,11 +49,8 @@ defmodule TermigateWeb.MCPEndpointTest do
 
   describe "POST /mcp (with MCP server)" do
     setup do
-      case start_mcp_server() do
-        {:ok, _pid} -> :ok
-        :already_running -> :ok
-        {:error, reason} -> {:skip, "Could not start MCP server: #{inspect(reason)}"}
-      end
+      {:ok, _pid} = start_mcp_server()
+      :ok
     end
 
     test "handles JSON-RPC initialize request", %{conn: conn} do
@@ -226,10 +223,11 @@ defmodule TermigateWeb.MCPEndpointTest do
     end
 
     test "rate limits excessive requests", %{conn: conn} do
-      # Use a very low limit and clear the ETS table first
+      # Use a very low limit and clear only this test's bucket. Wiping the whole
+      # table races with other test cases (rate_limit_test runs async: true).
       original_limits = Application.get_env(:termigate, :rate_limits)
       Application.put_env(:termigate, :rate_limits, %{mcp: {2, 60}})
-      :ets.delete_all_objects(:rate_limit_store)
+      :ets.match_delete(:rate_limit_store, {{:_, :mcp, :_}, :_})
       on_exit(fn -> Application.put_env(:termigate, :rate_limits, original_limits) end)
 
       auth_header = Plug.Conn.get_req_header(conn, "authorization") |> hd()
@@ -275,12 +273,30 @@ defmodule TermigateWeb.MCPEndpointTest do
   end
 
   defp start_mcp_server do
-    if Hermes.Server.Registry.whereis_transport(Termigate.MCP.Server, :streamable_http) do
-      :already_running
-    else
-      Hermes.Server.Supervisor.start_link(Termigate.MCP.Server,
-        transport: {:streamable_http, start: true}
-      )
+    # The application starts {Termigate.MCP.Server, transport: :streamable_http}
+    # but Hermes' should_start?/1 returns false in test env (no PHX_SERVER),
+    # so that supervisor :ignore's and the transport process is never started.
+    # We start it here with start: true. To avoid a per-test race where the
+    # linked supervisor dies with the test process and the next setup hits a
+    # stale registry entry, unlink so the supervisor persists for the suite.
+    case Hermes.Server.Registry.whereis_transport(Termigate.MCP.Server, :streamable_http) do
+      pid when is_pid(pid) ->
+        {:ok, pid}
+
+      _ ->
+        case Hermes.Server.Supervisor.start_link(Termigate.MCP.Server,
+               transport: {:streamable_http, start: true}
+             ) do
+          {:ok, sup_pid} ->
+            Process.unlink(sup_pid)
+            {:ok, sup_pid}
+
+          {:error, {:already_started, sup_pid}} ->
+            {:ok, sup_pid}
+
+          other ->
+            other
+        end
     end
   end
 end
