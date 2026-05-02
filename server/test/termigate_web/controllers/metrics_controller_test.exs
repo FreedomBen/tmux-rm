@@ -7,6 +7,7 @@ defmodule TermigateWeb.MetricsControllerTest do
       body = json_response(conn, 200)
       assert is_integer(body["active_pane_streams"])
       assert is_integer(body["uptime_seconds"])
+      assert body["auth_mode"] in ["token", "credentials", "disabled"]
       assert is_map(body["vm"])
       assert is_number(body["vm"]["memory_total_mb"])
       assert is_integer(body["vm"]["process_count"])

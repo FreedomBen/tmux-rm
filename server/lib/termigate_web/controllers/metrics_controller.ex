@@ -31,6 +31,7 @@ defmodule TermigateWeb.MetricsController do
     %{
       active_pane_streams: active_streams,
       uptime_seconds: uptime_seconds,
+      auth_mode: auth_mode(),
       vm: %{
         memory_total_mb: Float.round(memory[:total] / 1_048_576, 2),
         memory_processes_mb: Float.round(memory[:processes] / 1_048_576, 2),
@@ -39,6 +40,14 @@ defmodule TermigateWeb.MetricsController do
         run_queue: :erlang.statistics(:total_run_queue_lengths_all)
       }
     }
+  end
+
+  defp auth_mode do
+    cond do
+      Application.get_env(:termigate, :auth_token) -> "token"
+      Termigate.Auth.auth_enabled?() -> "credentials"
+      true -> "disabled"
+    end
   end
 
   defp boot_time do

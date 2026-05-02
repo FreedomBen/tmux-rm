@@ -1,45 +1,24 @@
 defmodule TermigateWeb.HealthController do
   use TermigateWeb, :controller
 
+  # Liveness probe: minimal response so unauthenticated callers cannot use it
+  # for reconnaissance. Detailed VM stats and auth mode live behind the
+  # metrics_token gate on /metrics. tmux reachability stays here because
+  # container/k8s healthchecks need a single signal that the server is
+  # functional, not just listening.
   def healthz(conn, _params) do
-    tmux_status = Termigate.SessionPoller.tmux_status()
+    case Termigate.SessionPoller.tmux_status() do
+      :ok ->
+        conn |> put_status(200) |> json(%{status: "ok", tmux: "ok"})
 
-    active_streams =
-      DynamicSupervisor.count_children(Termigate.PaneStreamSupervisor)[:active] || 0
+      :no_server ->
+        conn |> put_status(200) |> json(%{status: "ok", tmux: "no_server"})
 
-    memory = :erlang.memory()
+      :not_found ->
+        conn |> put_status(503) |> json(%{status: "error", tmux: "not_found"})
 
-    auth_mode =
-      cond do
-        Application.get_env(:termigate, :auth_token) -> "token"
-        Termigate.Auth.auth_enabled?() -> "credentials"
-        true -> "disabled"
-      end
-
-    {http_status, base_body} =
-      case tmux_status do
-        :ok ->
-          {200, %{status: "ok", tmux: "ok"}}
-
-        :no_server ->
-          {200, %{status: "ok", tmux: "no_server"}}
-
-        :not_found ->
-          {503, %{status: "error", tmux: "not_found"}}
-
-        {:error, msg} ->
-          {503, %{status: "error", tmux: "error", message: msg}}
-      end
-
-    body =
-      Map.merge(base_body, %{
-        active_pane_streams: active_streams,
-        vm_memory_mb: Float.round(memory[:total] / 1_048_576, 2),
-        auth_mode: auth_mode
-      })
-
-    conn
-    |> put_status(http_status)
-    |> json(body)
+      {:error, _msg} ->
+        conn |> put_status(503) |> json(%{status: "error", tmux: "error"})
+    end
   end
 end

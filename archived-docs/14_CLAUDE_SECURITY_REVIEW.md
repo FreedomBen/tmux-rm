@@ -61,7 +61,7 @@ Key:
 - [x] [MEDIUM] Session cookie does not set the `secure` flag — `lib/termigate_web/endpoint.ex:7-12`
 - [x] [MEDIUM] WebSocket `check_origin` defaults to `false` when `PHX_HOST` is unset — `config/runtime.exs` prod block
 - [x] [MEDIUM] Login logging interpolates raw username into log lines — `lib/termigate_web/controllers/auth_controller.ex`
-- [ ] [MEDIUM] `/healthz` discloses `auth_mode` to unauthenticated callers — `lib/termigate_web/controllers/health_controller.ex`
+- [x] [MEDIUM] `/healthz` discloses `auth_mode` to unauthenticated callers — `lib/termigate_web/controllers/health_controller.ex`
 
 ### Low
 

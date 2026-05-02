@@ -146,18 +146,14 @@ Add `:telemetry.execute/3` calls to the modules built in prior phases. This is a
 
 ### 15.6 Health Check Enhancement
 
-Update `/healthz` (from Phase 4) to include richer diagnostics:
+Keep `/healthz` minimal so unauthenticated callers cannot use it for
+reconnaissance. Detailed diagnostics (auth mode, VM stats, stream counts)
+live behind the `metrics_token` gate on `/metrics`:
 
 ```json
 {
   "status": "ok",
-  "tmux": "ok",
-  "tmux_version": "3.4",
-  "active_pane_streams": 3,
-  "total_viewers": 7,
-  "uptime_seconds": 86400,
-  "vm_memory_mb": 128,
-  "auth_mode": "bcrypt"
+  "tmux": "ok"
 }
 ```
 
