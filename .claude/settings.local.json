@@ -149,7 +149,8 @@
       "Bash(podman inspect *)",
       "Bash(podman build *)",
       "Bash(podman run *)",
-      "Bash(podman rmi *)"
+      "Bash(podman rmi *)",
+      "Bash(wait %1)"
     ]
   }
 }

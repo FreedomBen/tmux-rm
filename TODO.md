@@ -1,7 +1,8 @@
-
 # Not Run Yet
 
-- Let's work through the bug findings in  .  After each bug fix, make a commit and then continue.
+- Let's put our logo at the top of the README.md
+
+- Let's work through the bug findings in.  After each bug fix, make a commit and then continue.
 
 - In the android app, Let's make the vertical space expand downward to fill the screen.  When the on-screen keyboard pops up, shorten so that the bottom of the terminal is just above the bounds of the keyboard.  Use the test tmux session for attaching.
 

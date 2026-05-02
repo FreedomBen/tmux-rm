@@ -1,6 +1,8 @@
 # termigate
 
-Browser-based access to tmux sessions with real-time terminal streaming. Built with Elixir, Phoenix LiveView, and xterm.js.
+Connect to your tmux session through your browser!
+
+Termigate gives you browser-based access to tmux sessions with real-time terminal streaming. Built with Elixir, Phoenix LiveView, and xterm.js.
 
 ## What it does
 
