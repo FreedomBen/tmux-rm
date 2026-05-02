@@ -42,11 +42,9 @@ class SessionRepository @Inject constructor(
     private var sessionChannel: PhoenixChannel? = null
 
     suspend fun connectSessionChannel() {
-        // Update socket params with current auth/URL
+        // Update socket URL/token with the current values from prefs.
         phoenixSocket.updateBaseUrl(prefs.serverUrl ?: "")
-        phoenixSocket.updateParams(
-            prefs.authToken?.let { mapOf("token" to it) } ?: emptyMap()
-        )
+        phoenixSocket.updateTokenProvider { prefs.authToken }
 
         if (phoenixSocket.connectionState.value != ConnectionState.Connected) {
             phoenixSocket.connect()

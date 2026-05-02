@@ -27,7 +27,7 @@ enum class ConnectionState {
 
 class PhoenixSocket(
     private var baseUrl: String,
-    private var params: Map<String, String>,
+    private var tokenProvider: () -> String?,
     private val client: OkHttpClient
 ) {
     companion object {
@@ -35,6 +35,7 @@ class PhoenixSocket(
         private const val HEARTBEAT_INTERVAL_MS = 30_000L
         private const val HEARTBEAT_TIMEOUT_MS = 10_000L
         private const val MAX_RECONNECT_DELAY_MS = 30_000L
+        private const val AUTH_HEADER = "X-Auth-Token"
     }
 
     private val _connectionState = MutableStateFlow(ConnectionState.Disconnected)
@@ -53,8 +54,8 @@ class PhoenixSocket(
     // Internal flow for dispatching incoming messages to channels
     internal val incomingMessages = MutableSharedFlow<PhoenixMessage>(extraBufferCapacity = 256)
 
-    fun updateParams(params: Map<String, String>) {
-        this.params = params
+    fun updateTokenProvider(tokenProvider: () -> String?) {
+        this.tokenProvider = tokenProvider
     }
 
     fun updateBaseUrl(url: String) {
@@ -101,8 +102,11 @@ class PhoenixSocket(
         val wsUrl = buildWsUrl()
         Log.d(TAG, "Connecting to $wsUrl")
 
-        val request = Request.Builder().url(wsUrl).build()
-        webSocket = client.newWebSocket(request, SocketListener())
+        val builder = Request.Builder().url(wsUrl)
+        tokenProvider()?.takeIf { it.isNotEmpty() }?.let { token ->
+            builder.addHeader(AUTH_HEADER, token)
+        }
+        webSocket = client.newWebSocket(builder.build(), SocketListener())
     }
 
     private fun buildWsUrl(): String {
@@ -112,9 +116,7 @@ class PhoenixSocket(
             base.startsWith("http://") -> "ws://" + base.removePrefix("http://")
             else -> "ws://$base"
         }
-        val queryParams = (params + ("vsn" to "2.0.0"))
-            .entries.joinToString("&") { "${it.key}=${it.value}" }
-        return "$scheme/socket/websocket?$queryParams"
+        return "$scheme/socket/websocket?vsn=2.0.0"
     }
 
     private fun startHeartbeat() {

@@ -84,7 +84,7 @@ object NetworkModule {
     ): PhoenixSocket {
         return PhoenixSocket(
             baseUrl = prefs.serverUrl ?: "",
-            params = prefs.authToken?.let { mapOf("token" to it) } ?: emptyMap(),
+            tokenProvider = { prefs.authToken },
             client = okhttp
         )
     }

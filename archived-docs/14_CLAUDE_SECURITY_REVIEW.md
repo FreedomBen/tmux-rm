@@ -65,7 +65,7 @@ Key:
 
 ### Low
 
-- [ ] [LOW] Auth token in WebSocket URL query string — `android/.../PhoenixSocket.kt buildWsUrl`, `di/NetworkModule.kt` `(NEW)`
+- [x] [LOW] Auth token in WebSocket URL query string — `android/.../PhoenixSocket.kt buildWsUrl`, `di/NetworkModule.kt` `(NEW)`
 - [ ] [LOW] `android:allowBackup="true"` with no extraction rules — `android/app/src/main/AndroidManifest.xml:11` `(NEW)`
 - [ ] [LOW] `Path.expand("~")` for legacy credentials evaluated at compile time — `lib/termigate/auth.ex:13-14` `(NEW)`
 - [ ] [LOW] Debug-level logging echoes full tmux argv — `lib/termigate/tmux/command_runner.ex:13`
