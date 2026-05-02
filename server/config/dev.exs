@@ -48,12 +48,12 @@ config :termigate, TermigateWeb.Endpoint,
     web_console_logger: true,
     patterns: [
       # Static assets, except user uploads
-      ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
+      ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$",
       # Gettext translations
-      ~r"priv/gettext/.*\.po$"E,
+      ~r"priv/gettext/.*\.po$",
       # Router, Controllers, LiveViews and LiveComponents
-      ~r"lib/termigate_web/router\.ex$"E,
-      ~r"lib/termigate_web/(controllers|live|components)/.*\.(ex|heex)$"E
+      ~r"lib/termigate_web/router\.ex$",
+      ~r"lib/termigate_web/(controllers|live|components)/.*\.(ex|heex)$"
     ]
   ]
 

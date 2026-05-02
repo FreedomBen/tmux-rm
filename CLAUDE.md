@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent Instructions
+
+- Commit after making code changes, but do not push
+
 ## Project Overview
 
 termigate is a Phoenix LiveView web app that provides browser-based access to tmux sessions with real-time terminal streaming. The Elixir server lives in `server/`.
