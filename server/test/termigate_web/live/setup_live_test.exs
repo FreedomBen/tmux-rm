@@ -14,6 +14,19 @@ defmodule TermigateWeb.SetupLiveTest do
 
     on_exit(fn ->
       Termigate.Setup.replace(nil)
+
+      # The "creates admin" test writes credentials via
+      # Termigate.Auth.write_credentials/3, which routes through the Config
+      # GenServer and leaves the auth section in its in-memory state. If we
+      # only File.rm/1 the disk file, the next test that calls Config.update
+      # (quick actions, settings, multi-pane, etc.) will write the whole
+      # cached state — auth section included — back to disk, leaving
+      # auth_enabled?/0 returning true for the rest of the run. Clear the
+      # in-memory auth before the rm so the GenServer holds a clean state.
+      if GenServer.whereis(Termigate.Config) do
+        Termigate.Config.update(fn config -> Map.delete(config, "auth") end)
+      end
+
       File.rm(config_path)
       Application.put_env(:termigate, :auth_token, "test-token")
     end)
