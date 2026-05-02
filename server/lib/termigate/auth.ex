@@ -8,8 +8,6 @@ defmodule Termigate.Auth do
 
   require Logger
 
-  @legacy_credentials_dir Path.expand("~/.config/termigate")
-  @legacy_credentials_file Path.join(@legacy_credentials_dir, "credentials")
   @iterations 100_000
   @key_length 32
   @default_session_ttl_hours 168
@@ -191,7 +189,9 @@ defmodule Termigate.Auth do
   end
 
   defp check_legacy_credentials do
-    case File.read(@legacy_credentials_file) do
+    path = legacy_credentials_file()
+
+    case File.read(path) do
       {:ok, content} ->
         case String.split(String.trim(content), ":", parts: 2) do
           [username, hash] when hash != "" ->
@@ -203,7 +203,7 @@ defmodule Termigate.Auth do
 
             case write_auth_section(auth) do
               :ok ->
-                File.rm(@legacy_credentials_file)
+                File.rm(path)
                 Logger.info("Migrated credentials from legacy file to config.yaml")
 
               _ ->
@@ -219,6 +219,10 @@ defmodule Termigate.Auth do
       {:error, _} ->
         {:error, :not_found}
     end
+  end
+
+  defp legacy_credentials_file do
+    Path.expand("~/.config/termigate/credentials")
   end
 
   defp write_auth_section(auth_data) do
