@@ -32,6 +32,40 @@ defmodule Termigate.ConfigTest do
     end
   end
 
+  describe "public_view/0" do
+    test "returns the config without auth.password_hash" do
+      hash = Termigate.Auth.hash_password("placeholder")
+
+      {:ok, _} =
+        Config.update(fn cfg ->
+          Map.put(cfg, "auth", %{
+            "username" => "admin",
+            "password_hash" => hash,
+            "session_ttl_hours" => 8
+          })
+        end)
+
+      on_exit(fn ->
+        if GenServer.whereis(Config) do
+          Config.update(fn cfg -> Map.delete(cfg, "auth") end)
+        end
+      end)
+
+      view = Config.public_view()
+
+      assert view["auth"]["username"] == "admin"
+      assert view["auth"]["session_ttl_hours"] == 8
+      refute Map.has_key?(view["auth"], "password_hash")
+      # The underlying config still has the hash; only the view drops it.
+      assert Config.get()["auth"]["password_hash"] == hash
+    end
+
+    test "is a no-op for the auth section when no auth is configured" do
+      view = Config.public_view()
+      refute Map.has_key?(view, "auth")
+    end
+  end
+
   describe "upsert_action/1" do
     test "adds a new action" do
       action = %{"label" => "Deploy", "command" => "make deploy"}

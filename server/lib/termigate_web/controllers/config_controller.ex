@@ -4,7 +4,6 @@ defmodule TermigateWeb.ConfigController do
   alias Termigate.Config
 
   def show(conn, _params) do
-    config = Config.get()
-    json(conn, config)
+    json(conn, Config.public_view())
   end
 end

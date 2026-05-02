@@ -207,6 +207,28 @@ defmodule Termigate.Config do
     GenServer.call(__MODULE__, :get)
   end
 
+  @doc """
+  Get the current config with secrets stripped, suitable for returning to
+  authenticated API clients. Removes `auth.password_hash` and any other
+  fields that the client should not see.
+  """
+  def public_view do
+    get() |> strip_secrets()
+  end
+
+  defp strip_secrets(config) when is_map(config) do
+    case config["auth"] do
+      auth when is_map(auth) ->
+        scrubbed = Map.drop(auth, ["password_hash"])
+        Map.put(config, "auth", scrubbed)
+
+      _ ->
+        config
+    end
+  end
+
+  defp strip_secrets(other), do: other
+
   @doc "Update config via a transform function. Serialized through the GenServer."
   def update(fun) when is_function(fun, 1) do
     GenServer.call(__MODULE__, {:update, fun})
