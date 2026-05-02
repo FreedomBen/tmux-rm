@@ -29,6 +29,13 @@ if metrics_token = System.get_env("TERMIGATE_METRICS_TOKEN") do
   config :termigate, metrics_token: metrics_token
 end
 
+# Opt in to exposing /metrics on the public listener. By default the endpoint
+# only answers requests from loopback peers (127.0.0.0/8, ::1) so a fresh
+# deployment does not leak operational fingerprinting data to the internet.
+if System.get_env("TERMIGATE_PUBLIC_METRICS") == "true" do
+  config :termigate, public_metrics: true
+end
+
 # Trusted reverse-proxy CIDRs (comma-separated). When set, X-Forwarded-For
 # from these proxies is honored so rate limits and audit logs see the real
 # client IP instead of the proxy address. Default is empty: X-Forwarded-For

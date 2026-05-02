@@ -1,88 +1,98 @@
 defmodule TermigateWeb.MetricsControllerTest do
   use TermigateWeb.ConnCase, async: false
 
-  describe "GET /metrics" do
-    test "returns JSON with metrics data", %{conn: conn} do
-      conn = get(conn, "/metrics")
-      body = json_response(conn, 200)
-      assert is_integer(body["active_pane_streams"])
+  setup do
+    original_token = Application.get_env(:termigate, :metrics_token)
+    original_public = Application.get_env(:termigate, :public_metrics)
+
+    on_exit(fn ->
+      if original_token,
+        do: Application.put_env(:termigate, :metrics_token, original_token),
+        else: Application.delete_env(:termigate, :metrics_token)
+
+      if original_public,
+        do: Application.put_env(:termigate, :public_metrics, original_public),
+        else: Application.delete_env(:termigate, :public_metrics)
+    end)
+
+    :ok
+  end
+
+  defp from_remote(conn), do: %{conn | remote_ip: {203, 0, 113, 7}}
+
+  describe "GET /metrics — payload" do
+    test "returns generic VM/uptime fields and omits reconnaissance fields", %{conn: conn} do
+      body = conn |> get("/metrics") |> json_response(200)
+
       assert is_integer(body["uptime_seconds"])
-      assert body["auth_mode"] in ["token", "credentials", "disabled"]
       assert is_map(body["vm"])
       assert is_number(body["vm"]["memory_total_mb"])
       assert is_integer(body["vm"]["process_count"])
+
+      refute Map.has_key?(body, "auth_mode")
+      refute Map.has_key?(body, "active_pane_streams")
+    end
+  end
+
+  describe "GET /metrics — access control without a token" do
+    test "loopback peer is allowed", %{conn: conn} do
+      assert %{"uptime_seconds" => _} = conn |> get("/metrics") |> json_response(200)
     end
 
-    test "returns 401 when metrics_token is set and no auth header", %{conn: conn} do
-      original = Application.get_env(:termigate, :metrics_token)
-
-      try do
-        Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
-        conn = get(conn, "/metrics")
-        assert json_response(conn, 401)["error"] == "unauthorized"
-      after
-        if original,
-          do: Application.put_env(:termigate, :metrics_token, original),
-          else: Application.delete_env(:termigate, :metrics_token)
-      end
+    test "remote peer gets 404 by default (route existence is hidden)", %{conn: conn} do
+      assert json_response(from_remote(conn) |> get("/metrics"), 404)["error"] == "not_found"
     end
 
-    test "returns metrics when correct token provided", %{conn: conn} do
-      original = Application.get_env(:termigate, :metrics_token)
+    test "remote peer is allowed when TERMIGATE_PUBLIC_METRICS is enabled", %{conn: conn} do
+      Application.put_env(:termigate, :public_metrics, true)
 
-      try do
-        Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
+      assert %{"uptime_seconds" => _} =
+               conn |> from_remote() |> get("/metrics") |> json_response(200)
+    end
+  end
 
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer secret-metrics-token")
-          |> get("/metrics")
-
-        body = json_response(conn, 200)
-        assert is_integer(body["active_pane_streams"])
-      after
-        if original,
-          do: Application.put_env(:termigate, :metrics_token, original),
-          else: Application.delete_env(:termigate, :metrics_token)
-      end
+  describe "GET /metrics — access control with a token" do
+    setup do
+      Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
+      :ok
     end
 
-    test "returns 401 when wrong token provided", %{conn: conn} do
-      original = Application.get_env(:termigate, :metrics_token)
-
-      try do
-        Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
-
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer wrong-token")
-          |> get("/metrics")
-
-        assert json_response(conn, 401)["error"] == "unauthorized"
-      after
-        if original,
-          do: Application.put_env(:termigate, :metrics_token, original),
-          else: Application.delete_env(:termigate, :metrics_token)
-      end
+    test "loopback still served without a token (token is for remote scrapers)", %{conn: conn} do
+      assert %{"uptime_seconds" => _} = conn |> get("/metrics") |> json_response(200)
     end
 
-    test "returns 401 when token differs only in length", %{conn: conn} do
-      original = Application.get_env(:termigate, :metrics_token)
+    test "remote peer with no header gets 401", %{conn: conn} do
+      assert json_response(from_remote(conn) |> get("/metrics"), 401)["error"] == "unauthorized"
+    end
 
-      try do
-        Application.put_env(:termigate, :metrics_token, "secret-metrics-token")
+    test "remote peer with valid bearer token is served", %{conn: conn} do
+      conn =
+        conn
+        |> from_remote()
+        |> put_req_header("authorization", "Bearer secret-metrics-token")
+        |> get("/metrics")
 
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer secret-metrics-token-extra")
-          |> get("/metrics")
+      assert %{"uptime_seconds" => _} = json_response(conn, 200)
+    end
 
-        assert json_response(conn, 401)["error"] == "unauthorized"
-      after
-        if original,
-          do: Application.put_env(:termigate, :metrics_token, original),
-          else: Application.delete_env(:termigate, :metrics_token)
-      end
+    test "remote peer with wrong token gets 401", %{conn: conn} do
+      conn =
+        conn
+        |> from_remote()
+        |> put_req_header("authorization", "Bearer wrong-token")
+        |> get("/metrics")
+
+      assert json_response(conn, 401)["error"] == "unauthorized"
+    end
+
+    test "remote peer with same-prefix longer token gets 401", %{conn: conn} do
+      conn =
+        conn
+        |> from_remote()
+        |> put_req_header("authorization", "Bearer secret-metrics-token-extra")
+        |> get("/metrics")
+
+      assert json_response(conn, 401)["error"] == "unauthorized"
     end
   end
 end

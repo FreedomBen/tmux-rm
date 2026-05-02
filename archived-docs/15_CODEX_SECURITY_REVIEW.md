@@ -23,7 +23,7 @@ Termigate has several good security patterns in place: tmux execution usually go
 - [x] **[MEDIUM]** Move browser channel auth off URL query tokens (prefer signed session cookie via `connect_info`; if a token remains, make it short-lived and rotate on reconnect)
 - [x] **[MEDIUM]** Default Android to HTTPS/WSS for bare hostnames; restrict cleartext to debug builds or explicit local domains; require explicit confirmation for `http://` URLs
 - [x] **[LOW]** Add `Termigate.Config.public_view/0` (or equivalent) to strip `auth.password_hash` and other secrets from `GET /api/config`
-- [ ] **[LOW]** Require `TERMIGATE_METRICS_TOKEN` by default for `/metrics` (or bind to loopback); gate unauthenticated metrics behind an explicit opt-in
+- [x] **[LOW]** Require `TERMIGATE_METRICS_TOKEN` by default for `/metrics` (or bind to loopback); gate unauthenticated metrics behind an explicit opt-in — implemented as loopback-by-default with `TERMIGATE_PUBLIC_METRICS=true` opt-in, and `auth_mode`/`active_pane_streams` removed from the payload
 - [ ] **[LOW]** Migrate password hashing to Argon2id/bcrypt with self-identifying parameters; verify/migrate existing PBKDF2 hashes on login; correct packaging docs
 
 ## Findings
