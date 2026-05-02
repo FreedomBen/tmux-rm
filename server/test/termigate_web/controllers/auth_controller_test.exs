@@ -1,6 +1,9 @@
 defmodule TermigateWeb.AuthControllerTest do
   use TermigateWeb.ConnCase, async: false
 
+  import ExUnit.CaptureLog
+  require Logger
+
   describe "POST /api/login" do
     test "returns 401 with invalid credentials", %{conn: conn} do
       conn =
@@ -30,6 +33,62 @@ defmodule TermigateWeb.AuthControllerTest do
           do: Application.put_env(:termigate, :auth_token, original),
           else: Application.delete_env(:termigate, :auth_token)
       end
+    end
+  end
+
+  describe "log injection (control characters in username)" do
+    setup do
+      original_level = Logger.level()
+      Logger.configure(level: :info)
+      on_exit(fn -> Logger.configure(level: original_level) end)
+      :ok
+    end
+
+    test "POST /api/login strips CRLF and other control chars from log lines",
+         %{conn: conn} do
+      poisoned = "admin\r\n[FORGED] success: attacker"
+
+      log =
+        capture_log(fn ->
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/login", %{username: poisoned, password: "wrong"})
+        end)
+
+      refute log =~ poisoned
+      refute log =~ "\r\n[FORGED]"
+      refute log =~ "\n[FORGED]"
+      assert log =~ "Login failure: admin??"
+    end
+
+    test "POST /login (web) strips control chars from log lines", %{conn: conn} do
+      poisoned = "admin\r\n[FORGED] success: attacker"
+
+      log =
+        capture_log(fn ->
+          conn
+          |> init_test_session(%{})
+          |> post("/login", %{username: poisoned, password: "wrong"})
+        end)
+
+      refute log =~ poisoned
+      refute log =~ "\r\n[FORGED]"
+      refute log =~ "\n[FORGED]"
+      assert log =~ "Web login failure: admin??"
+    end
+
+    test "long usernames are truncated in log lines", %{conn: conn} do
+      long = String.duplicate("a", 200)
+
+      log =
+        capture_log(fn ->
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/login", %{username: long, password: "wrong"})
+        end)
+
+      refute log =~ String.duplicate("a", 65)
+      assert log =~ String.duplicate("a", 64)
     end
   end
 

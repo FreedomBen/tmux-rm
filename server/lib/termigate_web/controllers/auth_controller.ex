@@ -7,14 +7,17 @@ defmodule TermigateWeb.AuthController do
 
   @doc "POST /api/login — returns bearer token on success."
   def login(conn, %{"username" => username, "password" => password}) do
+    safe_user = sanitize_user(username)
+    ip = format_ip(conn)
+
     case Auth.verify_credentials(username, password) do
       :ok ->
-        Logger.info("Login success: #{username} from #{format_ip(conn)}")
+        Logger.info("Login success: #{safe_user} from #{ip}")
 
         :telemetry.execute(
           [:termigate, :auth, :login, :success],
           %{},
-          %{username: username, ip: format_ip(conn)}
+          %{username: safe_user, ip: ip}
         )
 
         max_age = Termigate.Auth.session_ttl_seconds()
@@ -23,12 +26,12 @@ defmodule TermigateWeb.AuthController do
         json(conn, %{token: token, expires_in: max_age})
 
       :error ->
-        Logger.info("Login failure: #{username} from #{format_ip(conn)}")
+        Logger.info("Login failure: #{safe_user} from #{ip}")
 
         :telemetry.execute(
           [:termigate, :auth, :login, :failure],
           %{},
-          %{username: username, ip: format_ip(conn)}
+          %{username: safe_user, ip: ip}
         )
 
         conn
@@ -39,14 +42,17 @@ defmodule TermigateWeb.AuthController do
 
   @doc "POST /login — web form login, sets session cookie."
   def web_login(conn, %{"username" => username, "password" => password}) do
+    safe_user = sanitize_user(username)
+    ip = format_ip(conn)
+
     case Auth.verify_credentials(username, password) do
       :ok ->
-        Logger.info("Web login success: #{username} from #{format_ip(conn)}")
+        Logger.info("Web login success: #{safe_user} from #{ip}")
 
         :telemetry.execute(
           [:termigate, :auth, :login, :success],
           %{},
-          %{username: username, ip: format_ip(conn)}
+          %{username: safe_user, ip: ip}
         )
 
         conn
@@ -54,12 +60,12 @@ defmodule TermigateWeb.AuthController do
         |> redirect(to: "/")
 
       :error ->
-        Logger.info("Web login failure: #{username} from #{format_ip(conn)}")
+        Logger.info("Web login failure: #{safe_user} from #{ip}")
 
         :telemetry.execute(
           [:termigate, :auth, :login, :failure],
           %{},
-          %{username: username, ip: format_ip(conn)}
+          %{username: safe_user, ip: ip}
         )
 
         conn
@@ -84,7 +90,7 @@ defmodule TermigateWeb.AuthController do
   def post_setup(conn, %{"token" => token}) do
     case Phoenix.Token.verify(TermigateWeb.Endpoint, "post_setup", token, max_age: 60) do
       {:ok, %{username: username}} ->
-        Logger.info("Post-setup auto-login: #{username} from #{format_ip(conn)}")
+        Logger.info("Post-setup auto-login: #{sanitize_user(username)} from #{format_ip(conn)}")
 
         conn
         |> put_session("authenticated_at", System.system_time(:second))
@@ -104,4 +110,14 @@ defmodule TermigateWeb.AuthController do
   defp format_ip(conn) do
     conn.remote_ip |> :inet.ntoa() |> to_string()
   end
+
+  # Strips control characters (CR/LF/escapes) so user-supplied usernames cannot
+  # forge log lines or pollute terminal-based log viewers, and caps length so a
+  # huge value cannot blow up sinks.
+  defp sanitize_user(nil), do: "<missing>"
+
+  defp sanitize_user(s) when is_binary(s),
+    do: s |> String.replace(~r/[\x00-\x1f\x7f]/, "?") |> String.slice(0, 64)
+
+  defp sanitize_user(other), do: other |> to_string() |> sanitize_user()
 end
