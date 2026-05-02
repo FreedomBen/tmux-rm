@@ -3,11 +3,16 @@
 # Copy this file to /etc/termigate/config.yaml (or set TERMIGATE_CONFIG_PATH
 # in the systemd unit) to customize.
 
-# Uncomment to set user credentials (bcrypt-hashed, managed by `mix termigate.setup`).
+# termigate is single-user; the `auth` section below is normally written by
+# the first-run setup flow in the web UI rather than edited by hand.
+# Passwords are hashed with PBKDF2-HMAC-SHA512 (via pbkdf2_elixir) and stored
+# in the self-identifying format `$pbkdf2-sha512$<iters>$<salt>$<hash>` so the
+# algorithm and work factor can be migrated in place without losing logins.
+#
 # auth:
-#   users:
-#     - username: admin
-#       password_hash: $2b$12$...
+#   username: admin
+#   password_hash: $pbkdf2-sha512$160000$<salt-b64>$<hash-b64>
+#   session_ttl_hours: 168
 
 # actions:
 #   - name: "Start Phoenix"

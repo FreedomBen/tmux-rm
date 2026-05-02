@@ -2,14 +2,24 @@ defmodule Termigate.Auth do
   @moduledoc """
   Single-user authentication module.
 
-  Credentials are stored in the `auth` section of config.yaml.
-  Uses PBKDF2-HMAC-SHA256 via Erlang :crypto. Supports TERMIGATE_AUTH_TOKEN env var as fallback.
+  Credentials are stored in the `auth` section of config.yaml. Passwords are
+  hashed with `pbkdf2_elixir` (PBKDF2-HMAC-SHA512) and stored in the
+  self-identifying string format `$pbkdf2-sha512$<iters>$<salt>$<hash>` so
+  that the algorithm and work factor can be migrated in the future without
+  ambiguity.
+
+  Hashes produced by older versions of termigate (the legacy
+  `<base64salt>$<base64hash>` PBKDF2-HMAC-SHA256 / 100k-iteration format)
+  are still verified, and are upgraded to the new format on the first
+  successful login.
+
+  Supports `TERMIGATE_AUTH_TOKEN` env var as a fallback authenticator.
   """
 
   require Logger
 
-  @iterations 100_000
-  @key_length 32
+  @legacy_iterations 100_000
+  @legacy_key_length 32
   @default_session_ttl_hours 168
 
   @doc "Verify credentials. Returns :ok or :error."
@@ -158,29 +168,40 @@ defmodule Termigate.Auth do
     Termigate.Config.config_path()
   end
 
-  @doc "Hash a password with a random salt using PBKDF2-HMAC-SHA256."
+  @doc """
+  Hash a password using PBKDF2-HMAC-SHA512 with a random salt. The returned
+  string is in the self-identifying format
+  `$pbkdf2-sha512$<iters>$<salt>$<hash>` produced by `pbkdf2_elixir`.
+  """
   def hash_password(password) do
-    salt = :crypto.strong_rand_bytes(16)
-    dk = pbkdf2(password, salt)
-    Base.encode64(salt) <> "$" <> Base.encode64(dk)
+    Pbkdf2.hash_pwd_salt(password)
   end
 
-  @doc "Verify a password against a stored hash string."
-  def verify_password(password, stored_hash) do
-    case String.split(stored_hash, "$", parts: 2) do
-      [salt_b64, hash_b64] ->
-        with {:ok, salt} <- Base.decode64(salt_b64),
-             {:ok, expected} <- Base.decode64(hash_b64) do
-          dk = pbkdf2(password, salt)
-          Plug.Crypto.secure_compare(dk, expected)
-        else
-          _ -> false
-        end
-
-      _ ->
-        false
-    end
+  @doc """
+  Verify a password against a stored hash. Accepts both the current
+  self-identifying `$pbkdf2-sha512$...` format and the legacy
+  `<base64salt>$<base64hash>` PBKDF2-HMAC-SHA256/100k format produced by
+  pre-migration releases.
+  """
+  def verify_password(password, "$pbkdf2-" <> _ = stored_hash) when is_binary(password) do
+    Pbkdf2.verify_pass(password, stored_hash)
   end
+
+  def verify_password(password, stored_hash)
+      when is_binary(password) and is_binary(stored_hash) do
+    legacy_verify_password(password, stored_hash)
+  end
+
+  def verify_password(_password, _stored_hash), do: false
+
+  @doc """
+  Returns true when `stored_hash` is in the legacy format and should be
+  rehashed to the current format on the next successful login.
+  """
+  @spec needs_rehash?(String.t()) :: boolean()
+  def needs_rehash?("$pbkdf2-" <> _), do: false
+  def needs_rehash?(stored_hash) when is_binary(stored_hash), do: true
+  def needs_rehash?(_), do: false
 
   # --- Private ---
 
@@ -293,7 +314,12 @@ defmodule Termigate.Auth do
     case read_credentials() do
       {:ok, {stored_user, stored_hash}} ->
         if Plug.Crypto.secure_compare(username, stored_user) do
-          if verify_password(password, stored_hash), do: :ok, else: :error
+          if verify_password(password, stored_hash) do
+            maybe_upgrade_hash(stored_hash, password)
+            :ok
+          else
+            :error
+          end
         else
           # Dummy verify to prevent timing attacks
           verify_password("dummy", stored_hash)
@@ -305,7 +331,42 @@ defmodule Termigate.Auth do
     end
   end
 
-  defp pbkdf2(password, salt) do
-    :crypto.pbkdf2_hmac(:sha256, password, salt, @iterations, @key_length)
+  defp maybe_upgrade_hash(stored_hash, password) do
+    if needs_rehash?(stored_hash) do
+      new_hash = hash_password(password)
+
+      if GenServer.whereis(Termigate.Config) do
+        Termigate.Config.update(fn config ->
+          case config["auth"] do
+            %{} = auth -> Map.put(config, "auth", Map.put(auth, "password_hash", new_hash))
+            _ -> config
+          end
+        end)
+
+        Logger.info("Upgraded password hash to pbkdf2-sha512 format on successful login")
+      end
+    end
+
+    :ok
+  end
+
+  defp legacy_verify_password(password, stored_hash) do
+    case String.split(stored_hash, "$", parts: 2) do
+      [salt_b64, hash_b64] ->
+        with {:ok, salt} <- Base.decode64(salt_b64),
+             {:ok, expected} <- Base.decode64(hash_b64) do
+          dk = legacy_pbkdf2(password, salt)
+          Plug.Crypto.secure_compare(dk, expected)
+        else
+          _ -> false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp legacy_pbkdf2(password, salt) do
+    :crypto.pbkdf2_hmac(:sha256, password, salt, @legacy_iterations, @legacy_key_length)
   end
 end
