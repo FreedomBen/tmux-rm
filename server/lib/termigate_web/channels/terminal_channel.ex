@@ -24,6 +24,12 @@ defmodule TermigateWeb.TerminalChannel do
   def join("terminal:" <> target_raw, params, socket) do
     target = parse_target(target_raw)
 
+    with :ok <- authorize_target(socket, target) do
+      do_join(target, params, socket)
+    end
+  end
+
+  defp do_join(target, params, socket) do
     case PaneStream.subscribe(target) do
       {:ok, history, pid} ->
         ref = Process.monitor(pid)
@@ -208,6 +214,31 @@ defmodule TermigateWeb.TerminalChannel do
     case String.split(raw, ":") do
       [session, window, pane] -> "#{session}:#{window}.#{pane}"
       _ -> raw
+    end
+  end
+
+  # Browser tokens are scoped to a session via Phoenix.Token sign
+  # (`MultiPaneLive.mount/3`). Reject channel joins to targets in a
+  # different session. Tokens without a session claim (api_token path,
+  # auth disabled) bypass the check — those clients are already trusted
+  # for full access.
+  defp authorize_target(socket, target) do
+    case socket.assigns[:channel_session] do
+      nil ->
+        :ok
+
+      session ->
+        case String.split(target, ":", parts: 2) do
+          [^session, _rest] ->
+            :ok
+
+          _ ->
+            Logger.warning(
+              "Terminal channel join rejected: target #{target} outside scoped session #{session}"
+            )
+
+            {:error, %{reason: "forbidden"}}
+        end
     end
   end
 

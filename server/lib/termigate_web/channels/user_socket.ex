@@ -15,6 +15,11 @@ defmodule TermigateWeb.UserSocket do
       token = token_from_headers(connect_info) || params["token"]
 
       case Phoenix.Token.verify(TermigateWeb.Endpoint, "channel", token, max_age: max_age) do
+        {:ok, %{session: session}} when is_binary(session) ->
+          # Browser-issued token scoped to a single session — TerminalChannel
+          # enforces the topic prefix matches.
+          {:ok, assign(socket, :channel_session, session)}
+
         {:ok, _data} ->
           {:ok, socket}
 

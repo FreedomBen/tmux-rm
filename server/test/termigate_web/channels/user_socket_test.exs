@@ -41,5 +41,27 @@ defmodule TermigateWeb.UserSocketTest do
                  connect_info: %{x_headers: [{"x-auth-token", "also-garbage"}]}
                )
     end
+
+    test "channel token with session claim assigns :channel_session" do
+      token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{session: "my-session"})
+
+      assert {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
+      assert socket.assigns.channel_session == "my-session"
+    end
+
+    test "channel token without session claim leaves :channel_session unassigned",
+         %{channel_token: token} do
+      assert {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
+      refute Map.has_key?(socket.assigns, :channel_session)
+    end
+
+    test "api_token path leaves :channel_session unassigned" do
+      token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "alice"})
+
+      assert {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
+      refute Map.has_key?(socket.assigns, :channel_session)
+    end
   end
 end

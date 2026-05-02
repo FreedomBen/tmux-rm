@@ -13,6 +13,31 @@ defmodule TermigateWeb.TerminalChannelTest do
       result = subscribe_and_join(socket, "terminal:my-session:1:2")
       assert {:error, %{reason: _}} = result
     end
+
+    test "session-scoped token rejects joins to a different session" do
+      scoped_token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{session: "alpha"})
+
+      {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => scoped_token})
+
+      assert {:error, %{reason: "forbidden"}} =
+               subscribe_and_join(socket, "terminal:beta:0:0")
+    end
+
+    test "session-scoped token allows joins inside its session" do
+      # The join still fails on PaneStream.subscribe (no tmux in tests),
+      # but the failure must not be the authz "forbidden" — proving the
+      # session-prefix check passed.
+      scoped_token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{session: "alpha"})
+
+      {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => scoped_token})
+
+      assert {:error, %{reason: reason}} =
+               subscribe_and_join(socket, "terminal:alpha:0:0")
+
+      refute reason == "forbidden"
+    end
   end
 
   describe "handle_in (direct module calls)" do
