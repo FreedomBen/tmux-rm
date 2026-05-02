@@ -67,7 +67,18 @@ defmodule TermigateWeb.SessionListLiveTest do
   end
 
   describe "tmux integration" do
-    @tag :tmux
+    # Ride the same `:tmux` exclude tag as the other real-tmux test files.
+    # `@tag` before `setup` only sets tags for the setup block itself, not
+    # the tests in the describe — without `@describetag` here, these tests
+    # ran unconditionally on every `mix test`, swapping the global
+    # command_runner to the real Tmux.CommandRunner mid-suite. That made
+    # SessionPoller poll the host's real tmux (every developer's actual
+    # session list), then on test exit the runner reverted to the stub and
+    # the next poll saw `[]` — which broadcast `{:sessions_updated, []}` on
+    # the "sessions:state" topic and bumped any concurrently-running
+    # MultiPaneLive into the "session was killed" redirect path.
+    @describetag :tmux
+
     setup do
       original = Application.get_env(:termigate, :command_runner)
       Application.put_env(:termigate, :command_runner, Termigate.Tmux.CommandRunner)
