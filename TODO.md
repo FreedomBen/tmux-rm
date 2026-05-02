@@ -1,6 +1,6 @@
 # Not Run Yet
 
-- Setup a vagrant VM that creates a fresh linux VM with tmux installed.  This will be used for testing and development so we don't have to worry about breaking our host machine's tmux sessions, and so we can test the setup process in an automated fashion as well.
+- Setup a vagrant VM that creates a fresh linux VM with tmux installed.  This will be used for testing and development so we don't have to worry about breaking our host machine's tmux sessions, and so we can test the setup process (both systemd and compose) in an automated fashion as well.
 
 - Let's work through the bug findings in.  After each bug fix, make a commit and then continue.
 

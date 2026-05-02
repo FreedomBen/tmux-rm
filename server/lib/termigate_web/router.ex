@@ -74,12 +74,19 @@ defmodule TermigateWeb.Router do
 
     live_session :unauthenticated do
       live "/login", AuthLive, :index
-      live "/setup", SetupLive, :index
     end
 
     delete "/logout", AuthController, :logout
     get "/logout", AuthController, :logout
     get "/post-setup", AuthController, :post_setup
+
+    scope "/" do
+      pipe_through TermigateWeb.Plugs.RequireSetupAccess
+
+      live_session :setup do
+        live "/setup", SetupLive, :index
+      end
+    end
 
     scope "/" do
       pipe_through :rate_limit_login

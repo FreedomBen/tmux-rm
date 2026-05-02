@@ -40,6 +40,14 @@ Environment=PHX_HOST=localhost
 # Environment=TERMIGATE_AUTH_TOKEN=your-secure-token
 # Environment=TERMIGATE_CONFIG=/etc/termigate/config.yaml
 # Environment=TERMIGATE_TMUX_SOCKET=/tmp/tmux-1000/default
+#
+# Optional: pre-seed the first-run /setup token. If unset, termigate
+# generates one on boot and prints the full URL to the journal:
+#   sudo journalctl -u termigate.service | grep '/setup?token='
+# Either way the token is burned after the first admin is created.
+# /setup is restricted to loopback — for remote hosts, SSH-tunnel the port:
+#   ssh -L 8888:127.0.0.1:8888 user@host
+# Environment=TERMIGATE_SETUP_TOKEN=your-pre-seeded-token
 
 ExecStart=/opt/termigate/bin/termigate start
 ExecStop=/opt/termigate/bin/termigate stop

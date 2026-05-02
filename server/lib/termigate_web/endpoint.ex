@@ -12,8 +12,8 @@ defmodule TermigateWeb.Endpoint do
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [compress: true, connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [compress: true, connect_info: [:peer_data, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, session: @session_options]]
 
   socket "/socket", TermigateWeb.UserSocket,
     websocket: [compress: true, connect_info: [:peer_data, :x_headers]]

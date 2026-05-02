@@ -22,6 +22,7 @@ defmodule Termigate.Application do
       {Phoenix.PubSub, name: Termigate.PubSub},
       Termigate.SessionPoller,
       Termigate.Config,
+      Termigate.Setup,
       TermigateWeb.RateLimitStore,
       {DynamicSupervisor, name: Termigate.LayoutPollerSupervisor, strategy: :one_for_one},
       {Registry, keys: :unique, name: Termigate.McpSessionRegistry},

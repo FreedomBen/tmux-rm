@@ -13,6 +13,13 @@ services:
       - SECRET_KEY_BASE
       - PORT=8888
       - PHX_HOST=localhost
+      # Optional: pre-seed the first-run setup token. If unset, termigate
+      # generates one on boot and prints the full /setup URL to the
+      # container logs (`podman logs termigate`). Either way the token is
+      # burned after the first admin is created. /setup is always
+      # restricted to loopback — for remote deploys, SSH-tunnel the port:
+      #   ssh -L 8888:127.0.0.1:8888 user@host
+      # - TERMIGATE_SETUP_TOKEN=your-pre-seeded-token
       # Uncomment for host tmux access:
       # - TERMIGATE_TMUX_SOCKET=/tmp/tmux-host/default
     # Image default is uid 10001 (built-in `termigate` user). Override to your

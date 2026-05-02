@@ -4,21 +4,49 @@ defmodule TermigateWeb.SetupLive do
   alias Termigate.Auth
 
   @impl true
-  def mount(_params, _session, socket) do
-    # If auth is already configured, redirect to login
-    if Auth.auth_enabled?() do
-      {:ok, push_navigate(socket, to: "/login")}
-    else
-      socket =
-        socket
-        |> assign(:username, "")
-        |> assign(:password, "")
-        |> assign(:password_confirm, "")
-        |> assign(:session_ttl_hours, "168")
-        |> assign(:error, nil)
-        |> assign(:page_title, "Setup")
+  def mount(params, _session, socket) do
+    cond do
+      Auth.auth_enabled?() ->
+        {:ok, push_navigate(socket, to: "/login")}
 
-      {:ok, socket}
+      not setup_access_ok?(socket, params) ->
+        {:ok, push_navigate(socket, to: "/login")}
+
+      true ->
+        socket =
+          socket
+          |> assign(:token, params["token"])
+          |> assign(:username, "")
+          |> assign(:password, "")
+          |> assign(:password_confirm, "")
+          |> assign(:session_ttl_hours, "168")
+          |> assign(:error, nil)
+          |> assign(:page_title, "Setup")
+
+        {:ok, socket}
+    end
+  end
+
+  # Re-checks the token (always) and the WebSocket peer's IP (only when the
+  # LiveView is connected, since the static render was already gated by the
+  # `RequireSetupAccess` plug). Together with the plug, this means the form
+  # submission cannot be driven from a non-loopback peer or with a stale
+  # token even if the initial GET succeeded.
+  defp setup_access_ok?(socket, params) do
+    token = params["token"]
+
+    cond do
+      not Termigate.Setup.valid_token?(token) -> false
+      not Phoenix.LiveView.connected?(socket) -> true
+      true -> connection_loopback?(socket)
+    end
+  end
+
+  defp connection_loopback?(socket) do
+    case Phoenix.LiveView.get_connect_info(socket, :peer_data) do
+      %{address: {127, _, _, _}} -> true
+      %{address: {0, 0, 0, 0, 0, 0, 0, 1}} -> true
+      _ -> false
     end
   end
 
@@ -121,6 +149,9 @@ defmodule TermigateWeb.SetupLive do
     password_confirm = params["password_confirm"] || ""
 
     cond do
+      not Termigate.Setup.valid_token?(socket.assigns.token) ->
+        {:noreply, push_navigate(socket, to: "/login")}
+
       username == "" ->
         {:noreply, assign(socket, :error, "Username is required.")}
 
@@ -142,6 +173,8 @@ defmodule TermigateWeb.SetupLive do
 
         case Auth.write_credentials(username, password, session_ttl_hours) do
           :ok ->
+            :ok = Termigate.Setup.consume()
+
             token =
               Phoenix.Token.sign(TermigateWeb.Endpoint, "post_setup", %{username: username})
 
