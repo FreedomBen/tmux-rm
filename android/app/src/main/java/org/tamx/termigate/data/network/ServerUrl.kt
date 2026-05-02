@@ -17,7 +17,7 @@ private fun parseServerUrl(input: String): ServerUrlParts {
         scheme = s.substring(0, schemeIdx).lowercase()
         s = s.substring(schemeIdx + 3)
     } else {
-        scheme = "http"
+        scheme = "https"
     }
     val pathIdx = s.indexOf('/')
     val authority: String

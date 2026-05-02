@@ -196,7 +196,11 @@ target widget.
 ## Step 7 — Log in
 
 Enter the server URL from Step 4, the admin username and password
-(or the token) from Step 2. Confirm the session list loads.
+(or the token) from Step 2. Because the URL uses `http://`, the app
+shows a "Use insecure connection?" dialog after tapping Connect — tap
+"Connect anyway" to proceed (the cleartext warning is intentional;
+release builds also block cleartext to non-loopback hosts via the
+network security config). Confirm the session list loads.
 
 Record any input-handling annoyances (URL field rejecting schemes,
 keyboard hiding the submit button, autofill misbehaving) as

@@ -25,7 +25,8 @@ class LoginViewModel @Inject constructor(
         val password: String = "",
         val isLoading: Boolean = false,
         val error: String? = null,
-        val loginSuccess: Boolean = false
+        val loginSuccess: Boolean = false,
+        val pendingInsecureConfirmation: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(
@@ -55,6 +56,27 @@ class LoginViewModel @Inject constructor(
             return
         }
 
+        // Codex security review (15_CODEX_SECURITY_REVIEW.md): require an
+        // explicit confirmation before sending credentials over cleartext.
+        if (isInsecureUrl(state.serverUrl)) {
+            _uiState.update { it.copy(pendingInsecureConfirmation = true, error = null) }
+            return
+        }
+
+        proceedWithLogin()
+    }
+
+    fun onConfirmInsecureConnection() {
+        _uiState.update { it.copy(pendingInsecureConfirmation = false) }
+        proceedWithLogin()
+    }
+
+    fun onCancelInsecureConnection() {
+        _uiState.update { it.copy(pendingInsecureConfirmation = false) }
+    }
+
+    private fun proceedWithLogin() {
+        val state = _uiState.value
         _uiState.update { it.copy(isLoading = true, error = null) }
 
         viewModelScope.launch {
@@ -92,6 +114,9 @@ class LoginViewModel @Inject constructor(
                 }
         }
     }
+
+    private fun isInsecureUrl(url: String): Boolean =
+        url.trim().startsWith("http://", ignoreCase = true)
 
     private fun errorMessage(e: Throwable): String = when (e) {
         is SocketTimeoutException -> "Connection timed out"

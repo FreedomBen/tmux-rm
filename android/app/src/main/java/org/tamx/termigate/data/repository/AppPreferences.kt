@@ -49,7 +49,7 @@ class AppPreferences @Inject constructor(
         set(value) {
             val normalized = value?.trimEnd('/')?.let { url ->
                 if (url.isNotEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
-                    "http://$url"
+                    "https://$url"
                 } else {
                     url
                 }

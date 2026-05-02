@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds permit cleartext globally so developers can hit arbitrary
+  LAN deployments and the dev server without configuring TLS. Release
+  builds use the more restrictive policy in src/main/res/xml/.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

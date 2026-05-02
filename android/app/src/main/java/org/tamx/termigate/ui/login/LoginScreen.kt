@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -216,4 +218,43 @@ fun LoginScreen(
             }
         }
     }
+
+    if (state.pendingInsecureConfirmation) {
+        InsecureConnectionDialog(
+            serverUrl = state.serverUrl,
+            onConfirm = viewModel::onConfirmInsecureConnection,
+            onDismiss = viewModel::onCancelInsecureConnection
+        )
+    }
+}
+
+@Composable
+private fun InsecureConnectionDialog(
+    serverUrl: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Use insecure connection?") },
+        text = {
+            Text(
+                "$serverUrl uses plain HTTP. Your username, password, and " +
+                    "terminal traffic will not be encrypted and can be read or " +
+                    "tampered with by anyone on the network. Use HTTPS unless " +
+                    "you trust this network."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    "Connect anyway",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

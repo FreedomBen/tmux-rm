@@ -14,6 +14,7 @@ junit4 = "4.13.2"
 robolectric = "4.14"
 androidx-test-core = "1.6.1"
 androidx-test-ext-junit = "1.2.1"
+mockk = "1.13.13"
 
 [libraries]
 # Compose
@@ -50,6 +51,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 # Security
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security-crypto" }
@@ -61,6 +63,7 @@ androidx-test-core = { group = "androidx.test", name = "core", version.ref = "an
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidx-test-ext-junit" }
 compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

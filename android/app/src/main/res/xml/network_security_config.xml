@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Codex security review (archived-docs/15_CODEX_SECURITY_REVIEW.md): release
+  builds must default to TLS. Cleartext traffic is permitted only for
+  loopback and the Android emulator's host alias (10.0.2.2) so local
+  development against a plain-HTTP termigate server keeps working without
+  exposing arbitrary LAN deployments to passive interception. Debug builds
+  override this file to permit cleartext globally for testing.
+-->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
 </network-security-config>

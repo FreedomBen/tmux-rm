@@ -117,6 +117,8 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
     // Compose UI testing on the JVM via Robolectric. The BOM has to be
     // re-declared in the test classpath so the ui-test-junit4 artifact
     // resolves to the same version family as the production Compose
