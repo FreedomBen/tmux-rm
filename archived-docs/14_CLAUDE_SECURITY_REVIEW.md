@@ -59,7 +59,7 @@ Key:
 - [x] [MEDIUM] First-run admin takeover window — `lib/termigate_web/live/setup_live.ex` + `router.ex:75-78` `(NEW)`
 - [x] [MEDIUM] Rate limiter and auth logger trust `conn.remote_ip` raw — `lib/termigate_web/plugs/rate_limit.ex` `(NEW)`
 - [x] [MEDIUM] Session cookie does not set the `secure` flag — `lib/termigate_web/endpoint.ex:7-12`
-- [ ] [MEDIUM] WebSocket `check_origin` defaults to `false` when `PHX_HOST` is unset — `config/runtime.exs` prod block
+- [x] [MEDIUM] WebSocket `check_origin` defaults to `false` when `PHX_HOST` is unset — `config/runtime.exs` prod block
 - [ ] [MEDIUM] Login logging interpolates raw username into log lines — `lib/termigate_web/controllers/auth_controller.ex`
 - [ ] [MEDIUM] `/healthz` discloses `auth_mode` to unauthenticated callers — `lib/termigate_web/controllers/health_controller.ex`
 

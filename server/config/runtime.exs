@@ -101,18 +101,15 @@ if config_env() == :prod do
   port = String.to_integer(System.get_env("PORT") || "8888")
   bind_ip = if System.get_env("PHX_BIND") == "0.0.0.0", do: {0, 0, 0, 0}, else: {127, 0, 0, 1}
 
-  # Phoenix's default :conn check rejects WebSocket connections whose Origin host
-  # does not match PHX_HOST. When PHX_HOST is left at the default "localhost",
-  # any request hitting the server by IP or other hostname (common with rootless
-  # podman, port-forwarded LANs, Tailscale, etc.) silently fails: LiveView's
-  # /setup form just does nothing on submit. Default to disabled origin checks
-  # in that case so first-run "just works", but still let operators tighten this
-  # via TERMIGATE_CHECK_ORIGIN when they have configured a real host.
-  default_check_origin = if configured_host, do: :conn, else: false
-
+  # WebSocket origin check: default to :conn, which validates the WS handshake
+  # Origin against the request's Host header. This works regardless of PHX_HOST
+  # for the common single-origin case (browsers loading and WS-upgrading to the
+  # same hostname/IP), so it's safe for rootless podman, LAN IPs, Tailscale, etc.
+  # Operators who deliberately need cross-origin handshakes can opt out with
+  # TERMIGATE_CHECK_ORIGIN=false, or pin to an explicit allowlist.
   check_origin =
     case System.get_env("TERMIGATE_CHECK_ORIGIN") do
-      nil -> default_check_origin
+      nil -> :conn
       "false" -> false
       "true" -> true
       "conn" -> :conn
@@ -123,9 +120,9 @@ if config_env() == :prod do
     require Logger
 
     Logger.warning(
-      "termigate is binding 0.0.0.0 with PHX_HOST=localhost. Browsers visiting " <>
-        "by IP or hostname will see this URL configured for localhost. Set PHX_HOST " <>
-        "to the address users will visit (e.g. 127.0.0.1, your LAN IP, or DNS name) " <>
+      "termigate is binding 0.0.0.0 with PHX_HOST=localhost. URL generation " <>
+        "(absolute links, redirects) will use 'localhost'. Set PHX_HOST to the " <>
+        "address users will visit (e.g. 127.0.0.1, your LAN IP, or DNS name) " <>
         "to silence this warning."
     )
   end

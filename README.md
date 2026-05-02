@@ -100,12 +100,14 @@ podman run -d -p 8888:8888 \
 
 #### Origin check / PHX_HOST
 
-By default the prod release sets `check_origin: false` whenever `PHX_HOST`
-is unset, so the container is reachable from any browser the moment it
-starts. Once you decide on the host/IP you'll actually visit, set
-`PHX_HOST` to that value to turn the standard origin check back on.
-Override explicitly with `TERMIGATE_CHECK_ORIGIN=false`, `=true`,
-`=conn`, or a comma-separated list of allowed origins.
+By default the prod release sets `check_origin: :conn`, which requires the
+WebSocket handshake's `Origin` to match the same hostname/IP the page was
+loaded from. Single-origin browsers (loading the page and the LiveView
+socket from the same address) "just work" without any `PHX_HOST` changes.
+Set `PHX_HOST` to control the hostname used for absolute URL generation
+(redirects, emailed links). Override the origin check explicitly with
+`TERMIGATE_CHECK_ORIGIN=false`, `=true`, `=conn`, or a comma-separated
+list of allowed origins.
 
 #### HTTPS / force_ssl
 

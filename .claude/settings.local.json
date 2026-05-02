@@ -151,7 +151,8 @@
       "Bash(podman run *)",
       "Bash(podman rmi *)",
       "Bash(wait %1)",
-      "Bash(gh run *)"
+      "Bash(gh run *)",
+      "Bash(LOGGER_LEVEL=info mix test --repeat-until-failure 30 --max-cases 8)"
     ]
   }
 }
