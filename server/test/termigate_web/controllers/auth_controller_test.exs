@@ -71,6 +71,53 @@ defmodule TermigateWeb.AuthControllerTest do
           else: Application.delete_env(:termigate, :auth_token)
       end
     end
+
+    # Regression: TERMIGATE_SECURE_COOKIES is not set at test compile time,
+    # so the endpoint's @session_options compiles with `secure: false`. The
+    # session cookie must therefore be emitted without the Secure attribute,
+    # otherwise plain-HTTP loopback / LAN / 10.0.2.2 emulator workflows would
+    # silently lose the cookie on every request and login would never stick.
+    test "emits a Set-Cookie without Secure under default config (HTTP login keeps working)",
+         %{conn: conn} do
+      original = Application.get_env(:termigate, :auth_token)
+
+      try do
+        Application.put_env(:termigate, :auth_token, "test-secret-token")
+
+        conn =
+          conn
+          |> init_test_session(%{})
+          |> post("/login", %{username: "admin", password: "test-secret-token"})
+
+        assert redirected_to(conn) == "/"
+
+        session_cookie =
+          conn
+          |> get_resp_header("set-cookie")
+          |> Enum.find(&String.starts_with?(&1, "_termigate_key="))
+
+        assert session_cookie,
+               "expected a Set-Cookie line for _termigate_key, got: " <>
+                 inspect(get_resp_header(conn, "set-cookie"))
+
+        attributes =
+          session_cookie
+          |> String.split(";")
+          |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+
+        refute "secure" in attributes,
+               "expected default session cookie to omit Secure, got: #{inspect(session_cookie)}"
+
+        # Sanity-check the other hardening attributes that Plug.Session sets so
+        # this test fails loudly if a later refactor strips them by accident.
+        assert "httponly" in attributes
+        assert "samesite=lax" in attributes
+      after
+        if original,
+          do: Application.put_env(:termigate, :auth_token, original),
+          else: Application.delete_env(:termigate, :auth_token)
+      end
+    end
   end
 
   describe "POST /login (web) — rate limit" do
