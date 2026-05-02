@@ -48,6 +48,12 @@ Environment=PHX_HOST=localhost
 # /setup is restricted to loopback — for remote hosts, SSH-tunnel the port:
 #   ssh -L 8888:127.0.0.1:8888 user@host
 # Environment=TERMIGATE_SETUP_TOKEN=your-pre-seeded-token
+#
+# If termigate sits behind a reverse proxy (Caddy, nginx, Traefik, etc.),
+# list the proxy CIDRs here so X-Forwarded-For is honored. Without this,
+# rate limits and auth logs see the proxy address instead of the real
+# client IP, which collapses login throttling onto a single bucket.
+# Environment=TERMIGATE_TRUSTED_PROXIES=127.0.0.0/8,::1/128
 
 ExecStart=/opt/termigate/bin/termigate start
 ExecStop=/opt/termigate/bin/termigate stop

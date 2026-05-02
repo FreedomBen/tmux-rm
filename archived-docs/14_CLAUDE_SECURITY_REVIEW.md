@@ -57,7 +57,7 @@ Key:
 - [x] [MEDIUM] `compose.yaml` and `deploy/termigate.service` ship known-string `SECRET_KEY_BASE` — `compose.yaml:9`, `deploy/termigate.service` `(NEW)`
 - [-] [MEDIUM] Android client permits cleartext on every host — `android/app/src/main/res/xml/network_security_config.xml:2` `(NEW)`
 - [x] [MEDIUM] First-run admin takeover window — `lib/termigate_web/live/setup_live.ex` + `router.ex:75-78` `(NEW)`
-- [ ] [MEDIUM] Rate limiter and auth logger trust `conn.remote_ip` raw — `lib/termigate_web/plugs/rate_limit.ex` `(NEW)`
+- [x] [MEDIUM] Rate limiter and auth logger trust `conn.remote_ip` raw — `lib/termigate_web/plugs/rate_limit.ex` `(NEW)`
 - [ ] [MEDIUM] Session cookie does not set the `secure` flag — `lib/termigate_web/endpoint.ex:7-12`
 - [ ] [MEDIUM] WebSocket `check_origin` defaults to `false` when `PHX_HOST` is unset — `config/runtime.exs` prod block
 - [ ] [MEDIUM] Login logging interpolates raw username into log lines — `lib/termigate_web/controllers/auth_controller.ex`

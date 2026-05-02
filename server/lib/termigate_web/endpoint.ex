@@ -37,6 +37,7 @@ defmodule TermigateWeb.Endpoint do
     plug Phoenix.CodeReloader
   end
 
+  plug TermigateWeb.Plugs.RemoteIp
   plug TermigateWeb.Plugs.Cors
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]

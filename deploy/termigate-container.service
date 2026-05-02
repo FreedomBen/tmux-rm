@@ -36,6 +36,12 @@ Environment=TERMIGATE_PORT=8888
 #   [Service]
 #   Environment=TERMIGATE_SECRET_KEY_BASE=<generated-value>
 # The server will refuse to start without a real value.
+#
+# If termigate sits behind a reverse proxy (Caddy, nginx, Traefik, etc.),
+# set TERMIGATE_TRUSTED_PROXIES to a comma-separated list of proxy CIDRs
+# so X-Forwarded-For is honored. Without this, rate limits and auth logs
+# collapse all traffic onto the proxy IP. Example:
+#   Environment=TERMIGATE_TRUSTED_PROXIES=127.0.0.0/8,::1/128
 
 # Remove any stale container before starting
 ExecStartPre=-/usr/bin/podman rm -f termigate
@@ -47,6 +53,7 @@ ExecStart=/usr/bin/podman run \
     --env PHX_SERVER=true \
     --env PHX_HOST=localhost \
     --env SECRET_KEY_BASE=${TERMIGATE_SECRET_KEY_BASE} \
+    --env TERMIGATE_TRUSTED_PROXIES=${TERMIGATE_TRUSTED_PROXIES:-} \
     --volume /etc/termigate:/etc/termigate:ro \
     --volume termigate-data:/var/lib/termigate \
     ${TERMIGATE_IMAGE}

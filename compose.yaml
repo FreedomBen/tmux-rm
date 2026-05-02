@@ -20,6 +20,11 @@ services:
       # restricted to loopback — for remote deploys, SSH-tunnel the port:
       #   ssh -L 8888:127.0.0.1:8888 user@host
       # - TERMIGATE_SETUP_TOKEN=your-pre-seeded-token
+      # If running behind a reverse proxy (Caddy, nginx, Traefik, etc.),
+      # set this to a comma-separated list of proxy CIDRs so
+      # X-Forwarded-For is honored. Without it, rate limits and auth logs
+      # see the proxy IP, not the real client.
+      # - TERMIGATE_TRUSTED_PROXIES=127.0.0.0/8,::1/128
       # Uncomment for host tmux access:
       # - TERMIGATE_TMUX_SOCKET=/tmp/tmux-host/default
     # Image default is uid 10001 (built-in `termigate` user). Override to your

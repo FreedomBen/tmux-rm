@@ -69,7 +69,8 @@ defmodule Termigate.MixProject do
       {:ymlr, "~> 5.0"},
       {:mox, "~> 1.0", only: :test},
       {:corsica, "~> 2.0"},
-      {:hermes_mcp, "~> 0.14.1"}
+      {:hermes_mcp, "~> 0.14.1"},
+      {:remote_ip, "~> 1.2"}
     ]
   end
 

@@ -29,6 +29,24 @@ if metrics_token = System.get_env("TERMIGATE_METRICS_TOKEN") do
   config :termigate, metrics_token: metrics_token
 end
 
+# Trusted reverse-proxy CIDRs (comma-separated). When set, X-Forwarded-For
+# from these proxies is honored so rate limits and audit logs see the real
+# client IP instead of the proxy address. Default is empty: X-Forwarded-For
+# is ignored and conn.remote_ip stays as the socket peer.
+trusted_proxies =
+  case System.get_env("TERMIGATE_TRUSTED_PROXIES") do
+    nil ->
+      []
+
+    val ->
+      val
+      |> String.split(",")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+  end
+
+config :termigate, trusted_proxies: trusted_proxies
+
 # Configurable log level (default: :info in prod, :debug in dev)
 if log_level = System.get_env("LOGGER_LEVEL") do
   config :logger, level: String.to_existing_atom(log_level)
