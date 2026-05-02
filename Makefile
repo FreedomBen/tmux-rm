@@ -13,7 +13,7 @@ help: ## Show this help
 
 ##@ Server
 
-.PHONY: build clean install run
+.PHONY: build clean install run test
 
 build: ## Build a production release of the server
 	cd server && export MIX_ENV=prod && \
@@ -25,6 +25,9 @@ build: ## Build a production release of the server
 
 clean: ## Remove server build artifacts and node_modules
 	rm -rf server/_build server/deps server/assets/node_modules
+
+test: ## Run the server test suite
+	cd server && mix test
 
 run: ## Run the built release from server/_build/prod. Run 'make build' first.
 	@if [ -z "$${SECRET_KEY_BASE:-}" ]; then \
