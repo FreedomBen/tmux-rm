@@ -2,7 +2,28 @@ defmodule TermigateWeb.UserSocketTest do
   use TermigateWeb.ChannelCase, async: false
 
   describe "connect/3" do
-    test "authenticates via x-auth-token header", %{channel_token: token} do
+    test "authenticates via cookie session", %{cookie_session: session} do
+      assert {:ok, _socket} =
+               connect(
+                 TermigateWeb.UserSocket,
+                 %{},
+                 connect_info: %{session: session}
+               )
+    end
+
+    test "rejects an expired cookie session" do
+      ttl = Termigate.Auth.session_ttl_seconds()
+      stale = %{"authenticated_at" => System.system_time(:second) - ttl - 60}
+
+      assert :error =
+               connect(
+                 TermigateWeb.UserSocket,
+                 %{},
+                 connect_info: %{session: stale}
+               )
+    end
+
+    test "authenticates via x-auth-token header", %{api_token: token} do
       assert {:ok, _socket} =
                connect(
                  TermigateWeb.UserSocket,
@@ -11,20 +32,22 @@ defmodule TermigateWeb.UserSocketTest do
                )
     end
 
-    test "authenticates via URL params for back-compat", %{channel_token: token} do
-      assert {:ok, _socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
-    end
-
-    test "header takes precedence over an invalid URL param", %{channel_token: token} do
-      assert {:ok, _socket} =
+    test "rejects an invalid header token" do
+      assert :error =
                connect(
                  TermigateWeb.UserSocket,
-                 %{"token" => "garbage"},
-                 connect_info: %{x_headers: [{"x-auth-token", token}]}
+                 %{},
+                 connect_info: %{x_headers: [{"x-auth-token", "garbage"}]}
                )
     end
 
-    test "rejects when no token is present anywhere" do
+    test "ignores URL token params (no longer accepted)", %{api_token: token} do
+      # The browser flow no longer authenticates via URL — even a valid token
+      # passed as a URL param is rejected when no cookie or header is present.
+      assert :error = connect(TermigateWeb.UserSocket, %{"token" => token})
+    end
+
+    test "rejects when no auth is provided" do
       assert :error =
                connect(
                  TermigateWeb.UserSocket,
@@ -33,34 +56,16 @@ defmodule TermigateWeb.UserSocketTest do
                )
     end
 
-    test "rejects when both header and param are invalid" do
-      assert :error =
+    test "does not assign :channel_session at the socket level", %{api_token: token} do
+      # Per-tab session scoping moved to TerminalChannel.join via a scope
+      # token in join params; the socket itself stays unscoped.
+      assert {:ok, socket} =
                connect(
                  TermigateWeb.UserSocket,
-                 %{"token" => "garbage"},
-                 connect_info: %{x_headers: [{"x-auth-token", "also-garbage"}]}
+                 %{},
+                 connect_info: %{x_headers: [{"x-auth-token", token}]}
                )
-    end
 
-    test "channel token with session claim assigns :channel_session" do
-      token =
-        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{session: "my-session"})
-
-      assert {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
-      assert socket.assigns.channel_session == "my-session"
-    end
-
-    test "channel token without session claim leaves :channel_session unassigned",
-         %{channel_token: token} do
-      assert {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
-      refute Map.has_key?(socket.assigns, :channel_session)
-    end
-
-    test "api_token path leaves :channel_session unassigned" do
-      token =
-        Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "alice"})
-
-      assert {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
       refute Map.has_key?(socket.assigns, :channel_session)
     end
   end
@@ -73,12 +78,25 @@ defmodule TermigateWeb.UserSocketTest do
       :ok
     end
 
-    test "fails closed when no admin account is configured", %{channel_token: token} do
-      # Even a token that would otherwise be valid must be rejected before setup.
-      assert :error = connect(TermigateWeb.UserSocket, %{"token" => token})
+    test "fails closed on cookie path", %{cookie_session: session} do
+      assert :error =
+               connect(
+                 TermigateWeb.UserSocket,
+                 %{},
+                 connect_info: %{session: session}
+               )
     end
 
-    test "fails closed with no token at all" do
+    test "fails closed on header path", %{api_token: token} do
+      assert :error =
+               connect(
+                 TermigateWeb.UserSocket,
+                 %{},
+                 connect_info: %{x_headers: [{"x-auth-token", token}]}
+               )
+    end
+
+    test "fails closed with no auth at all" do
       assert :error =
                connect(
                  TermigateWeb.UserSocket,

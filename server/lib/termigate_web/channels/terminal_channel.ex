@@ -19,12 +19,14 @@ defmodule TermigateWeb.TerminalChannel do
   @max_cols 500
   @min_rows 1
   @max_rows 200
+  @scope_max_age 300
 
   @impl true
   def join("terminal:" <> target_raw, params, socket) do
     target = parse_target(target_raw)
 
-    with :ok <- authorize_target(socket, target) do
+    with {:ok, socket} <- apply_scope(socket, params),
+         :ok <- authorize_target(socket, target) do
       do_join(target, params, socket)
     end
   end
@@ -217,11 +219,29 @@ defmodule TermigateWeb.TerminalChannel do
     end
   end
 
-  # Browser tokens are scoped to a session via Phoenix.Token sign
-  # (`MultiPaneLive.mount/3`). Reject channel joins to targets in a
-  # different session. Tokens without a session claim (api_token path,
-  # auth disabled) bypass the check — those clients are already trusted
-  # for full access.
+  # Browser channels carry a short-lived scope token in join params; verifying
+  # it pins the channel to a single tmux session as defense-in-depth. Native
+  # API clients that authenticate with `x-auth-token` send no scope token and
+  # are already trusted for full access.
+  defp apply_scope(socket, params) do
+    case params["scope"] do
+      token when is_binary(token) and token != "" ->
+        case Phoenix.Token.verify(TermigateWeb.Endpoint, "channel_scope", token,
+               max_age: @scope_max_age
+             ) do
+          {:ok, %{session: session}} when is_binary(session) ->
+            {:ok, assign(socket, :channel_session, session)}
+
+          {:error, _reason} ->
+            Logger.warning("Terminal channel join rejected: invalid scope token")
+            {:error, %{reason: "invalid_scope"}}
+        end
+
+      _ ->
+        {:ok, socket}
+    end
+  end
+
   defp authorize_target(socket, target) do
     case socket.assigns[:channel_session] do
       nil ->

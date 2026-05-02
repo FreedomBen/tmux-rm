@@ -729,9 +729,11 @@ const TerminalHook = {
   },
 
   _connectChannel(target) {
-    // Get channel token from meta tag
-    const tokenMeta = document.querySelector("meta[name='channel-token']");
-    const token = tokenMeta ? tokenMeta.content : "";
+    // The Plug session cookie authenticates the WebSocket; no token in URL.
+    // The page-supplied scope token (short-lived, single-purpose) pins this
+    // channel to one tmux session as defense-in-depth.
+    const scopeMeta = document.querySelector("meta[name='channel-scope']");
+    const scope = scopeMeta ? scopeMeta.content : "";
 
     // Convert target "session:window.pane" to topic "terminal:session:window:pane"
     const topic =
@@ -739,7 +741,7 @@ const TerminalHook = {
 
     // Use existing socket or create one
     if (!window.userSocket) {
-      window.userSocket = new Socket("/socket", { params: { token } });
+      window.userSocket = new Socket("/socket");
       window.userSocket.connect();
     }
 
@@ -747,6 +749,7 @@ const TerminalHook = {
     // In multi-pane mode, skip — the terminal starts at tmux's own
     // dimensions and we don't want to resize panes just by viewing.
     const joinParams = {};
+    if (scope) joinParams.scope = scope;
     if (!this._isMultiPane && this.term.cols > 0 && this.term.rows > 0) {
       joinParams.cols = this.term.cols;
       joinParams.rows = this.term.rows;

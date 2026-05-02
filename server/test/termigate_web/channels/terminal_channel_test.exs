@@ -2,41 +2,62 @@ defmodule TermigateWeb.TerminalChannelTest do
   use TermigateWeb.ChannelCase, async: false
 
   describe "join" do
-    test "returns error when pane not found", %{channel_token: token} do
-      {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
+    test "returns error when pane not found", %{cookie_session: session} do
+      {:ok, socket} = connect_user_socket(session)
       assert {:error, %{reason: _}} = subscribe_and_join(socket, "terminal:nonexistent:0:0")
     end
 
-    test "parses topic into correct target format", %{channel_token: token} do
-      {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => token})
+    test "parses topic into correct target format", %{cookie_session: session} do
+      {:ok, socket} = connect_user_socket(session)
       # Will fail because no tmux, but should not crash
       result = subscribe_and_join(socket, "terminal:my-session:1:2")
       assert {:error, %{reason: _}} = result
     end
 
-    test "session-scoped token rejects joins to a different session" do
-      scoped_token =
-        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{session: "alpha"})
+    test "scope token in join params rejects joins to a different session",
+         %{cookie_session: session} do
+      scope =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel_scope", %{session: "alpha"})
 
-      {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => scoped_token})
+      {:ok, socket} = connect_user_socket(session)
 
       assert {:error, %{reason: "forbidden"}} =
-               subscribe_and_join(socket, "terminal:beta:0:0")
+               subscribe_and_join(socket, "terminal:beta:0:0", %{"scope" => scope})
     end
 
-    test "session-scoped token allows joins inside its session" do
+    test "scope token in join params allows joins inside its session",
+         %{cookie_session: session} do
       # The join still fails on PaneStream.subscribe (no tmux in tests),
       # but the failure must not be the authz "forbidden" — proving the
       # session-prefix check passed.
-      scoped_token =
-        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{session: "alpha"})
+      scope =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "channel_scope", %{session: "alpha"})
 
-      {:ok, socket} = connect(TermigateWeb.UserSocket, %{"token" => scoped_token})
+      {:ok, socket} = connect_user_socket(session)
 
       assert {:error, %{reason: reason}} =
-               subscribe_and_join(socket, "terminal:alpha:0:0")
+               subscribe_and_join(socket, "terminal:alpha:0:0", %{"scope" => scope})
 
       refute reason == "forbidden"
+    end
+
+    test "invalid scope token is rejected with invalid_scope",
+         %{cookie_session: session} do
+      {:ok, socket} = connect_user_socket(session)
+
+      assert {:error, %{reason: "invalid_scope"}} =
+               subscribe_and_join(socket, "terminal:alpha:0:0", %{"scope" => "garbage"})
+    end
+
+    test "missing scope token leaves the channel unscoped (full access)",
+         %{cookie_session: session} do
+      # Without a scope token, the channel is not session-pinned. The join
+      # still fails on PaneStream.subscribe (no tmux), but not on authz.
+      {:ok, socket} = connect_user_socket(session)
+
+      assert {:error, %{reason: reason}} = subscribe_and_join(socket, "terminal:alpha:0:0")
+      refute reason == "forbidden"
+      refute reason == "invalid_scope"
     end
   end
 

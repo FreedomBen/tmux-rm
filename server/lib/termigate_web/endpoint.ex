@@ -23,7 +23,10 @@ defmodule TermigateWeb.Endpoint do
     longpoll: [connect_info: [:peer_data, session: @session_options]]
 
   socket "/socket", TermigateWeb.UserSocket,
-    websocket: [compress: true, connect_info: [:peer_data, :x_headers]]
+    websocket: [
+      compress: true,
+      connect_info: [:peer_data, :x_headers, session: @session_options]
+    ]
 
   # Serve at "/" the static files from "priv/static" directory.
   #

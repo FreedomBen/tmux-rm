@@ -45,7 +45,7 @@ defmodule TermigateWeb.MultiPaneLive do
       end
 
     windows = fetch_windows(session)
-    channel_token = Phoenix.Token.sign(socket, "channel", %{session: session})
+    channel_scope = Phoenix.Token.sign(socket, "channel_scope", %{session: session})
     config = Config.get()
     quick_actions = config["quick_actions"] || []
     terminal_prefs = config["terminal"] || %{}
@@ -74,7 +74,7 @@ defmodule TermigateWeb.MultiPaneLive do
       |> assign(:grid, compute_grid(layout))
       |> assign(:windows, windows)
       |> assign(:maximized, nil)
-      |> assign(:channel_token, channel_token)
+      |> assign(:channel_scope, channel_scope)
       |> assign(:page_title, "#{session}:#{window}")
       |> assign(:active_pane, nil)
       |> assign(:quick_actions, quick_actions)
@@ -108,7 +108,7 @@ defmodule TermigateWeb.MultiPaneLive do
   def render(assigns) do
     ~H"""
     <div class="flex flex-col h-dvh bg-black overflow-x-hidden">
-      <meta name="channel-token" content={@channel_token} />
+      <meta name="channel-scope" content={@channel_scope} />
 
       <%!-- Header bar --%>
       <div class="terminal-header-bar">

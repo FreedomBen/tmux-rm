@@ -7,44 +7,55 @@ defmodule TermigateWeb.UserSocket do
   channel "sessions", TermigateWeb.SessionChannel
 
   @impl true
-  def connect(params, socket, connect_info) do
-    if Termigate.Auth.auth_enabled?() do
-      max_age = Termigate.Auth.session_ttl_seconds()
-      # Prefer the header so the token does not appear in proxy access logs;
-      # fall back to URL params for the in-browser JS client.
-      token = token_from_headers(connect_info) || params["token"]
+  def connect(_params, socket, connect_info) do
+    cond do
+      not Termigate.Auth.auth_enabled?() ->
+        # Fail closed before first-run setup: refuse channel connections until
+        # an admin account is created via /setup.
+        Logger.info("WebSocket auth rejected: setup not complete, ip=#{extract_ip(connect_info)}")
+        :error
 
-      case Phoenix.Token.verify(TermigateWeb.Endpoint, "channel", token, max_age: max_age) do
-        {:ok, %{session: session}} when is_binary(session) ->
-          # Browser-issued token scoped to a single session — TerminalChannel
-          # enforces the topic prefix matches.
-          {:ok, assign(socket, :channel_session, session)}
+      cookie_authenticated?(connect_info) ->
+        # Browser path: the signed Plug session cookie carries auth, not a URL
+        # token. Per-tab session scoping is enforced by TerminalChannel via a
+        # short-lived scope token in join params.
+        {:ok, socket}
 
-        {:ok, _data} ->
-          {:ok, socket}
+      token = token_from_headers(connect_info) ->
+        # Native/API client path. The header keeps the token out of proxy
+        # access logs that record URLs.
+        max_age = Termigate.Auth.session_ttl_seconds()
 
-        {:error, _reason} ->
-          # Also try api_token for API clients
-          case Phoenix.Token.verify(TermigateWeb.Endpoint, "api_token", token, max_age: max_age) do
-            {:ok, _data} ->
-              {:ok, socket}
+        case Phoenix.Token.verify(TermigateWeb.Endpoint, "api_token", token, max_age: max_age) do
+          {:ok, _data} ->
+            {:ok, socket}
 
-            {:error, _} ->
-              ip = extract_ip(connect_info)
-              Logger.info("WebSocket auth failed from #{ip}")
-              :error
-          end
-      end
-    else
-      # Fail closed before first-run setup: refuse channel connections until
-      # an admin account is created via /setup.
-      Logger.info("WebSocket auth rejected: setup not complete, ip=#{extract_ip(connect_info)}")
-      :error
+          {:error, _} ->
+            Logger.info("WebSocket auth failed from #{extract_ip(connect_info)}")
+            :error
+        end
+
+      true ->
+        Logger.info("WebSocket auth failed from #{extract_ip(connect_info)}")
+        :error
     end
   end
 
   @impl true
   def id(_socket), do: nil
+
+  defp cookie_authenticated?(%{session: session}) when is_map(session) do
+    case Map.get(session, "authenticated_at") do
+      timestamp when is_integer(timestamp) ->
+        max_age = Termigate.Auth.session_ttl_seconds()
+        System.system_time(:second) - timestamp <= max_age
+
+      _ ->
+        false
+    end
+  end
+
+  defp cookie_authenticated?(_), do: false
 
   defp token_from_headers(%{x_headers: headers}) when is_list(headers) do
     Enum.find_value(headers, fn

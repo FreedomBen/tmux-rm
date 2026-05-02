@@ -17,8 +17,24 @@ defmodule TermigateWeb.ChannelCase do
     # Ensure auth is enabled for channel tests (ConnCase also sets this for LiveView tests)
     Application.put_env(:termigate, :auth_token, "test-token")
 
-    # Sign a channel token for socket connection
-    channel_token = Phoenix.Token.sign(TermigateWeb.Endpoint, "channel", %{})
-    {:ok, channel_token: channel_token}
+    api_token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "test"})
+
+    cookie_session = %{"authenticated_at" => System.system_time(:second)}
+
+    {:ok, api_token: api_token, cookie_session: cookie_session}
+  end
+
+  @doc """
+  Connect to UserSocket using the cookie session path. Mirrors how a logged-in
+  browser reaches the socket — the Plug session carries auth, no URL token.
+  """
+  defmacro connect_user_socket(cookie_session) do
+    quote do
+      Phoenix.ChannelTest.connect(
+        TermigateWeb.UserSocket,
+        %{},
+        connect_info: %{session: unquote(cookie_session)}
+      )
+    end
   end
 end
