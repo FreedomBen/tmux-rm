@@ -20,3 +20,6 @@ packaging/staging/
 packaging/out/
 packaging/.bundle/
 packaging/vendor/
+
+# Drive-test artifacts (output of /server-drive and /android-drive skills)
+drive-artifacts/

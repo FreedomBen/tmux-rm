@@ -31,6 +31,11 @@ termigate-*.tar
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
 
+# Ignore mix phx.digest output (hashed copies + gzipped variants).
+# Digested files have format: <name>-<32 hex chars>.<ext>
+/priv/static/**/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].*
+/priv/static/**/*.gz
+
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
