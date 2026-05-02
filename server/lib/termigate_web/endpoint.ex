@@ -4,11 +4,18 @@ defmodule TermigateWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  #
+  # `:secure` is driven by `:secure_cookies`, which prod.exs sources from
+  # `TERMIGATE_SECURE_COOKIES` at build time. Defaults to `false` so plain-HTTP
+  # loopback / LAN deployments keep working; flip it on when termigate is
+  # reached only over HTTPS (TLS terminator in front, or `TERMIGATE_FORCE_SSL`
+  # baked in with no HTTP exceptions).
   @session_options [
     store: :cookie,
     key: "_termigate_key",
     signing_salt: "KIiTW2EZ",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:termigate, :secure_cookies, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,

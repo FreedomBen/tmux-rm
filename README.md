@@ -124,6 +124,22 @@ compile time. Loopback (`localhost`, `127.0.0.1`) and the Android
 emulator's host alias (`10.0.2.2`) are left in the exclude list so local
 clients keep working.
 
+#### Secure session cookie
+
+When termigate is reached only over HTTPS (TLS terminator in front, or
+HTTP-disabling deployment), build with `TERMIGATE_SECURE_COOKIES=true` so
+the session cookie carries the `Secure` attribute and browsers withhold
+it on plain-HTTP requests:
+
+```bash
+TERMIGATE_SECURE_COOKIES=true podman build --format docker -t termigate -f Containerfile .
+```
+
+This is independent of `TERMIGATE_FORCE_SSL`: `force_ssl` excludes
+loopback and `10.0.2.2` from the HTTPS redirect, and flipping the cookie
+secure flag for those hosts would block them from logging in over HTTP.
+Default is off.
+
 #### Using host tmux sessions
 
 To access tmux sessions running on the host, mount the host's tmux socket
