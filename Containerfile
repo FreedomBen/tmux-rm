@@ -29,18 +29,30 @@ RUN apt-get update && \
 
 RUN useradd --system --create-home --uid 10001 --shell /usr/sbin/nologin termigate
 
+# /var/lib/termigate is the canonical writable state directory in the
+# image. Auth credentials and YAML config live here so they survive
+# container recreation when this path is mounted as a persistent volume.
+RUN install -d -o termigate -g termigate -m 0700 /var/lib/termigate
+
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 ENV PHX_SERVER=true
 ENV PHX_BIND=0.0.0.0
 ENV HOME=/home/termigate
+# Keep auth + quick-action config on the persistent volume rather than
+# the ephemeral $HOME-derived default. Without this, a container
+# recreation would discard the admin account and reset to the first-run
+# setup state.
+ENV TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml
 
 COPY --from=build --chown=termigate:termigate /app/server/_build/prod/rel/termigate /app
 COPY --chmod=0755 --chown=termigate:termigate deploy/container-entrypoint.sh /app/entrypoint.sh
 
 USER termigate
 WORKDIR /home/termigate
+
+VOLUME ["/var/lib/termigate"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8888/healthz || exit 1

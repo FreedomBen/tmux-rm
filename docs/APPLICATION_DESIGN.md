@@ -1295,7 +1295,7 @@ quick_actions:
 
 `Termigate.Config` is a **GenServer** that owns all access to the config file. This serializes concurrent writes (multiple browser tabs), enables PubSub-driven LiveView updates, and detects external file edits.
 
-- **Location resolution**: Check `$TERMIGATE_CONFIG_PATH` env var first, then `~/.config/termigate/config.yaml`, then fall back to defaults (no quick actions).
+- **Location resolution**: Check the `:config_path` application env first (used by tests), then `$TERMIGATE_CONFIG_PATH`, then `~/.config/termigate/config.yaml`. The container image bakes `TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml` so config persists across container recreation. If a container is detected at startup (`/run/.containerenv` or `/.dockerenv`) and no explicit config path is set, `Termigate.Config.init/1` logs a warning so the operator notices that auth credentials will live on the ephemeral filesystem.
 - **Parsing**: Use `yaml_elixir` hex package to parse YAML.
 - **Startup**: Reads and validates the config file in `init/1`. Stores the parsed config and the file's mtime in GenServer state. If any quick actions were missing `id` fields, the file is rewritten immediately with the generated IDs — this ensures IDs are stable across reloads and cached by API clients (e.g., the Android app). Starts a periodic mtime check via `Process.send_after/3`.
 - **File change detection**: Every 2 seconds (`config_poll_interval`, configurable), the GenServer checks the config file's mtime via `File.stat/1`. If the mtime has changed, it re-reads and re-parses the file, updates state, and broadcasts `{:config_changed, config}` on PubSub topic `"config"`. This catches manual YAML edits without needing a filesystem watcher dependency.

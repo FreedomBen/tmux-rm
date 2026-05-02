@@ -275,6 +275,7 @@ defmodule Termigate.Config do
   @impl true
   def init(_opts) do
     path = config_path()
+    maybe_warn_ephemeral(path)
     poll_interval = Application.get_env(:termigate, :config_poll_interval, 2_000)
 
     state = %{
@@ -672,6 +673,52 @@ defmodule Termigate.Config do
     Application.get_env(:termigate, :config_path) ||
       System.get_env("TERMIGATE_CONFIG_PATH") ||
       Path.join([System.user_home!(), ".config", "termigate", "config.yaml"])
+  end
+
+  @doc false
+  # Warn loudly if we appear to be inside a container without an explicit
+  # config path. The home-derived default lives on the container's
+  # ephemeral filesystem; a restart or recreation discards admin
+  # credentials and drops the server back to first-run setup state.
+  # Returns the path unchanged so this can be inserted into a pipeline.
+  def maybe_warn_ephemeral(path, opts \\ []) do
+    in_container? = Keyword.get(opts, :in_container?, container?())
+    explicit_config? = Keyword.get(opts, :explicit_config?, explicit_config?())
+
+    if in_container? and not explicit_config? do
+      Logger.warning("""
+
+      =============================================================================
+      Container detected, but TERMIGATE_CONFIG_PATH is not set.
+
+      termigate will read and write its config (including the admin
+      account written by /setup) to:
+
+        #{path}
+
+      This path lives in the container's ephemeral home directory. A
+      container restart or recreation will discard the admin account and
+      return the server to first-run setup state.
+
+      Set TERMIGATE_CONFIG_PATH to a path on a persistent volume, e.g.:
+
+        TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml
+
+      and mount that path read-write into the container.
+      =============================================================================
+      """)
+    end
+
+    path
+  end
+
+  defp container? do
+    File.exists?("/run/.containerenv") or File.exists?("/.dockerenv")
+  end
+
+  defp explicit_config? do
+    Application.get_env(:termigate, :config_path) != nil or
+      System.get_env("TERMIGATE_CONFIG_PATH") not in [nil, ""]
   end
 
   defp schedule_poll(interval) do

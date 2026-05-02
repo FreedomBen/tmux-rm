@@ -1,14 +1,16 @@
 # termigate — Container deployment (Podman)
 #
 # Install:
-#   sudo useradd -r -m -d /var/lib/termigate -s /usr/sbin/nologin termigate
-#   sudo mkdir -p /etc/termigate /var/lib/termigate
-#   sudo chown -R termigate:termigate /var/lib/termigate
 #   # Build or pull the image:
 #   sudo podman build -t localhost/termigate:latest -f Containerfile .
 #   sudo cp deploy/termigate-container.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now termigate-container.service
+#
+# Persistent state (admin credentials, quick-action config) lives in the
+# `termigate-data` named podman volume, which mounts at
+# /var/lib/termigate inside the container. Do not delete this volume
+# unless you intend to wipe the admin account.
 #
 # By default this runs tmux *inside* the container. To connect to the host's
 # tmux sessions instead, add a bind mount for the tmux socket directory and
@@ -54,7 +56,7 @@ ExecStart=/usr/bin/podman run \
     --env PHX_HOST=localhost \
     --env SECRET_KEY_BASE=${TERMIGATE_SECRET_KEY_BASE} \
     --env TERMIGATE_TRUSTED_PROXIES=${TERMIGATE_TRUSTED_PROXIES:-} \
-    --volume /etc/termigate:/etc/termigate:ro \
+    --env TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml \
     --volume termigate-data:/var/lib/termigate \
     ${TERMIGATE_IMAGE}
 

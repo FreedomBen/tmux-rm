@@ -1,6 +1,8 @@
 defmodule Termigate.ConfigTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias Termigate.Config
 
   setup do
@@ -300,6 +302,65 @@ defmodule Termigate.ConfigTest do
 
       assert_receive {:config_changed, config}, 1000
       assert Enum.any?(config["quick_actions"], &(&1["label"] == "Broadcast"))
+    end
+  end
+
+  describe "maybe_warn_ephemeral/2" do
+    @ephemeral_path "/home/termigate/.config/termigate/config.yaml"
+
+    setup do
+      # The test environment sets `config :logger, level: :error`, so warning
+      # logs are dropped before capture_log can see them. Lower it for these
+      # tests and restore on exit.
+      original = Logger.level()
+      Logger.configure(level: :warning)
+      on_exit(fn -> Logger.configure(level: original) end)
+      :ok
+    end
+
+    test "warns when running in a container with no explicit config path" do
+      log =
+        capture_log(fn ->
+          Config.maybe_warn_ephemeral(@ephemeral_path,
+            in_container?: true,
+            explicit_config?: false
+          )
+        end)
+
+      assert log =~ "Container detected"
+      assert log =~ "TERMIGATE_CONFIG_PATH"
+      assert log =~ @ephemeral_path
+    end
+
+    test "stays silent outside a container" do
+      log =
+        capture_log(fn ->
+          Config.maybe_warn_ephemeral(@ephemeral_path,
+            in_container?: false,
+            explicit_config?: false
+          )
+        end)
+
+      refute log =~ "Container detected"
+    end
+
+    test "stays silent when an explicit config path is set" do
+      log =
+        capture_log(fn ->
+          Config.maybe_warn_ephemeral("/var/lib/termigate/config.yaml",
+            in_container?: true,
+            explicit_config?: true
+          )
+        end)
+
+      refute log =~ "Container detected"
+    end
+
+    test "returns the path unchanged so it can pipe into init" do
+      assert Config.maybe_warn_ephemeral("/some/path",
+               in_container?: false,
+               explicit_config?: true
+             ) == "/some/path"
     end
   end
 end

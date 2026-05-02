@@ -13,6 +13,10 @@ services:
       - SECRET_KEY_BASE
       - PORT=8888
       - PHX_HOST=localhost
+      # The image bakes TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml,
+      # which points at the persistent volume mounted below. Override only if
+      # you map a different writable path into the container.
+      # - TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml
       # Optional: pre-seed the first-run setup token. If unset, termigate
       # generates one on boot and prints the full /setup URL to the
       # container logs (`podman logs termigate`). Either way the token is
@@ -30,7 +34,13 @@ services:
     # Image default is uid 10001 (built-in `termigate` user). Override to your
     # host UID:GID only when mounting a host tmux socket below.
     user: "10001:10001"
-    # volumes:
+    volumes:
+      # Persistent state (admin credentials, quick-action config). Wiping
+      # this volume returns the server to first-run setup state.
+      - termigate-data:/var/lib/termigate
       # Uncomment for host tmux access (replace 1000 with your UID, and set
       # `user: "1000:1000"` above to match):
       # - /tmp/tmux-1000:/tmp/tmux-host
+
+volumes:
+  termigate-data:

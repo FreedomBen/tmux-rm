@@ -89,8 +89,14 @@ podman build --format docker -t termigate -f Containerfile .
 # Run with container-local tmux
 podman run -d -p 8888:8888 \
   -e SECRET_KEY_BASE="$(openssl rand -base64 48)" \
+  -v termigate-data:/var/lib/termigate \
   termigate
 ```
+
+The `termigate-data` volume holds the admin account and quick-action
+config. The image bakes `TERMIGATE_CONFIG_PATH=/var/lib/termigate/config.yaml`
+so this state survives container recreation; without the volume mount,
+`/setup` would have to be repeated after every restart.
 
 > **Note (rootless podman on Linux):** with the default pasta networking,
 > the published port listens on `0.0.0.0` (IPv4) only. `localhost` resolves
