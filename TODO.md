@@ -34,6 +34,8 @@
 
 # Already Run
 
+- We do want the dev server to bind 0.0.0.0 instead of localhost so that it's accessible from other machines on the network.  Let's make that change.
+
 - Let's put our logo at the top of the README.md
 
 - Let's add a LICENSE to this project.  Use the AGPLv3

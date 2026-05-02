@@ -68,10 +68,10 @@ Key:
 - [x] [LOW] Auth token in WebSocket URL query string — `android/.../PhoenixSocket.kt buildWsUrl`, `di/NetworkModule.kt` `(NEW)`
 - [x] [LOW] `android:allowBackup="true"` with no extraction rules — `android/app/src/main/AndroidManifest.xml:11` `(NEW)`
 - [x] [LOW] `Path.expand("~")` for legacy credentials evaluated at compile time — `lib/termigate/auth.ex:13-14` `(NEW)`
-- [ ] [LOW] Debug-level logging echoes full tmux argv — `lib/termigate/tmux/command_runner.ex:13`
+- [x] [LOW] Debug-level logging echoes full tmux argv — `lib/termigate/tmux/command_runner.ex:13`
 - [ ] [LOW] Channel token is not bound to its target session — `lib/termigate_web/live/multi_pane_live.ex:48` + `user_socket.ex:14-19`
 - [ ] [LOW] Static `TERMIGATE_AUTH_TOKEN` accepts any username — `lib/termigate/auth.ex:19-30`
-- [ ] [LOW] Dev endpoint binds `0.0.0.0` by default — `config/runtime.exs` dev block
+- [-] [LOW] Dev endpoint binds `0.0.0.0` by default — `config/runtime.exs` dev block (accepted: dev server is intentionally reachable from other LAN machines)
 
 ## Findings — new (this review)
 

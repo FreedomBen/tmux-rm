@@ -10,7 +10,8 @@ defmodule Termigate.Tmux.CommandRunner do
     full_args = socket_args() ++ args
 
     unless noisy?(args) do
-      Logger.debug("tmux command: #{tmux_path} #{Enum.join(full_args, " ")}")
+      log_args = socket_args() ++ safe_args(args)
+      Logger.debug("tmux command: #{tmux_path} #{Enum.join(log_args, " ")}")
     end
 
     case System.cmd(tmux_path, full_args, stderr_to_stdout: true) do
@@ -49,6 +50,36 @@ defmodule Termigate.Tmux.CommandRunner do
   defp noisy?(["list-panes" | _]), do: true
   defp noisy?(["list-sessions" | _]), do: true
   defp noisy?(_), do: false
+
+  # send-keys argv carries user keystrokes (literal text or hex bytes after -H).
+  # Strip the payload before logging so debug logs don't mirror terminal input.
+  @doc false
+  @send_keys_with_arg ~w(-t -T -N)
+  @send_keys_no_arg ~w(-H -l -R -X -K -F -M)
+
+  def safe_args(["send-keys" | rest]) do
+    {flags, payload} = split_send_keys_payload(rest, [])
+
+    redacted =
+      case payload do
+        [] -> []
+        _ -> ["<#{length(payload)} arg(s) redacted>"]
+      end
+
+    ["send-keys" | flags] ++ redacted
+  end
+
+  def safe_args(args), do: args
+
+  defp split_send_keys_payload([flag, value | rest], acc) when flag in @send_keys_with_arg do
+    split_send_keys_payload(rest, [value, flag | acc])
+  end
+
+  defp split_send_keys_payload([flag | rest], acc) when flag in @send_keys_no_arg do
+    split_send_keys_payload(rest, [flag | acc])
+  end
+
+  defp split_send_keys_payload(payload, acc), do: {Enum.reverse(acc), payload}
 
   defp check_version_once do
     unless :persistent_term.get(:tmux_version_checked, false) do
