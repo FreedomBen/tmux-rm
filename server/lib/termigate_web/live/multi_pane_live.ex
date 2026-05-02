@@ -85,6 +85,11 @@ defmodule TermigateWeb.MultiPaneLive do
       |> assign(:terminal_prefs, terminal_prefs)
       |> assign(:notification_config, notification_config)
       |> assign(:subscribed_panes, subscribed_panes)
+      # Start false; flips to true on the first :sessions_updated broadcast
+      # that includes this session. Used by the :sessions_updated handler so
+      # that a stray "no sessions" broadcast received before we've ever
+      # confirmed our session exists doesn't redirect us off the page.
+      |> assign(:session_seen, false)
 
     socket = if connected?(socket), do: push_notification_config(socket), else: socket
 
@@ -556,14 +561,26 @@ defmodule TermigateWeb.MultiPaneLive do
   def handle_info({:sessions_updated, sessions}, socket) do
     session_name = socket.assigns.session
 
-    if Enum.any?(sessions, &(&1.name == session_name)) do
-      windows = fetch_windows(session_name)
-      {:noreply, assign(socket, :windows, windows)}
-    else
-      {:noreply,
-       socket
-       |> put_flash(:info, "Session \"#{session_name}\" was killed.")
-       |> push_navigate(to: ~p"/")}
+    cond do
+      Enum.any?(sessions, &(&1.name == session_name)) ->
+        windows = fetch_windows(session_name)
+        {:noreply, socket |> assign(:windows, windows) |> assign(:session_seen, true)}
+
+      socket.assigns.session_seen ->
+        # We saw our session in an earlier broadcast and now it's gone — that's
+        # a real "session killed" event. Redirect.
+        {:noreply,
+         socket
+         |> put_flash(:info, "Session \"#{session_name}\" was killed.")
+         |> push_navigate(to: ~p"/")}
+
+      true ->
+        # Broadcast didn't include our session and we've never confirmed it
+        # exists. Could be a transient empty list (e.g., SessionPoller mid-
+        # initialization, or a tests-only race where a poll briefly cleared
+        # state). Stay put and wait for a broadcast that proves the session
+        # is gone.
+        {:noreply, socket}
     end
   end
 
