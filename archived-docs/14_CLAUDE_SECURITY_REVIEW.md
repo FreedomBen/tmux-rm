@@ -70,7 +70,7 @@ Key:
 - [x] [LOW] `Path.expand("~")` for legacy credentials evaluated at compile time — `lib/termigate/auth.ex:13-14` `(NEW)`
 - [x] [LOW] Debug-level logging echoes full tmux argv — `lib/termigate/tmux/command_runner.ex:13`
 - [x] [LOW] Channel token is not bound to its target session — `lib/termigate_web/live/multi_pane_live.ex:48` + `user_socket.ex:14-19`
-- [ ] [LOW] Static `TERMIGATE_AUTH_TOKEN` accepts any username — `lib/termigate/auth.ex:19-30`
+- [-] [LOW] Static `TERMIGATE_AUTH_TOKEN` accepts any username — `lib/termigate/auth.ex:19-30` (accepted: username-agnostic auth is the right UX for a single-user app and the token's entropy carries the security weight; audit-log half-fix applied — token-based logins now record `<token>` instead of the caller-supplied username)
 - [-] [LOW] Dev endpoint binds `0.0.0.0` by default — `config/runtime.exs` dev block (accepted: dev server is intentionally reachable from other LAN machines)
 
 ## Findings — new (this review)

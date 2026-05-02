@@ -27,6 +27,25 @@ defmodule Termigate.Auth do
     end
   end
 
+  @doc """
+  True if the static auth token is configured and matches the given password.
+  Used by callers that need to distinguish a token-based login from a
+  credentialed one (e.g. to log a `<token>` sentinel instead of the
+  caller-supplied username).
+  """
+  @spec token_login?(String.t()) :: boolean()
+  def token_login?(password) when is_binary(password) do
+    case Application.get_env(:termigate, :auth_token) do
+      token when is_binary(token) and token != "" ->
+        Plug.Crypto.secure_compare(password, token)
+
+      _ ->
+        false
+    end
+  end
+
+  def token_login?(_), do: false
+
   @doc "Returns true if auth is configured (auth section in config or token set)."
   @spec auth_enabled?() :: boolean()
   def auth_enabled? do

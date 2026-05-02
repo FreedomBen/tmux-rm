@@ -51,6 +51,27 @@ defmodule Termigate.AuthTest do
     test "rejects wrong token" do
       assert :error = Auth.verify_credentials("anyuser", "wrong-token")
     end
+
+    test "token_login?/1 reports whether the password matched the static token" do
+      assert Auth.token_login?("test-token-123")
+      refute Auth.token_login?("wrong-token")
+      refute Auth.token_login?("")
+      refute Auth.token_login?(nil)
+    end
+  end
+
+  describe "token_login?/1 without configured token" do
+    setup do
+      original = Application.get_env(:termigate, :auth_token)
+      Application.delete_env(:termigate, :auth_token)
+      on_exit(fn -> if original, do: Application.put_env(:termigate, :auth_token, original) end)
+      :ok
+    end
+
+    test "returns false for any input" do
+      refute Auth.token_login?("anything")
+      refute Auth.token_login?("")
+    end
   end
 
   describe "auth_enabled?/0" do

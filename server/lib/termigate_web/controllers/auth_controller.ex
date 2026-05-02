@@ -12,12 +12,16 @@ defmodule TermigateWeb.AuthController do
 
     case Auth.verify_credentials(username, password) do
       :ok ->
-        Logger.info("Login success: #{safe_user} from #{ip}")
+        # Static token logins are username-agnostic — log a fixed sentinel
+        # so an attacker who guesses the token cannot forge arbitrary
+        # usernames into the audit trail.
+        log_user = if Auth.token_login?(password), do: "<token>", else: safe_user
+        Logger.info("Login success: #{log_user} from #{ip}")
 
         :telemetry.execute(
           [:termigate, :auth, :login, :success],
           %{},
-          %{username: safe_user, ip: ip}
+          %{username: log_user, ip: ip}
         )
 
         max_age = Termigate.Auth.session_ttl_seconds()
@@ -47,12 +51,13 @@ defmodule TermigateWeb.AuthController do
 
     case Auth.verify_credentials(username, password) do
       :ok ->
-        Logger.info("Web login success: #{safe_user} from #{ip}")
+        log_user = if Auth.token_login?(password), do: "<token>", else: safe_user
+        Logger.info("Web login success: #{log_user} from #{ip}")
 
         :telemetry.execute(
           [:termigate, :auth, :login, :success],
           %{},
-          %{username: safe_user, ip: ip}
+          %{username: log_user, ip: ip}
         )
 
         conn
