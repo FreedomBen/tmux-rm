@@ -36,7 +36,10 @@ defmodule TermigateWeb.UserSocket do
           end
       end
     else
-      {:ok, socket}
+      # Fail closed before first-run setup: refuse channel connections until
+      # an admin account is created via /setup.
+      Logger.info("WebSocket auth rejected: setup not complete, ip=#{extract_ip(connect_info)}")
+      :error
     end
   end
 

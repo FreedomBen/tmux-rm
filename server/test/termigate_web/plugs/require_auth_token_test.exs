@@ -7,14 +7,29 @@ defmodule TermigateWeb.Plugs.RequireAuthTokenTest do
   @moduletag :skip_auth
 
   describe "call/2" do
-    test "passes through when auth is not enabled" do
+    test "fails closed with 503 setup_required when auth is not configured" do
       Application.delete_env(:termigate, :auth_token)
 
       conn =
         Phoenix.ConnTest.build_conn()
         |> RequireAuthToken.call(RequireAuthToken.init([]))
 
-      refute conn.halted
+      assert conn.halted
+      assert conn.status == 503
+      assert Jason.decode!(conn.resp_body) == %{"error" => "setup_required"}
+    end
+
+    test "fails closed even with a Bearer token before setup completes" do
+      Application.delete_env(:termigate, :auth_token)
+      token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "admin"})
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> RequireAuthToken.call(RequireAuthToken.init([]))
+
+      assert conn.halted
+      assert conn.status == 503
     end
 
     test "returns 401 when no Authorization header and auth enabled" do

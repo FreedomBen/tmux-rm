@@ -24,7 +24,14 @@ defmodule TermigateWeb.Plugs.RequireAuthToken do
           conn |> put_status(401) |> json(%{error: "unauthorized"}) |> halt()
       end
     else
-      conn
+      # Fail closed before first-run setup: refuse API/MCP access until an
+      # admin account is created via /setup. Without this, any caller that
+      # reaches a fresh instance can drive tmux through the API or MCP.
+      Logger.warning(
+        "API access denied: setup not complete, ip=#{conn.remote_ip |> :inet.ntoa() |> to_string()}"
+      )
+
+      conn |> put_status(503) |> json(%{error: "setup_required"}) |> halt()
     end
   end
 end

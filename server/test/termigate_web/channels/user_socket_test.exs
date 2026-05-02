@@ -64,4 +64,27 @@ defmodule TermigateWeb.UserSocketTest do
       refute Map.has_key?(socket.assigns, :channel_session)
     end
   end
+
+  describe "connect/3 before first-run setup" do
+    setup do
+      original = Application.get_env(:termigate, :auth_token)
+      Application.delete_env(:termigate, :auth_token)
+      on_exit(fn -> Application.put_env(:termigate, :auth_token, original) end)
+      :ok
+    end
+
+    test "fails closed when no admin account is configured", %{channel_token: token} do
+      # Even a token that would otherwise be valid must be rejected before setup.
+      assert :error = connect(TermigateWeb.UserSocket, %{"token" => token})
+    end
+
+    test "fails closed with no token at all" do
+      assert :error =
+               connect(
+                 TermigateWeb.UserSocket,
+                 %{},
+                 connect_info: %{x_headers: []}
+               )
+    end
+  end
 end

@@ -36,6 +36,18 @@ defmodule TermigateWeb.MCPEndpointTest do
       assert json_response(conn, 401) == %{"error" => "unauthorized"}
     end
 
+    @tag :skip_auth
+    test "fails closed with 503 setup_required before first-run setup", %{conn: conn} do
+      # No auth_token configured and no config.yaml admin → setup is required.
+      conn =
+        conn
+        |> Plug.Conn.delete_req_header("authorization")
+        |> mcp_conn()
+        |> post("/mcp", init_payload())
+
+      assert json_response(conn, 503) == %{"error" => "setup_required"}
+    end
+
     test "returns 406 without proper Accept header", %{conn: conn} do
       conn =
         conn

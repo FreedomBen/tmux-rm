@@ -429,7 +429,7 @@ class AuthRepository @Inject constructor(
 - Token stored in `EncryptedSharedPreferences` (Android Keystore-backed)
 - Server URL and last username stored in regular `SharedPreferences`
 - On 401 anywhere in the app → `clearToken()` and navigate to Login
-- `probeAuthRequired()`: attempts unauthenticated `GET /api/sessions` — if 200, auth is disabled; if 401, auth is required
+- On 503 with `error: "setup_required"` → server has no admin account yet; show a "complete setup in your browser" message and stay on Login
 
 #### 3.2 Login ViewModel (`ui/login/LoginViewModel.kt`)
 
@@ -482,9 +482,9 @@ fun AppNavigation(navController: NavHostController) {
 }
 ```
 
-- Start destination: "sessions" if token exists and is valid OR auth is disabled, "login" otherwise
-- On first launch with a saved server URL: probe auth requirement before deciding start destination
+- Start destination: "sessions" if a stored token validates against the server, "login" otherwise
 - Global 401 handling: navigate to "login", clear back stack
+- Global 503 `setup_required` handling: navigate to "login" and surface the "complete setup in browser" message
 
 #### 3.5 Theme (`ui/theme/`)
 
@@ -504,7 +504,7 @@ Material 3 dark theme (matches termigate web dark terminal aesthetic):
 - [ ] Verification: Login with invalid credentials → error shown
 - [ ] Verification: Login with unreachable server → timeout error
 - [ ] Verification: App restart with valid token → skips login
-- [ ] Verification: Server with auth disabled → skips login
+- [ ] Verification: Server before first-run setup → login screen shows "complete setup in browser" message (503 `setup_required`)
 - [ ] Verification: Rate-limited login attempt → shows "too many attempts" error
 
 ---
@@ -1259,10 +1259,8 @@ The `"sessions"` channel join reply contains the current session list wrapped in
 - **Rate limited (429)**: show "Too many attempts, try again later" — applies to `/api/login`
 - **Server unreachable**: show "Server unreachable" with cached data where available (session list, quick actions)
 
-### Auth-Disabled Mode
+### Pre-Setup Mode
 
-The server can run with auth disabled (`Termigate.Auth.auth_enabled?()` returns false). When auth is disabled:
-- `POST /api/login` still exists but is unnecessary — all API routes accept requests without a Bearer token
-- WebSocket connects without a token
+Before an admin account exists (`Termigate.Auth.auth_enabled?()` returns false), the server fails closed: `/api/*`, `/mcp`, and the WebSocket all reject requests. The API and MCP return `503` with body `{"error": "setup_required"}`; the WebSocket refuses the upgrade. Only `/healthz`, `POST /api/login` (which simply returns an auth error), and the loopback-gated `/setup` page are reachable.
 
-Detection: on app start (before showing login), attempt an unauthenticated `GET /api/sessions`. If it succeeds (200), auth is disabled — skip the login screen and proceed directly to the session list. If it fails (401), show the login screen. This probe is fast (single HTTP request) and requires no server changes.
+The Android client cannot complete first-run setup itself — that flow runs over the loopback-gated `/setup` LiveView. When the app receives `503 setup_required`, it stays on the login screen and shows a message instructing the user to finish setup in a browser on the host. Once setup completes and an admin exists, normal `POST /api/login` flow takes over.
