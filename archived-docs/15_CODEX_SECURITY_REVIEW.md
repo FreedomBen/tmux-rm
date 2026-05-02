@@ -19,7 +19,7 @@ Termigate has several good security patterns in place: tmux execution usually go
 
 - [x] **[HIGH]** Fail closed when no auth is configured — gate `/api/*`, `/mcp`, and `/socket` behind setup completion, and add regression tests
 - [x] **[MEDIUM]** Persist the container config path so auth survives restarts (set `TERMIGATE_CONFIG_PATH` or `HOME` to a mounted volume; warn on misconfiguration)
-- [ ] **[MEDIUM]** Unify LiveView and HTTP session TTLs on `Termigate.Auth.session_ttl_seconds/0`; recheck TTL on LiveView events, not just mount
+- [x] **[MEDIUM]** Unify LiveView and HTTP session TTLs on `Termigate.Auth.session_ttl_seconds/0`; recheck TTL on LiveView events, not just mount
 - [ ] **[MEDIUM]** Move browser channel auth off URL query tokens (prefer signed session cookie via `connect_info`; if a token remains, make it short-lived and rotate on reconnect)
 - [ ] **[MEDIUM]** Default Android to HTTPS/WSS for bare hostnames; restrict cleartext to debug builds or explicit local domains; require explicit confirmation for `http://` URLs
 - [ ] **[LOW]** Add `Termigate.Config.public_view/0` (or equivalent) to strip `auth.password_hash` and other secrets from `GET /api/config`

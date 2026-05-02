@@ -820,8 +820,8 @@ config :termigate,
   output_coalesce_ms: 3,
   # Flush coalesced output immediately if accumulated bytes exceed this threshold
   output_coalesce_max_bytes: 32_768,  # 32 KB
-  # Auth session/token TTL (days). nil = never expire (re-auth only on explicit logout).
-  auth_session_ttl_days: 30
+  # Phoenix.Token max age for native (Android) bearer tokens, in seconds.
+  auth_token_max_age: 604_800
 
 # server/config/dev.exs
 config :termigate, TermigateWeb.Endpoint,
@@ -1057,8 +1057,8 @@ This application is **fully stateless from a storage perspective**. No database 
 3. On submit, server checks:
    a. If `TERMIGATE_AUTH_TOKEN` is set and the password matches (constant-time compare), authenticate.
    b. Otherwise, look up the stored username. If the username doesn't match, call `Bcrypt.no_user_verify/0` (performs a dummy hash to prevent timing-based username enumeration) and reject. If the username matches, verify the password via `Bcrypt.verify_pass/2`.
-4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Store `authenticated_at: System.system_time(:second)` in the session data. Configured via `config :termigate, auth_session_ttl_days: 30` in application config (not `config.yaml` — auth settings use application config, not the YAML config file, to avoid a circular dependency on the Config GenServer during boot).
-5. All LiveView mounts check `on_mount` hook (`AuthHook`) for valid session. `AuthHook` reads `authenticated_at` from the session and compares against `auth_session_ttl_days` (default 30 days; `nil` = never expire, re-auth only on explicit logout). If the timestamp is missing or expired, redirect to `/login` with a flash message ("Session expired, please log in again" for expired vs no message for missing). This gives the server authoritative control over session lifetime — config changes take effect immediately for all existing sessions.
+4. On success, set a signed session cookie (`Plug.Session` with `:cookie` store, signed with `secret_key_base`). Store `authenticated_at: System.system_time(:second)` in the session data. Session lifetime is configured via `auth.session_ttl_hours` in `config.yaml` (default 168 hours / 7 days) and read through `Termigate.Auth.session_ttl_seconds/0`.
+5. Both `RequireAuth` (HTTP requests) and `AuthHook` (LiveView mounts) read `authenticated_at` from the session and compare it against `Termigate.Auth.session_ttl_seconds/0`. `AuthHook` additionally attaches `handle_event` and `handle_info` hooks that recheck the TTL on every interaction, plus a periodic timer so idle sockets are also disconnected once the TTL passes. If the timestamp is missing or expired, the user is redirected to `/login` with a flash message ("Session expired. Please log in again." for expired). This gives the server authoritative control over session lifetime — config changes take effect immediately for all existing sessions.
 6. **Logout**: `DELETE /logout` (handled by `AuthController`) clears the session cookie and redirects to `/login`. A "Logout" link is shown in the settings panel. For the Android app, logout clears the stored token from `EncryptedSharedPreferences` and navigates to the Login Screen — no server call needed since Phoenix.Token is stateless (the server doesn't track issued tokens).
 
 #### Auth Flow — Phoenix Channel (Android)
@@ -1068,11 +1068,11 @@ This application is **fully stateless from a storage perspective**. No database 
 3. WebSocket connect sends token as a param: `socket("/socket", UserSocket, params: {"token" => "..."})`
 4. `UserSocket.connect/3` checks the per-IP WebSocket rate limit via `RateLimitStore.check(:websocket, peer_ip)` (IP extracted from `connect_info: [:peer_data, :x_headers]`), then verifies the token via `Phoenix.Token.verify/4`. Returns `{:ok, socket}` or `:error`.
 5. On `:error` (rate limited or invalid token), the client receives a connection rejection and prompts the user to re-authenticate.
-6. Token TTL matches the web session TTL (`auth_session_ttl_days` application config).
+6. Token TTL matches the web session TTL (`auth.session_ttl_hours` in `config.yaml`).
 
 #### Implementation Modules
 
-- `TermigateWeb.Plugs.RequireAuth` — Plug that checks session cookie exists, redirects to `/login` if missing. Does not check TTL — that's handled by `AuthHook` on LiveView mount (Plugs run on the initial HTTP request; `AuthHook` runs on every LiveView mount including reconnects, so TTL expiry is checked more frequently).
+- `TermigateWeb.Plugs.RequireAuth` — Plug that checks session cookie exists and is within the configured TTL, redirecting to `/login` (or `/setup` when no auth is configured) otherwise. Both `RequireAuth` and `AuthHook` read the TTL from `Termigate.Auth.session_ttl_seconds/0` so HTTP and LiveView paths stay in sync.
 - `TermigateWeb.Plugs.RequireAuthToken` — Plug that reads bearer token from `Authorization` header, verifies via `Phoenix.Token.verify/4`, returns 401 on failure. Used by the `:require_auth_token` pipeline for REST API routes.
 - `TermigateWeb.AuthLive` — LiveView for the web login page (username + password form, submits via `handle_event`). The REST API login (`POST /api/login`) is handled by `AuthController` — a separate path for native clients.
 - `TermigateWeb.AuthController` — handles `POST /api/login` (returns Phoenix.Token for native clients) and `DELETE /logout` (clears session cookie, redirects to `/login`)
@@ -2347,9 +2347,9 @@ Network drops are common on mobile. The app must handle them gracefully:
 #### Token Management
 
 - Token stored in `EncryptedSharedPreferences` (Android Keystore-backed)
-- Token TTL matches server config (`auth_session_ttl_days`, default 30 days)
+- Token TTL matches server config (`auth.session_ttl_hours` in `config.yaml`, default 168 hours / 7 days)
 - On 401/token rejection: clear stored token, navigate to Login Screen
-- Token refresh: no explicit refresh mechanism — the user re-authenticates when the token expires (same as web session expiry). For a 30-day TTL, this is infrequent.
+- Token refresh: no explicit refresh mechanism — the user re-authenticates when the token expires (same as web session expiry).
 
 #### TLS and Certificate Verification
 
