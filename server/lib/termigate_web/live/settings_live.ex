@@ -101,6 +101,7 @@ defmodule TermigateWeb.SettingsLive do
       |> assign(:notification_sound, notif["sound"] == true)
       |> assign(:bash_version_display, nil)
       |> assign(:bash_shell_integration_ok, nil)
+      |> assign(:show_reset_confirm, false)
       |> assign(:snippet_bash, @snippet_bash)
       |> assign(:snippet_zsh, @snippet_zsh)
       |> assign(:snippet_fish, @snippet_fish)
@@ -363,6 +364,14 @@ defmodule TermigateWeb.SettingsLive do
     {:noreply, check_bash_version(socket)}
   end
 
+  def handle_event("request_reset_config", _params, socket) do
+    {:noreply, assign(socket, :show_reset_confirm, true)}
+  end
+
+  def handle_event("cancel_reset_config", _params, socket) do
+    {:noreply, assign(socket, :show_reset_confirm, false)}
+  end
+
   def handle_event("reset_config", _params, socket) do
     case Config.reset() do
       {:ok, _config} ->
@@ -373,10 +382,14 @@ defmodule TermigateWeb.SettingsLive do
          |> assign(:editing, nil)
          |> assign(:form_data, default_form())
          |> assign(:form_errors, %{})
+         |> assign(:show_reset_confirm, false)
          |> put_flash(:info, "Config reset to defaults.")}
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to reset: #{inspect(reason)}")}
+        {:noreply,
+         socket
+         |> assign(:show_reset_confirm, false)
+         |> put_flash(:error, "Failed to reset: #{inspect(reason)}")}
     end
   end
 

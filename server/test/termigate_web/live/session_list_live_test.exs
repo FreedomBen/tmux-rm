@@ -41,20 +41,28 @@ defmodule TermigateWeb.SessionListLiveTest do
   end
 
   describe "confirmation dialog" do
-    test "kill session sets confirm message", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+    test "kill session opens modal with message", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+
+      # Closed at first — visibility is driven by the `modal-open` class on
+      # the rendered HTML, so a regression to the old <dialog>-based flow
+      # (which left the modal closed because LiveView patches removed the
+      # `open` attribute) would fail this assertion.
+      refute html =~ ~s(id="confirm-modal" class="modal modal-open")
 
       html = render_click(view, "request_kill_session", %{"name" => "my-session"})
+      assert html =~ ~s(id="confirm-modal" class="modal modal-open")
       assert html =~ "terminate all processes"
       assert html =~ "my-session"
     end
 
-    test "cancel clears confirm state", %{conn: conn} do
+    test "cancel clears confirm state and closes modal", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
       render_click(view, "request_kill_session", %{"name" => "my-session"})
       html = render_click(view, "cancel_confirm")
       refute html =~ "terminate all processes"
+      refute html =~ ~s(id="confirm-modal" class="modal modal-open")
     end
   end
 

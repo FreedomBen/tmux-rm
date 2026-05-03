@@ -238,7 +238,6 @@
                   phx-click={
                     JS.remove_attribute("open", to: "details.dropdown")
                     |> JS.push("request_kill_session", value: %{name: session.name})
-                    |> TermigateWeb.CoreComponents.show_modal("confirm-modal")
                   }
                 >
                   <.icon name="hero-trash-micro" class="size-4" /> Kill Session
@@ -266,7 +265,9 @@
 <%!-- Confirmation modal --%>
 <.modal
   id="confirm-modal"
+  show={@confirm_action != nil}
   on_confirm={JS.push("confirm_action")}
+  on_cancel={JS.push("cancel_confirm")}
   confirm_variant="btn-error"
 >
   <:title>Confirm</:title>

@@ -656,7 +656,7 @@
     </p>
     <button
       class="btn btn-outline btn-warning btn-sm"
-      phx-click={TermigateWeb.CoreComponents.show_modal("reset-confirm-modal")}
+      phx-click="request_reset_config"
     >
       <.icon name="hero-arrow-path-micro" class="size-4" /> Reset to Defaults
     </button>
@@ -665,7 +665,9 @@
 
 <.modal
   id="reset-confirm-modal"
+  show={@show_reset_confirm}
   on_confirm={JS.push("reset_config")}
+  on_cancel={JS.push("cancel_reset_config")}
   confirm_variant="btn-warning"
 >
   <:title>Reset configuration?</:title>

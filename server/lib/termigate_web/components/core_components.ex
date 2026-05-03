@@ -448,9 +448,19 @@ defmodule TermigateWeb.CoreComponents do
   @doc """
   Renders a modal dialog.
 
+  Visibility is driven entirely by `@show` (a server-rendered class
+  toggle), not by the native `<dialog>` API. This avoids a race where
+  a LiveView patch following the click would re-render the dialog
+  without the `open` attribute and close it back out.
+
   ## Examples
 
-      <.modal id="confirm-delete" on_confirm={JS.push("delete")}>
+      <.modal
+        id="confirm-delete"
+        show={@confirming?}
+        on_confirm={JS.push("delete")}
+        on_cancel={JS.push("cancel_delete")}
+      >
         Are you sure?
         <:title>Confirm Delete</:title>
         <:confirm>Delete</:confirm>
@@ -458,9 +468,10 @@ defmodule TermigateWeb.CoreComponents do
       </.modal>
   """
   attr :id, :string, required: true
-  attr :on_confirm, :any, default: nil, doc: "JS command or event to run on confirm"
-  attr :confirm_variant, :string, default: "btn-error", doc: "CSS class for confirm button"
   attr :show, :boolean, default: false
+  attr :on_confirm, :any, default: nil, doc: "JS command or event to run on confirm"
+  attr :on_cancel, :any, default: nil, doc: "JS command or event to run on cancel/backdrop"
+  attr :confirm_variant, :string, default: "btn-error", doc: "CSS class for confirm button"
 
   slot :inner_block, required: true
   slot :title
@@ -469,10 +480,12 @@ defmodule TermigateWeb.CoreComponents do
 
   def modal(assigns) do
     ~H"""
-    <dialog
+    <div
       id={@id}
-      class="modal"
-      phx-mounted={@show && show_modal(@id)}
+      class={["modal", @show && "modal-open"]}
+      role="dialog"
+      aria-modal={if @show, do: "true", else: "false"}
+      aria-hidden={if @show, do: "false", else: "true"}
     >
       <div class="modal-box">
         <h3 :if={@title != []} class="text-lg font-bold mb-4">
@@ -482,35 +495,29 @@ defmodule TermigateWeb.CoreComponents do
           {render_slot(@inner_block)}
         </div>
         <div class="modal-action">
-          <form method="dialog">
-            <button class="btn btn-ghost" phx-click={hide_modal(@id)}>
-              {if @cancel != [], do: render_slot(@cancel), else: "Cancel"}
-            </button>
-          </form>
+          <button :if={@on_cancel} class="btn btn-ghost" phx-click={@on_cancel}>
+            {if @cancel != [], do: render_slot(@cancel), else: "Cancel"}
+          </button>
           <button
             :if={@on_confirm}
             class={"btn #{@confirm_variant}"}
-            phx-click={@on_confirm |> hide_modal(@id)}
+            phx-click={@on_confirm}
           >
             {if @confirm != [], do: render_slot(@confirm), else: "Confirm"}
           </button>
         </div>
       </div>
-      <form method="dialog" class="modal-backdrop">
-        <button phx-click={hide_modal(@id)}>close</button>
-      </form>
-    </dialog>
+      <button
+        :if={@on_cancel}
+        type="button"
+        class="modal-backdrop"
+        phx-click={@on_cancel}
+        aria-label="Close"
+      >
+        close
+      </button>
+    </div>
     """
-  end
-
-  def show_modal(js \\ %JS{}, id) do
-    js
-    |> JS.dispatch("showModal", to: "##{id}")
-  end
-
-  def hide_modal(js \\ %JS{}, id) do
-    js
-    |> JS.dispatch("close", to: "##{id}")
   end
 
   ## JS Commands
