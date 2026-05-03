@@ -27,13 +27,14 @@ import {TerminalHook} from "./hooks/terminal_hook"
 import {PaneResizeHook} from "./hooks/pane_resize_hook"
 import {NotificationHook, NotificationPermission} from "./hooks/notification_hook"
 import {RestoreOrFitHook} from "./hooks/restore_or_fit_hook"
+import {QuickActionBarHook} from "./hooks/quick_action_bar_hook"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, TerminalHook, PaneResizeHook, NotificationHook, NotificationPermission, RestoreOrFitHook},
+  hooks: {...colocatedHooks, TerminalHook, PaneResizeHook, NotificationHook, NotificationPermission, RestoreOrFitHook, QuickActionBarHook},
 })
 
 // Show progress bar on live navigation and form submits

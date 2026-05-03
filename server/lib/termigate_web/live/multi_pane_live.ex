@@ -237,6 +237,8 @@ defmodule TermigateWeb.MultiPaneLive do
       <%!-- Quick action bar --%>
       <div
         :if={@quick_actions_enabled and @quick_actions != [] and @show_actions}
+        id="quick-action-bar"
+        phx-hook="QuickActionBarHook"
         class="quick-action-bar"
       >
         <button

@@ -457,6 +457,29 @@ body {
   transition: all 0.3s;
 }
 
+/* Fade-edge affordance when there are pills to scroll into. The hook
+   sets data-fade-left / data-fade-right based on scrollLeft and the
+   overflow distance; CSS overlays a 24 px surface→transparent mask on
+   whichever side has more content. Mirrors the Android fix from
+   commit 1c9e29b. */
+.quick-action-bar[data-fade-left="true"][data-fade-right="true"] {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 24px,
+    black calc(100% - 24px),
+    transparent 100%
+  );
+}
+
+.quick-action-bar[data-fade-left="true"]:not([data-fade-right="true"]) {
+  mask-image: linear-gradient(to right, transparent 0, black 24px);
+}
+
+.quick-action-bar[data-fade-right="true"]:not([data-fade-left="true"]) {
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+}
+
 .quick-action-bar .btn {
   scroll-snap-align: start;
   white-space: nowrap;
