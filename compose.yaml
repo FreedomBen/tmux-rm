@@ -20,9 +20,10 @@ services:
       # Optional: pre-seed the first-run setup token. If unset, termigate
       # generates one on boot and prints the full /setup URL to the
       # container logs (`podman logs termigate`). Either way the token is
-      # burned after the first admin is created. /setup is always
-      # restricted to loopback — for remote deploys, SSH-tunnel the port:
-      #   ssh -L 8888:127.0.0.1:8888 user@host
+      # burned after the first admin is created. Anyone with the URL can
+      # claim admin until setup completes, so keep the token private.
+      # For remote deploys with no public web exposure, you can SSH-tunnel
+      # the port: ssh -L 8888:127.0.0.1:8888 user@host
       # - TERMIGATE_SETUP_TOKEN=your-pre-seeded-token
       # If running behind a reverse proxy (Caddy, nginx, Traefik, etc.),
       # set this to a comma-separated list of proxy CIDRs so

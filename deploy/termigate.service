@@ -1,7 +1,7 @@
 # termigate — Mix release (no container)
 #
 # Install:
-#   sudo useradd -r -m -d /var/lib/termigate -s /usr/sbin/nologin termigate
+#   sudo useradd -r -m -d /var/lib/termigate -s /bin/bash termigate
 #   sudo mkdir -p /opt/termigate /etc/termigate
 #   sudo tar -xzf termigate-release.tar.gz -C /opt/termigate
 #   sudo chown -R termigate:termigate /opt/termigate /var/lib/termigate
@@ -45,8 +45,9 @@ Environment=PHX_HOST=localhost
 # generates one on boot and prints the full URL to the journal:
 #   sudo journalctl -u termigate.service | grep '/setup?token='
 # Either way the token is burned after the first admin is created.
-# /setup is restricted to loopback — for remote hosts, SSH-tunnel the port:
-#   ssh -L 8888:127.0.0.1:8888 user@host
+# Anyone with the URL can claim admin until setup completes, so keep
+# the token private. For hosts with no public web exposure, you can
+# SSH-tunnel the port: ssh -L 8888:127.0.0.1:8888 user@host
 # Environment=TERMIGATE_SETUP_TOKEN=your-pre-seeded-token
 #
 # If termigate sits behind a reverse proxy (Caddy, nginx, Traefik, etc.),
