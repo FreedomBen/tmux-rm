@@ -106,6 +106,7 @@ defmodule TermigateWeb.SettingsLive do
       |> assign(:snippet_zsh, @snippet_zsh)
       |> assign(:snippet_fish, @snippet_fish)
       |> assign(:config_path, Config.config_path())
+      |> assign(:in_container?, Config.container?())
 
     {:ok, socket}
   end

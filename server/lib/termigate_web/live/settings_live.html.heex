@@ -651,8 +651,17 @@
   <div class="settings-section">
     <div class="settings-section-title">Config File</div>
     <p class="text-xs text-base-content/50 mb-3">
-      Stored at <code class="bg-base-300/50 px-1.5 py-0.5 rounded text-xs">{@config_path}</code>.
-      Changes are picked up automatically within 2 seconds.
+      <%= if @in_container? do %>
+        Stored at <code class="bg-base-300/50 px-1.5 py-0.5 rounded text-xs">{@config_path}</code>
+        inside the container. Edit it from the host directory you mounted to
+        <code class="bg-base-300/50 px-1.5 py-0.5 rounded text-xs">/var/lib/termigate</code>
+        (the <code class="bg-base-300/50 px-1.5 py-0.5 rounded text-xs">make run-container</code>
+        recipe uses <code class="bg-base-300/50 px-1.5 py-0.5 rounded text-xs">~/.config/termigate</code>).
+        Changes are picked up automatically within 2 seconds.
+      <% else %>
+        Stored at <code class="bg-base-300/50 px-1.5 py-0.5 rounded text-xs">{@config_path}</code>.
+        Changes are picked up automatically within 2 seconds.
+      <% end %>
     </p>
     <button
       class="btn btn-outline btn-warning btn-sm"

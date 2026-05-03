@@ -734,8 +734,20 @@ defmodule Termigate.Config do
     path
   end
 
-  defp container? do
-    File.exists?("/run/.containerenv") or File.exists?("/.dockerenv")
+  @doc """
+  Returns true when the BEAM appears to be running inside a Podman or
+  Docker container (detected via `/run/.containerenv` or `/.dockerenv`).
+  Used by the settings page to clarify that the displayed config path
+  is the in-container path, not the host-side mount.
+
+  Tests can override the detection by setting
+  `Application.put_env(:termigate, :in_container?, boolean)`.
+  """
+  def container? do
+    case Application.fetch_env(:termigate, :in_container?) do
+      {:ok, val} when is_boolean(val) -> val
+      _ -> File.exists?("/run/.containerenv") or File.exists?("/.dockerenv")
+    end
   end
 
   defp explicit_config? do

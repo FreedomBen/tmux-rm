@@ -22,6 +22,27 @@ defmodule TermigateWeb.SettingsLiveTest do
     end
   end
 
+  describe "config file section" do
+    test "shows bare path when not in a container", %{conn: conn} do
+      Application.put_env(:termigate, :in_container?, false)
+      on_exit(fn -> Application.delete_env(:termigate, :in_container?) end)
+
+      {:ok, _view, html} = live(conn, "/settings")
+      assert html =~ "Stored at"
+      refute html =~ "inside the container"
+    end
+
+    test "calls out the host mount when running in a container", %{conn: conn} do
+      Application.put_env(:termigate, :in_container?, true)
+      on_exit(fn -> Application.delete_env(:termigate, :in_container?) end)
+
+      {:ok, _view, html} = live(conn, "/settings")
+      assert html =~ "inside the container"
+      assert html =~ "/var/lib/termigate"
+      assert html =~ "~/.config/termigate"
+    end
+  end
+
   describe "notifications section" do
     test "renders notification mode selector", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/settings")
