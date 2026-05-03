@@ -117,6 +117,15 @@ const TerminalHook = {
       this.term.textarea.setAttribute("data-1p-ignore", "");
       this.term.textarea.setAttribute("data-lpignore", "true");
 
+      // Override xterm's default "Terminal input" aria-label with a
+      // pane-specific one so screen readers and a11y tooling can tell
+      // multiple panes apart. Target format is "session:window.N";
+      // fall back to the raw target for non-pane contexts.
+      const paneNumber = target ? String(target).split(".").pop() : null;
+      if (paneNumber !== null && /^\d+$/.test(paneNumber)) {
+        this.term.textarea.setAttribute("aria-label", `pane ${paneNumber}`);
+      }
+
       this.term.textarea.addEventListener("focus", (e) => {
         if (!this._getMobileKeyboardEnabled()) {
           e.target.blur();
