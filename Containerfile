@@ -27,7 +27,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
-RUN useradd --system --create-home --uid 10001 --shell /usr/sbin/nologin termigate
+# /bin/bash is the login shell because tmux invokes the user's login shell
+# from /etc/passwd when spawning a pane. /usr/sbin/nologin would exit
+# immediately, killing every pane — and with it the only window, the
+# session, and ultimately the tmux daemon — the moment one is created.
+RUN useradd --system --create-home --uid 10001 --shell /bin/bash termigate
 
 # /var/lib/termigate is the canonical writable state directory in the
 # image. Auth credentials and YAML config live here so they survive
