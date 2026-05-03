@@ -155,7 +155,8 @@
       "Bash(LOGGER_LEVEL=info mix test --repeat-until-failure 30 --max-cases 8)",
       "Bash(SECRET_KEY_BASE='DRx+X3ZlYNL7QB1DZCegM11u2T6hBICD3bXzsAbRt+6FBMBqvpdA0vCzEdvxsxeZ' make run-container *)",
       "Bash(podman stop *)",
-      "Bash(podman rm *)"
+      "Bash(podman rm *)",
+      "Bash(SECRET_KEY_BASE=\"sO3zWthxUSje0MNFicJ2+Mop1wdQouNO/KLsIV0SDR6Lh5Sf1s5xk9UxHx4oAFQb\" make run-container *)"
     ]
   }
 }
