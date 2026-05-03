@@ -44,10 +44,11 @@ defmodule TermigateWeb.SessionListLiveTest do
     test "kill session opens modal with message", %{conn: conn} do
       {:ok, view, html} = live(conn, "/")
 
-      # Closed at first — visibility is driven by the `modal-open` class on
-      # the rendered HTML, so a regression to the old <dialog>-based flow
-      # (which left the modal closed because LiveView patches removed the
-      # `open` attribute) would fail this assertion.
+      # Closed at first — the modal renders only when @show is truthy, so
+      # the entire `<div id="confirm-modal" ...>` is absent from the DOM
+      # (and the a11y tree) when no confirmation is pending. A regression
+      # to the old <dialog>-based flow (which left the modal closed because
+      # LiveView patches removed the `open` attribute) would fail this.
       refute html =~ ~s(id="confirm-modal" class="modal modal-open")
 
       html = render_click(view, "request_kill_session", %{"name" => "my-session"})

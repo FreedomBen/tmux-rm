@@ -448,10 +448,11 @@ defmodule TermigateWeb.CoreComponents do
   @doc """
   Renders a modal dialog.
 
-  Visibility is driven entirely by `@show` (a server-rendered class
-  toggle), not by the native `<dialog>` API. This avoids a race where
-  a LiveView patch following the click would re-render the dialog
-  without the `open` attribute and close it back out.
+  Visibility is driven by `@show` via a server-side `:if`, so a closed
+  modal is removed from the DOM (and the accessibility tree) entirely
+  rather than just being hidden visually. Because both open and close
+  are server-driven, there is no LiveView patch race like the one that
+  killed the earlier `<dialog open>` approach.
 
   ## Examples
 
@@ -481,11 +482,11 @@ defmodule TermigateWeb.CoreComponents do
   def modal(assigns) do
     ~H"""
     <div
+      :if={@show}
       id={@id}
-      class={["modal", @show && "modal-open"]}
+      class="modal modal-open"
       role="dialog"
-      aria-modal={if @show, do: "true", else: "false"}
-      aria-hidden={if @show, do: "false", else: "true"}
+      aria-modal="true"
     >
       <div class="modal-box">
         <h3 :if={@title != []} class="text-lg font-bold mb-4">
