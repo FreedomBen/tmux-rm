@@ -729,11 +729,19 @@ const TerminalHook = {
   },
 
   _connectChannel(target) {
-    // The Plug session cookie authenticates the WebSocket; no token in URL.
-    // The page-supplied scope token (short-lived, single-purpose) pins this
-    // channel to one tmux session as defense-in-depth.
+    // The Plug session cookie authenticates the WebSocket; no auth token in
+    // the URL. The page-supplied scope token (short-lived, single-purpose)
+    // pins this channel to one tmux session as defense-in-depth.
     const scopeMeta = document.querySelector("meta[name='channel-scope']");
     const scope = scopeMeta ? scopeMeta.content : "";
+
+    // Phoenix's WS connect_info session decoder runs a CSRF check against the
+    // session's stored CSRF state, so the upgrade URL must carry the live
+    // token from the page's <meta name="csrf-token">. Without it, the
+    // session map arrives empty in UserSocket.connect/3 and cookie auth is
+    // refused with a 403.
+    const csrfMeta = document.querySelector("meta[name='csrf-token']");
+    const csrfToken = csrfMeta ? csrfMeta.getAttribute("content") : null;
 
     // Convert target "session:window.pane" to topic "terminal:session:window:pane"
     const topic =
@@ -741,7 +749,9 @@ const TerminalHook = {
 
     // Use existing socket or create one
     if (!window.userSocket) {
-      window.userSocket = new Socket("/socket");
+      window.userSocket = new Socket("/socket", {
+        params: { _csrf_token: csrfToken },
+      });
       window.userSocket.connect();
     }
 
