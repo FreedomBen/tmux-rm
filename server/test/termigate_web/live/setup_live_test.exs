@@ -39,21 +39,23 @@ defmodule TermigateWeb.SetupLiveTest do
   end
 
   describe "mount" do
-    test "renders setup form with valid token over loopback", %{conn: conn} do
+    test "renders setup form with valid token", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/setup?token=good-token")
       assert html =~ "Username"
       assert html =~ "Confirm Password"
     end
 
-    test "redirects to /login when token is missing", %{conn: conn} do
-      # The plug 404s before LiveView mounts; assert that.
-      conn = get(conn, "/setup")
-      assert conn.status == 404
+    test "renders landing page when token is missing", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/setup")
+      assert html =~ "First-run setup required"
+      assert html =~ "podman logs"
+      refute html =~ "Confirm Password"
     end
 
-    test "redirects to /login when token is wrong", %{conn: conn} do
-      conn = get(conn, "/setup?token=wrong")
-      assert conn.status == 404
+    test "renders landing page when token is wrong", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/setup?token=wrong")
+      assert html =~ "First-run setup required"
+      refute html =~ "Confirm Password"
     end
 
     test "redirects to /login when admin already configured", %{conn: conn} do

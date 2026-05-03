@@ -80,12 +80,8 @@ defmodule TermigateWeb.Router do
     get "/logout", AuthController, :logout
     get "/post-setup", AuthController, :post_setup
 
-    scope "/" do
-      pipe_through TermigateWeb.Plugs.RequireSetupAccess
-
-      live_session :setup do
-        live "/setup", SetupLive, :index
-      end
+    live_session :setup do
+      live "/setup", SetupLive, :index
     end
 
     scope "/" do

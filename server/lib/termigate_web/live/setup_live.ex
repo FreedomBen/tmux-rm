@@ -10,11 +10,17 @@ defmodule TermigateWeb.SetupLive do
         {:ok, push_navigate(socket, to: "/login")}
 
       not Termigate.Setup.valid_token?(params["token"]) ->
-        {:ok, push_navigate(socket, to: "/login")}
+        socket =
+          socket
+          |> assign(:state, :landing)
+          |> assign(:page_title, "Setup required")
+
+        {:ok, socket}
 
       true ->
         socket =
           socket
+          |> assign(:state, :form)
           |> assign(:token, params["token"])
           |> assign(:username, "")
           |> assign(:password, "")
@@ -28,7 +34,58 @@ defmodule TermigateWeb.SetupLive do
   end
 
   @impl true
-  def render(assigns) do
+  def render(%{state: :landing} = assigns) do
+    ~H"""
+    <div class="flex flex-col items-center justify-center min-h-screen px-4 py-8 gap-6 sm:gap-12">
+      <img
+        src={~p"/images/termigate-logo.png"}
+        alt="termigate"
+        class="w-48 h-auto"
+      />
+      <div class="card auth-card shadow-xl w-full max-w-md rounded-2xl">
+        <div class="card-body gap-5 text-sm">
+          <div class="text-center">
+            <h1 class="text-lg font-semibold">First-run setup required</h1>
+            <p class="text-xs text-base-content/40 mt-2">
+              No admin account exists yet.
+            </p>
+          </div>
+
+          <p>
+            To create the admin account, open the one-time setup URL that
+            termigate printed to its logs at start-up:
+          </p>
+          <pre class="bg-base-200 p-3 rounded text-xs overflow-x-auto"><code>http://&lt;host&gt;:&lt;port&gt;/setup?token=&lt;long&nbsp;random&nbsp;string&gt;</code></pre>
+
+          <div>
+            <p class="font-medium mb-2">Where to find it:</p>
+            <ul class="list-disc list-inside space-y-1 text-base-content/70">
+              <li>
+                <span class="font-medium">Container:</span>
+                <code class="text-xs">podman logs &lt;name&gt;</code>
+                (or <code class="text-xs">docker logs</code>)
+              </li>
+              <li>
+                <span class="font-medium">systemd:</span>
+                <code class="text-xs">journalctl -u termigate</code>
+              </li>
+              <li>
+                <span class="font-medium">mix phx.server:</span> the terminal that started the server
+              </li>
+            </ul>
+          </div>
+
+          <p class="text-base-content/40 text-xs">
+            If you can't find the URL or the token has already been used,
+            restart the termigate server to generate a new one.
+          </p>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  def render(%{state: :form} = assigns) do
     ~H"""
     <div class="flex flex-col items-center justify-center min-h-screen px-4 py-8 gap-6 sm:gap-12">
       <img
