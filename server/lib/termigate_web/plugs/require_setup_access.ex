@@ -1,22 +1,23 @@
 defmodule TermigateWeb.Plugs.RequireSetupAccess do
   @moduledoc """
-  Gates `/setup` HTTP requests on `loopback IP + valid one-shot token`.
+  Gates `/setup` HTTP requests on a valid one-shot token.
 
   Once an admin already exists, this plug passes through (`SetupLive` will
-  redirect to `/login`). While no admin exists, only requests that come
-  from `127.0.0.1` / `::1` and carry a `?token=...` matching
-  `Termigate.Setup.token/0` are allowed; everything else gets a 404.
+  redirect to `/login`). While no admin exists, only requests that carry a
+  `?token=...` matching `Termigate.Setup.token/0` are allowed; everything
+  else gets a 404.
+
+  The token is 32 random bytes (256 bits) URL-safe-base64 encoded, single
+  use, and burned the moment an admin is created. We previously also
+  required the peer to be on loopback, but containerised deploys NAT the
+  source IP to the bridge gateway so the host-side browser can never reach
+  the form — the only documented setup path was unreachable in the most
+  common topology. The token alone now carries the gate.
 
   This plug only protects the initial HTTP GET. The LiveView form
   submission rides the WebSocket and bypasses HTTP plugs, so
   `TermigateWeb.SetupLive` re-validates the token in `mount/3` and again in
   the `setup` event handler.
-
-  Note: behind a same-host reverse proxy `conn.remote_ip` is the proxy's
-  loopback address, so the loopback gate alone is bypassable in fronted
-  deploys. In that topology, operators should pre-seed
-  `TERMIGATE_SETUP_TOKEN` so the token gate (which is not bypassable by
-  proxying) carries the load.
   """
   import Plug.Conn
 
@@ -30,22 +31,13 @@ defmodule TermigateWeb.Plugs.RequireSetupAccess do
     else
       conn = fetch_query_params(conn)
 
-      cond do
-        not loopback?(conn.remote_ip) ->
-          deny(conn, "non-loopback peer")
-
-        not Termigate.Setup.valid_token?(conn.query_params["token"]) ->
-          deny(conn, "missing or invalid setup token")
-
-        true ->
-          conn
+      if Termigate.Setup.valid_token?(conn.query_params["token"]) do
+        conn
+      else
+        deny(conn, "missing or invalid setup token")
       end
     end
   end
-
-  defp loopback?({127, _, _, _}), do: true
-  defp loopback?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
-  defp loopback?(_), do: false
 
   defp deny(conn, reason) do
     Logger.warning("/setup access denied: #{reason}, ip=#{format_ip(conn.remote_ip)}")

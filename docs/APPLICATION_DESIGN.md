@@ -1048,7 +1048,7 @@ This application is **fully stateless from a storage perspective**. No database 
 #### Fallback: Static Token (for headless/automated setups)
 
 - **`TERMIGATE_AUTH_TOKEN` env var**: If set (via `config :termigate, auth_token:` in `runtime.exs`), the login page accepts this token in the password field (with any username). The `Auth` module reads the token from application config (`Application.get_env(:termigate, :auth_token)`) and verifies via `Plug.Crypto.secure_compare/2` (constant-time comparison). This supports systemd services, CI, and scripted deployments where interactive setup isn't possible.
-- **Precedence**: If `auth_token` is configured, both token auth and credentials auth are accepted — whichever matches. If neither credentials nor token config exists, the server is in pre-setup state: `/api/*`, `/mcp`, and the WebSocket all fail closed (API/MCP return `503 {"error": "setup_required"}`; the socket refuses the upgrade). Only `/healthz`, `POST /api/login`, and the loopback-gated `/setup` page are reachable until an admin is created. If the endpoint is bound to `0.0.0.0` and no auth is configured, log a warning on startup.
+- **Precedence**: If `auth_token` is configured, both token auth and credentials auth are accepted — whichever matches. If neither credentials nor token config exists, the server is in pre-setup state: `/api/*`, `/mcp`, and the WebSocket all fail closed (API/MCP return `503 {"error": "setup_required"}`; the socket refuses the upgrade). Only `/healthz`, `POST /api/login`, and the token-gated `/setup` page are reachable until an admin is created. If the endpoint is bound to `0.0.0.0` and no auth is configured, log a warning on startup.
 
 #### Auth Flow — Web
 

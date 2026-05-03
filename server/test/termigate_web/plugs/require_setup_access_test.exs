@@ -37,10 +37,12 @@ defmodule TermigateWeb.Plugs.RequireSetupAccessTest do
       refute conn.halted
     end
 
-    test "404s from non-loopback IP even with valid token" do
+    test "passes from a non-loopback peer when token is valid" do
+      # Token alone gates /setup. Containerised deploys NAT the source IP to
+      # the bridge gateway, so requiring loopback here would lock the host
+      # browser out of its own setup form.
       conn = build({10, 0, 0, 5}, "token=test-setup-token") |> RequireSetupAccess.call([])
-      assert conn.halted
-      assert conn.status == 404
+      refute conn.halted
     end
 
     test "404s with missing token" do

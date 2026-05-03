@@ -1261,6 +1261,6 @@ The `"sessions"` channel join reply contains the current session list wrapped in
 
 ### Pre-Setup Mode
 
-Before an admin account exists (`Termigate.Auth.auth_enabled?()` returns false), the server fails closed: `/api/*`, `/mcp`, and the WebSocket all reject requests. The API and MCP return `503` with body `{"error": "setup_required"}`; the WebSocket refuses the upgrade. Only `/healthz`, `POST /api/login` (which simply returns an auth error), and the loopback-gated `/setup` page are reachable.
+Before an admin account exists (`Termigate.Auth.auth_enabled?()` returns false), the server fails closed: `/api/*`, `/mcp`, and the WebSocket all reject requests. The API and MCP return `503` with body `{"error": "setup_required"}`; the WebSocket refuses the upgrade. Only `/healthz`, `POST /api/login` (which simply returns an auth error), and the token-gated `/setup` page are reachable.
 
-The Android client cannot complete first-run setup itself — that flow runs over the loopback-gated `/setup` LiveView. When the app receives `503 setup_required`, it stays on the login screen and shows a message instructing the user to finish setup in a browser on the host. Once setup completes and an admin exists, normal `POST /api/login` flow takes over.
+The Android client cannot complete first-run setup itself — that flow runs over the token-gated `/setup` LiveView. When the app receives `503 setup_required`, it stays on the login screen and shows a message instructing the user to finish setup in a browser on the host. Once setup completes and an admin exists, normal `POST /api/login` flow takes over.

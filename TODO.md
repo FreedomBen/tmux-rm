@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- In the initial /setup flow, let's require a token that gets printed out to the console when the server starts.  The user needs to enter that token in the setup flow in order to proceed.  This is to prevent unauthorized access to the setup flow in case someone accidentally exposes their server to the internet without setting up a password.
+
 - We need to make it easier to switch between panes on mobile in the web app.  We already have window tabs, but I think maybe repurposing them for panes would be more what the user expects.  What are your thoughts? 
 
 - When on mobile in the web app, move the control buttons (like Ctrl+C, Ctrl+D, Tab, and arrow keys) to the bottom of the screen so they're easier to use.

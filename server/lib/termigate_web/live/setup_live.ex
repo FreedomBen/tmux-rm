@@ -9,7 +9,7 @@ defmodule TermigateWeb.SetupLive do
       Auth.auth_enabled?() ->
         {:ok, push_navigate(socket, to: "/login")}
 
-      not setup_access_ok?(socket, params) ->
+      not Termigate.Setup.valid_token?(params["token"]) ->
         {:ok, push_navigate(socket, to: "/login")}
 
       true ->
@@ -24,29 +24,6 @@ defmodule TermigateWeb.SetupLive do
           |> assign(:page_title, "Setup")
 
         {:ok, socket}
-    end
-  end
-
-  # Re-checks the token (always) and the WebSocket peer's IP (only when the
-  # LiveView is connected, since the static render was already gated by the
-  # `RequireSetupAccess` plug). Together with the plug, this means the form
-  # submission cannot be driven from a non-loopback peer or with a stale
-  # token even if the initial GET succeeded.
-  defp setup_access_ok?(socket, params) do
-    token = params["token"]
-
-    cond do
-      not Termigate.Setup.valid_token?(token) -> false
-      not Phoenix.LiveView.connected?(socket) -> true
-      true -> connection_loopback?(socket)
-    end
-  end
-
-  defp connection_loopback?(socket) do
-    case Phoenix.LiveView.get_connect_info(socket, :peer_data) do
-      %{address: {127, _, _, _}} -> true
-      %{address: {0, 0, 0, 0, 0, 0, 0, 1}} -> true
-      _ -> false
     end
   end
 

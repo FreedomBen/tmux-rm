@@ -128,13 +128,14 @@ defmodule Termigate.Setup do
 
       #{url}
 
-    The /setup endpoint is restricted to loopback (127.0.0.1) and requires the
-    token above. If termigate is on a remote host, tunnel the port over SSH:
+    Anyone who has this URL can claim the admin account, so keep the token
+    (#{src_note}) private until you finish setup. The token is burned after
+    the first successful admin creation.
+
+    If termigate is on a remote host with no public web exposure, you can
+    tunnel the port over SSH:
 
       ssh -L #{port}:127.0.0.1:#{port} user@host
-
-    Then open the URL above in your local browser. The token (#{src_note}) is
-    burned after the first successful admin creation.
     =============================================================================
     """)
   end
