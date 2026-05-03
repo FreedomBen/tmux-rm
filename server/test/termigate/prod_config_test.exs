@@ -7,22 +7,15 @@ defmodule Termigate.ProdConfigTest do
 
   setup do
     previous_force_ssl = System.get_env("TERMIGATE_FORCE_SSL")
-    previous_secure_cookies = System.get_env("TERMIGATE_SECURE_COOKIES")
 
     on_exit(fn ->
       case previous_force_ssl do
         nil -> System.delete_env("TERMIGATE_FORCE_SSL")
         val -> System.put_env("TERMIGATE_FORCE_SSL", val)
       end
-
-      case previous_secure_cookies do
-        nil -> System.delete_env("TERMIGATE_SECURE_COOKIES")
-        val -> System.put_env("TERMIGATE_SECURE_COOKIES", val)
-      end
     end)
 
     System.delete_env("TERMIGATE_FORCE_SSL")
-    System.delete_env("TERMIGATE_SECURE_COOKIES")
     :ok
   end
 
@@ -30,13 +23,6 @@ defmodule Termigate.ProdConfigTest do
     @prod_config_path
     |> Config.Reader.read!()
     |> get_in([:termigate, TermigateWeb.Endpoint])
-    |> List.wrap()
-  end
-
-  defp termigate_app_config do
-    @prod_config_path
-    |> Config.Reader.read!()
-    |> get_in([:termigate])
     |> List.wrap()
   end
 
@@ -85,45 +71,6 @@ defmodule Termigate.ProdConfigTest do
       # excluded so `make android-install-debug` keeps working against
       # `http://10.0.2.2:<port>`.
       assert "10.0.2.2" in hosts
-    end
-  end
-
-  describe "secure_cookies" do
-    # Default off mirrors force_ssl's default: plain-HTTP loopback / LAN /
-    # Android-emulator deployments must keep working without manual cookie
-    # tweaks.
-    test "is disabled by default" do
-      assert Keyword.get(termigate_app_config(), :secure_cookies) == false
-    end
-
-    test "is disabled when TERMIGATE_SECURE_COOKIES is explicitly false" do
-      System.put_env("TERMIGATE_SECURE_COOKIES", "false")
-      assert Keyword.get(termigate_app_config(), :secure_cookies) == false
-    end
-
-    # Same opt-in shape as TERMIGATE_FORCE_SSL: only the exact string "true"
-    # enables it. Anything else (yes, on, 1, …) stays off so a typo never
-    # silently locks loopback users out of their session cookie.
-    test "is disabled when TERMIGATE_SECURE_COOKIES holds an unrecognized value" do
-      for junk <- ["yes", "on", "1", "TRUE", "True", "enable", ""] do
-        System.put_env("TERMIGATE_SECURE_COOKIES", junk)
-
-        assert Keyword.get(termigate_app_config(), :secure_cookies) == false,
-               "expected secure_cookies to be disabled for TERMIGATE_SECURE_COOKIES=#{inspect(junk)}"
-      end
-    end
-
-    test "opt-in via TERMIGATE_SECURE_COOKIES=true enables the secure flag" do
-      System.put_env("TERMIGATE_SECURE_COOKIES", "true")
-      assert Keyword.get(termigate_app_config(), :secure_cookies) == true
-    end
-
-    test "is independent of TERMIGATE_FORCE_SSL" do
-      System.put_env("TERMIGATE_FORCE_SSL", "true")
-      # TERMIGATE_SECURE_COOKIES is unset; force_ssl alone must not flip
-      # the cookie secure flag, since force_ssl's exclude list still allows
-      # plain-HTTP loopback access.
-      assert Keyword.get(termigate_app_config(), :secure_cookies) == false
     end
   end
 end

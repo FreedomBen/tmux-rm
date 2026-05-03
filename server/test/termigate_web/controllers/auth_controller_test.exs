@@ -131,11 +131,12 @@ defmodule TermigateWeb.AuthControllerTest do
       end
     end
 
-    # Regression: TERMIGATE_SECURE_COOKIES is not set at test compile time,
-    # so the endpoint's @session_options compiles with `secure: false`. The
-    # session cookie must therefore be emitted without the Secure attribute,
-    # otherwise plain-HTTP loopback / LAN / 10.0.2.2 emulator workflows would
-    # silently lose the cookie on every request and login would never stick.
+    # Regression: with `:secure_cookies` unset in the application env (the
+    # default in tests), `TermigateWeb.Endpoint.runtime_session_options/0`
+    # resolves to `secure: false` and `same_site: "Lax"`. The session cookie
+    # must therefore be emitted without the Secure attribute, otherwise
+    # plain-HTTP loopback / LAN / 10.0.2.2 emulator workflows would silently
+    # lose the cookie on every request and login would never stick.
     test "emits a Set-Cookie without Secure under default config (HTTP login keeps working)",
          %{conn: conn} do
       original = Application.get_env(:termigate, :auth_token)

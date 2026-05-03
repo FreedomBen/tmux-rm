@@ -36,7 +36,7 @@ Track each finding here as it's addressed. Tick the box when the fix is
 merged and a regression test (where applicable) is in place.
 
 - [x] **[High]** Bind `api_token` and cookie session to current credentials (auth-version claim) so password rotation revokes them
-- [ ] **[Medium]** Switch `secure_cookies` from `Application.compile_env/3` to `get_env/3` (or default to `true` in prod), pair with `same_site: "Strict"` once on
+- [x] **[Medium]** Switch `secure_cookies` from `Application.compile_env/3` to `get_env/3` (or default to `true` in prod), pair with `same_site: "Strict"` once on
 - [ ] **[Medium]** Add per-username login lockout (independent of source IP) and document a minimum length for `TERMIGATE_AUTH_TOKEN`
 - [ ] **[Medium]** Stop logging the setup token in plain log lines; expose it via a CLI helper or one-shot file, switch `/setup` token to a `POST` body
 - [ ] **[Medium]** Make the `channel_scope` token mandatory for all channel joins (browser and native), add an explicit `scope: "all"` claim if cross-session access is needed

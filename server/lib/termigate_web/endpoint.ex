@@ -1,21 +1,18 @@
 defmodule TermigateWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :termigate
 
-  # The session will be stored in the cookie and signed,
-  # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
-  #
-  # `:secure` is driven by `:secure_cookies`, which prod.exs sources from
-  # `TERMIGATE_SECURE_COOKIES` at build time. Defaults to `false` so plain-HTTP
-  # loopback / LAN deployments keep working; flip it on when termigate is
-  # reached only over HTTPS (TLS terminator in front, or `TERMIGATE_FORCE_SSL`
-  # baked in with no HTTP exceptions).
+  # Static base for the session cookie store. The `:secure` and `:same_site`
+  # attributes are resolved at runtime in `runtime_session/2` below so that
+  # toggling `TERMIGATE_SECURE_COOKIES` on a release only requires a process
+  # restart, not a rebuild. This base is still used by the LiveView /
+  # UserSocket WebSocket connect_info — that path only *reads* the session
+  # cookie during upgrade and is unaffected by `:secure` (which gates
+  # Set-Cookie writes).
   @session_options [
     store: :cookie,
     key: "_termigate_key",
     signing_salt: "KIiTW2EZ",
-    same_site: "Lax",
-    secure: Application.compile_env(:termigate, :secure_cookies, false)
+    same_site: "Lax"
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
@@ -59,6 +56,34 @@ defmodule TermigateWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
+  plug :runtime_session
   plug TermigateWeb.Router
+
+  @doc """
+  Plug entry point that defers `Plug.Session` initialization until request
+  time. The `:secure` flag is sourced from `:termigate, :secure_cookies` —
+  set at runtime by `config/runtime.exs` from `TERMIGATE_SECURE_COOKIES` —
+  and `:same_site` is tightened to `"Strict"` whenever Secure is on.
+  """
+  def runtime_session(conn, _opts) do
+    Plug.Session.call(conn, Plug.Session.init(runtime_session_options()))
+  end
+
+  @doc """
+  Builds session options at runtime by combining the static base (store,
+  key, signing salt) with the application-env-driven `:secure` flag and
+  the matching `:same_site` policy. Exposed for tests.
+  """
+  def runtime_session_options do
+    secure = Application.get_env(:termigate, :secure_cookies, false)
+    same_site = if secure, do: "Strict", else: "Lax"
+
+    [
+      store: :cookie,
+      key: "_termigate_key",
+      signing_salt: "KIiTW2EZ",
+      same_site: same_site,
+      secure: secure
+    ]
+  end
 end

@@ -29,6 +29,27 @@ if metrics_token = System.get_env("TERMIGATE_METRICS_TOKEN") do
   config :termigate, metrics_token: metrics_token
 end
 
+# Mark the session cookie `Secure` so browsers withhold it on plain-HTTP
+# requests. Read at runtime so flipping `TERMIGATE_SECURE_COOKIES` on a built
+# release only requires a process restart, not a rebuild. Consumed by
+# `TermigateWeb.Endpoint.runtime_session_options/0`, which also tightens
+# `same_site` to `"Strict"` whenever Secure is on.
+#
+# Default: disabled. `force_ssl`'s exclude list keeps loopback and the Android
+# emulator host alias (`10.0.2.2`) reachable over plain HTTP; flipping the
+# secure flag on by default would block those clients from logging in. Opt in
+# with `TERMIGATE_SECURE_COOKIES=true` when the deployment is reached only
+# over HTTPS. Only the exact string "true" enables the flag — typos like
+# "yes", "1", or "TRUE" stay off so a careless setting never silently locks
+# out plain-HTTP clients.
+secure_cookies =
+  case System.get_env("TERMIGATE_SECURE_COOKIES") do
+    "true" -> true
+    _ -> false
+  end
+
+config :termigate, secure_cookies: secure_cookies
+
 # Opt in to exposing /metrics on the public listener. By default the endpoint
 # only answers requests from loopback peers (127.0.0.0/8, ::1) so a fresh
 # deployment does not leak operational fingerprinting data to the internet.

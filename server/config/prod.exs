@@ -38,23 +38,10 @@ force_ssl =
 
 config :termigate, TermigateWeb.Endpoint, force_ssl: force_ssl
 
-# Mark the session cookie `secure` so browsers withhold it on plain-HTTP
-# requests. Read by `Plug.Session` via `Application.compile_env/2` in
-# `TermigateWeb.Endpoint`, so this is a build-time decision driven by
-# `TERMIGATE_SECURE_COOKIES`.
-#
-# Default: disabled. `force_ssl`'s exclude list keeps loopback and the Android
-# emulator host alias (`10.0.2.2`) reachable over plain HTTP; flipping the
-# secure flag on by default would block those clients from logging in. Opt in
-# with `TERMIGATE_SECURE_COOKIES=true` when the deployment is reached only
-# over HTTPS.
-secure_cookies =
-  case System.get_env("TERMIGATE_SECURE_COOKIES") do
-    "true" -> true
-    _ -> false
-  end
-
-config :termigate, secure_cookies: secure_cookies
+# Note: `:secure_cookies` (the cookie `Secure` attribute) is sourced from
+# `TERMIGATE_SECURE_COOKIES` in `config/runtime.exs` so the flag can be
+# toggled on a built release without a rebuild. See
+# `TermigateWeb.Endpoint.runtime_session_options/0`.
 
 # Do not print debug messages in production
 config :logger, level: :info

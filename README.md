@@ -135,13 +135,19 @@ clients keep working.
 #### Secure session cookie
 
 When termigate is reached only over HTTPS (TLS terminator in front, or
-HTTP-disabling deployment), build with `TERMIGATE_SECURE_COOKIES=true` so
-the session cookie carries the `Secure` attribute and browsers withhold
-it on plain-HTTP requests:
+HTTP-disabling deployment), set `TERMIGATE_SECURE_COOKIES=true` at run
+time so the session cookie carries the `Secure` attribute and browsers
+withhold it on plain-HTTP requests. When Secure is on, `SameSite` is
+also tightened from `Lax` to `Strict`:
 
 ```bash
-TERMIGATE_SECURE_COOKIES=true podman build --format docker -t termigate -f Containerfile .
+TERMIGATE_SECURE_COOKIES=true podman run --rm -p 8888:8888 termigate
 ```
+
+This is a runtime setting: flipping it on a built release only requires
+a process restart, not a rebuild. Only the exact string `true` enables
+it — typos like `yes` or `1` stay off so a careless setting never
+silently locks plain-HTTP clients out of their session cookie.
 
 This is independent of `TERMIGATE_FORCE_SSL`: `force_ssl` excludes
 loopback and `10.0.2.2` from the HTTPS redirect, and flipping the cookie
