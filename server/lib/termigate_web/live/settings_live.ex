@@ -307,12 +307,14 @@ defmodule TermigateWeb.SettingsLive do
       true ->
         case Auth.change_password(current, new_pw) do
           :ok ->
+            # Rotating the password bumps Auth.auth_version, which invalidates
+            # the current cookie session and any active bearer tokens. Redirect
+            # the caller through /logout so they re-authenticate cleanly with
+            # their new password instead of getting bounced mid-click.
             {:noreply,
              socket
-             |> assign(:pw_current, "")
-             |> assign(:pw_new, "")
-             |> assign(:pw_confirm, "")
-             |> put_flash(:info, "Password changed successfully.")}
+             |> put_flash(:info, "Password changed. Please log in again with your new password.")
+             |> redirect(to: "/logout")}
 
           {:error, :invalid_current} ->
             {:noreply, put_flash(socket, :error, "Current password is incorrect.")}

@@ -29,6 +29,15 @@ defmodule TermigateWeb.ConfigControllerTest do
         end
       end)
 
+      # Writing the auth section bumps Auth.auth_version, so the bearer minted
+      # in ConnCase is now stale. Re-mint against the current version.
+      fresh_token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{
+          auth_version: Termigate.Auth.auth_version()
+        })
+
+      conn = put_req_header(conn, "authorization", "Bearer #{fresh_token}")
+
       body = conn |> get("/api/config") |> json_response(200)
 
       assert body["auth"]["username"] == "admin"

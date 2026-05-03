@@ -46,7 +46,10 @@ defmodule TermigateWeb.AuthHookTest do
 
   defp build_conn_with(authenticated_at) do
     Phoenix.ConnTest.build_conn()
-    |> Plug.Test.init_test_session(%{"authenticated_at" => authenticated_at})
+    |> Plug.Test.init_test_session(%{
+      "authenticated_at" => authenticated_at,
+      "auth_version" => Termigate.Auth.auth_version()
+    })
   end
 
   describe "TTL at mount comes from auth.session_ttl_hours" do

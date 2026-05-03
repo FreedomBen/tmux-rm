@@ -23,19 +23,25 @@ defmodule TermigateWeb.AuthHook do
     if Termigate.Auth.auth_enabled?() do
       case session["authenticated_at"] do
         timestamp when is_integer(timestamp) ->
-          if session_expired?(timestamp) do
-            {:halt, redirect_to_login(socket, "Session expired. Please log in again.")}
-          else
-            socket =
-              socket
-              |> assign(:authenticated_at, timestamp)
-              |> assign(:auth_last_check, System.system_time(:second))
-              |> attach_hook(:auth_ttl_event, :handle_event, &recheck_event/3)
-              |> attach_hook(:auth_ttl_info, :handle_info, &recheck_info/2)
+          cond do
+            session_expired?(timestamp) ->
+              {:halt, redirect_to_login(socket, "Session expired. Please log in again.")}
 
-            if connected?(socket), do: schedule_periodic_check()
+            not version_ok?(session["auth_version"]) ->
+              {:halt, redirect_to_login(socket, "Session expired. Please log in again.")}
 
-            {:cont, socket}
+            true ->
+              socket =
+                socket
+                |> assign(:authenticated_at, timestamp)
+                |> assign(:auth_version, session["auth_version"])
+                |> assign(:auth_last_check, System.system_time(:second))
+                |> attach_hook(:auth_ttl_event, :handle_event, &recheck_event/3)
+                |> attach_hook(:auth_ttl_info, :handle_info, &recheck_info/2)
+
+              if connected?(socket), do: schedule_periodic_check()
+
+              {:cont, socket}
           end
 
         _ ->
@@ -82,12 +88,16 @@ defmodule TermigateWeb.AuthHook do
 
   defp do_recheck(socket) do
     timestamp = socket.assigns[:authenticated_at]
+    version = socket.assigns[:auth_version]
 
     cond do
       is_nil(timestamp) ->
         {:ok, socket}
 
       session_expired?(timestamp) ->
+        {:expired, redirect_to_login(socket, "Session expired. Please log in again.")}
+
+      not version_ok?(version) ->
         {:expired, redirect_to_login(socket, "Session expired. Please log in again.")}
 
       true ->
@@ -100,6 +110,12 @@ defmodule TermigateWeb.AuthHook do
   end
 
   defp session_expired?(_), do: true
+
+  defp version_ok?(version) when is_binary(version) do
+    version == Termigate.Auth.auth_version()
+  end
+
+  defp version_ok?(_), do: false
 
   defp schedule_periodic_check do
     Process.send_after(self(), :__auth_ttl_check__, @periodic_check_ms)

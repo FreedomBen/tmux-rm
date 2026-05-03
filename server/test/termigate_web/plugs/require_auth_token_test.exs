@@ -21,7 +21,12 @@ defmodule TermigateWeb.Plugs.RequireAuthTokenTest do
 
     test "fails closed even with a Bearer token before setup completes" do
       Application.delete_env(:termigate, :auth_token)
-      token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "admin"})
+
+      token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{
+          username: "admin",
+          auth_version: "anything"
+        })
 
       conn =
         Phoenix.ConnTest.build_conn()
@@ -57,7 +62,12 @@ defmodule TermigateWeb.Plugs.RequireAuthTokenTest do
 
     test "passes through with valid token" do
       Application.put_env(:termigate, :auth_token, "some-token")
-      token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "admin"})
+
+      token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{
+          username: "admin",
+          auth_version: Termigate.Auth.auth_version()
+        })
 
       conn =
         Phoenix.ConnTest.build_conn()
@@ -65,6 +75,40 @@ defmodule TermigateWeb.Plugs.RequireAuthTokenTest do
         |> RequireAuthToken.call(RequireAuthToken.init([]))
 
       refute conn.halted
+    end
+
+    test "returns 401 when token lacks auth_version claim (pre-fix token)" do
+      Application.put_env(:termigate, :auth_token, "some-token")
+      legacy_token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: "admin"})
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> put_req_header("authorization", "Bearer #{legacy_token}")
+        |> RequireAuthToken.call(RequireAuthToken.init([]))
+
+      assert conn.halted
+      assert conn.status == 401
+    end
+
+    test "returns 401 when auth_token rotates after the bearer was issued" do
+      Application.put_env(:termigate, :auth_token, "first-token")
+
+      token =
+        Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{
+          username: "admin",
+          auth_version: Termigate.Auth.auth_version()
+        })
+
+      # Rotate the env-var token: auth_version derived from it now changes.
+      Application.put_env(:termigate, :auth_token, "second-token")
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> RequireAuthToken.call(RequireAuthToken.init([]))
+
+      assert conn.halted
+      assert conn.status == 401
     end
   end
 end

@@ -202,4 +202,80 @@ defmodule Termigate.AuthTest do
       refute Auth.verify_password("test", "bad$base64!")
     end
   end
+
+  describe "auth_version/0" do
+    setup do
+      Application.ensure_all_started(:termigate)
+      original_token = Application.get_env(:termigate, :auth_token)
+      Application.delete_env(:termigate, :auth_token)
+
+      on_exit(fn ->
+        if GenServer.whereis(Termigate.Config) do
+          Termigate.Config.update(fn cfg -> Map.delete(cfg, "auth") end)
+        end
+
+        if original_token,
+          do: Application.put_env(:termigate, :auth_token, original_token),
+          else: Application.delete_env(:termigate, :auth_token)
+      end)
+
+      :ok
+    end
+
+    defp install_credentials(username, password) do
+      hash = Auth.hash_password(password)
+
+      {:ok, _} =
+        Termigate.Config.update(fn cfg ->
+          Map.put(cfg, "auth", %{
+            "username" => username,
+            "password_hash" => hash,
+            "session_ttl_hours" => 24
+          })
+        end)
+
+      hash
+    end
+
+    test "returns nil when auth is not configured" do
+      assert is_nil(Auth.auth_version())
+    end
+
+    test "returns a stable version string when only the env-var token is set" do
+      Application.put_env(:termigate, :auth_token, "fixed-token")
+      v1 = Auth.auth_version()
+      v2 = Auth.auth_version()
+      assert is_binary(v1)
+      assert v1 == v2
+    end
+
+    test "version changes when the env-var token changes" do
+      Application.put_env(:termigate, :auth_token, "first")
+      v1 = Auth.auth_version()
+      Application.put_env(:termigate, :auth_token, "second")
+      v2 = Auth.auth_version()
+      refute v1 == v2
+    end
+
+    test "version changes when the password is rotated" do
+      install_credentials("admin", "first-pw")
+      v1 = Auth.auth_version()
+
+      assert :ok = Auth.change_password("first-pw", "second-pw")
+      v2 = Auth.auth_version()
+
+      refute v1 == v2
+    end
+
+    test "version is sensitive to BOTH the token and the password hash" do
+      install_credentials("admin", "the-password")
+      Application.put_env(:termigate, :auth_token, "the-token")
+      v_with_token = Auth.auth_version()
+
+      Application.delete_env(:termigate, :auth_token)
+      v_without_token = Auth.auth_version()
+
+      refute v_with_token == v_without_token
+    end
+  end
 end

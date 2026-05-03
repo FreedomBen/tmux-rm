@@ -118,6 +118,39 @@ defmodule Termigate.Auth do
     trunc(session_ttl_hours() * 3600)
   end
 
+  @doc """
+  Returns a stable version string derived from the active credentials, or
+  `nil` when auth is not configured.
+
+  The string is recomputed on every call from the current `password_hash`
+  and `TERMIGATE_AUTH_TOKEN` env var, so it changes whenever the operator
+  rotates either credential. Embedded in issued bearer tokens and cookie
+  sessions so that previously issued tokens become invalid the moment a
+  rotation happens — without needing a server-side denylist.
+  """
+  @spec auth_version() :: binary() | nil
+  def auth_version do
+    token =
+      case Application.get_env(:termigate, :auth_token) do
+        t when is_binary(t) -> t
+        _ -> ""
+      end
+
+    hash =
+      case read_credentials() do
+        {:ok, {_user, h}} -> h
+        _ -> ""
+      end
+
+    if token == "" and hash == "" do
+      nil
+    else
+      :crypto.hash(:sha256, [token, 0, hash])
+      |> Base.url_encode64(padding: false)
+      |> binary_part(0, 16)
+    end
+  end
+
   @doc "Update just the session TTL (hours)."
   def update_session_ttl(hours) when is_number(hours) and hours > 0 do
     case read_auth() do

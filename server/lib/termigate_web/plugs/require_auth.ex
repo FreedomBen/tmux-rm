@@ -16,12 +16,21 @@ defmodule TermigateWeb.Plugs.RequireAuth do
 
         timestamp ->
           max_age = Termigate.Auth.session_ttl_seconds()
+          session_version = get_session(conn, "auth_version")
+          current_version = Termigate.Auth.auth_version()
 
-          if System.system_time(:second) - timestamp > max_age do
-            Logger.info("Auth session expired, ip=#{remote_ip(conn)}")
-            conn |> clear_session() |> redirect(to: "/login") |> halt()
-          else
-            conn
+          cond do
+            System.system_time(:second) - timestamp > max_age ->
+              Logger.info("Auth session expired, ip=#{remote_ip(conn)}")
+              conn |> clear_session() |> redirect(to: "/login") |> halt()
+
+            not is_binary(session_version) or session_version != current_version ->
+              Logger.info("Auth session revoked (credential rotation), ip=#{remote_ip(conn)}")
+
+              conn |> clear_session() |> redirect(to: "/login") |> halt()
+
+            true ->
+              conn
           end
       end
     else

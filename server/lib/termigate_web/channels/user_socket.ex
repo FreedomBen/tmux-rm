@@ -25,12 +25,14 @@ defmodule TermigateWeb.UserSocket do
         # Native/API client path. The header keeps the token out of proxy
         # access logs that record URLs.
         max_age = Termigate.Auth.session_ttl_seconds()
+        current_version = Termigate.Auth.auth_version()
 
-        case Phoenix.Token.verify(TermigateWeb.Endpoint, "api_token", token, max_age: max_age) do
-          {:ok, _data} ->
-            {:ok, socket}
-
-          {:error, _} ->
+        with {:ok, %{auth_version: claim_version}} <-
+               Phoenix.Token.verify(TermigateWeb.Endpoint, "api_token", token, max_age: max_age),
+             true <- is_binary(claim_version) and claim_version == current_version do
+          {:ok, socket}
+        else
+          _ ->
             Logger.info("WebSocket auth failed from #{extract_ip(connect_info)}")
             :error
         end
@@ -45,13 +47,14 @@ defmodule TermigateWeb.UserSocket do
   def id(_socket), do: nil
 
   defp cookie_authenticated?(%{session: session}) when is_map(session) do
-    case Map.get(session, "authenticated_at") do
-      timestamp when is_integer(timestamp) ->
-        max_age = Termigate.Auth.session_ttl_seconds()
-        System.system_time(:second) - timestamp <= max_age
-
-      _ ->
-        false
+    with timestamp when is_integer(timestamp) <- Map.get(session, "authenticated_at"),
+         version when is_binary(version) <- Map.get(session, "auth_version"),
+         true <- version == Termigate.Auth.auth_version(),
+         max_age = Termigate.Auth.session_ttl_seconds(),
+         true <- System.system_time(:second) - timestamp <= max_age do
+      true
+    else
+      _ -> false
     end
   end
 

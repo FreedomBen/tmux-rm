@@ -25,7 +25,12 @@ defmodule TermigateWeb.AuthController do
         )
 
         max_age = Termigate.Auth.session_ttl_seconds()
-        token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{username: username})
+
+        token =
+          Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{
+            username: username,
+            auth_version: Auth.auth_version()
+          })
 
         json(conn, %{token: token, expires_in: max_age})
 
@@ -62,6 +67,7 @@ defmodule TermigateWeb.AuthController do
 
         conn
         |> put_session("authenticated_at", System.system_time(:second))
+        |> put_session("auth_version", Auth.auth_version())
         |> redirect(to: "/")
 
       :error ->
@@ -99,6 +105,7 @@ defmodule TermigateWeb.AuthController do
 
         conn
         |> put_session("authenticated_at", System.system_time(:second))
+        |> put_session("auth_version", Auth.auth_version())
         |> redirect(to: "/")
 
       {:error, _reason} ->

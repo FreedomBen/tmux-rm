@@ -10,10 +10,12 @@ defmodule TermigateWeb.Plugs.RequireAuthToken do
   def call(conn, _opts) do
     if Termigate.Auth.auth_enabled?() do
       max_age = Termigate.Auth.session_ttl_seconds()
+      current_version = Termigate.Auth.auth_version()
 
       with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
-           {:ok, _data} <-
-             Phoenix.Token.verify(TermigateWeb.Endpoint, "api_token", token, max_age: max_age) do
+           {:ok, %{auth_version: claim_version}} <-
+             Phoenix.Token.verify(TermigateWeb.Endpoint, "api_token", token, max_age: max_age),
+           true <- is_binary(claim_version) and claim_version == current_version do
         conn
       else
         _ ->

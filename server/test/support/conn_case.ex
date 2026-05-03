@@ -57,10 +57,16 @@ defmodule TermigateWeb.ConnCase do
     session =
       if tags[:skip_auth],
         do: %{},
-        else: %{"authenticated_at" => System.system_time(:second)}
+        else: %{
+          "authenticated_at" => System.system_time(:second),
+          "auth_version" => Termigate.Auth.auth_version()
+        }
 
     # Sign an API bearer token for controller/API tests
-    api_token = Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{})
+    api_token =
+      Phoenix.Token.sign(TermigateWeb.Endpoint, "api_token", %{
+        auth_version: Termigate.Auth.auth_version()
+      })
 
     conn =
       Phoenix.ConnTest.build_conn()
