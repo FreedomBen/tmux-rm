@@ -74,10 +74,13 @@ Run `make run-container` in the background (Bash
 `run_in_background: true`). Save the SECRET_KEY_BASE to the report so
 the run is reproducible.
 
-Poll `http://localhost:8889/healthz` until it returns 200 (timeout
-60s). If the healthcheck never passes, capture the last 60 lines of
-container logs (`podman logs termigate`) into a `## Setup failures`
-section and abort.
+Poll `http://127.0.0.1:8889/healthz` until it returns 200 (timeout
+60s). Use the literal `127.0.0.1` rather than `localhost` — rootless
+podman binds the published port to IPv4 only, but on hosts where
+`localhost` resolves to `::1` first the request fails with
+"Connection reset by peer" before retrying IPv4. If the healthcheck
+never passes, capture the last 60 lines of container logs
+(`podman logs termigate`) into a `## Setup failures` section and abort.
 
 Use context-mode tools for `make build-container` and `podman logs` —
 both produce more than 20 lines of output.
@@ -95,8 +98,10 @@ into `drive-artifacts/` and reference their paths in findings.
 
 ### Step 2a — Initial setup
 
-1. `new_page` then `navigate_page` to `http://localhost:8889/`. The
-   server should redirect to `/setup` if no admin user yet exists.
+1. `new_page` then `navigate_page` to `http://127.0.0.1:8889/` (use
+   the IPv4 literal, not `localhost`, for the same reason as the
+   healthcheck). The server should redirect to `/setup` if no admin
+   user yet exists.
 2. `take_snapshot`, fill in admin username + a strong password, submit.
 3. Confirm the post-setup landing page (session list, or whichever
    page the server uses).
@@ -149,7 +154,7 @@ surface to confirm the token-based path works:
 
 ```bash
 curl -fsSL -H "Authorization: Bearer <token>" \
-  http://localhost:8889/healthz
+  http://127.0.0.1:8889/healthz
 ```
 
 Run any longer curl probes through context-mode tools.
