@@ -1,5 +1,9 @@
 # Not Run Yet
 
+- We need to make it easier to switch between panes on mobile in the web app.  We already have window tabs, but I think maybe repurposing them for panes would be more what the user expects.  What are your thoughts? 
+
+- When on mobile in the web app, move the control buttons (like Ctrl+C, Ctrl+D, Tab, and arrow keys) to the bottom of the screen so they're easier to use.
+
 - Let's continue working through the security finding in @archived-docs/14_CLAUDE_SECURITY_REVIEW.md .  Pick up with the next task
 
 - Setup a vagrant VM that creates a fresh linux VM with tmux installed.  This will be used for testing and development so we don't have to worry about breaking our host machine's tmux sessions, and so we can test the setup process (both systemd and compose) in an automated fashion as well.

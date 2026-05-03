@@ -152,7 +152,10 @@
       "Bash(podman rmi *)",
       "Bash(wait %1)",
       "Bash(gh run *)",
-      "Bash(LOGGER_LEVEL=info mix test --repeat-until-failure 30 --max-cases 8)"
+      "Bash(LOGGER_LEVEL=info mix test --repeat-until-failure 30 --max-cases 8)",
+      "Bash(SECRET_KEY_BASE='DRx+X3ZlYNL7QB1DZCegM11u2T6hBICD3bXzsAbRt+6FBMBqvpdA0vCzEdvxsxeZ' make run-container *)",
+      "Bash(podman stop *)",
+      "Bash(podman rm *)"
     ]
   }
 }
