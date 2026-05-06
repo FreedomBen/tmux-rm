@@ -1,5 +1,7 @@
 # Not Run Yet
 
+- On mobile in the web app, the panes show up empty and don't display any content.  Can you investigate?
+
 - In the initial /setup flow, let's require a token that gets printed out to the console when the server starts.  The user needs to enter that token in the setup flow in order to proceed.  This is to prevent unauthorized access to the setup flow in case someone accidentally exposes their server to the internet without setting up a password.
 
 - We need to make it easier to switch between panes on mobile in the web app.  We already have window tabs, but I think maybe repurposing them for panes would be more what the user expects.  What are your thoughts? 
@@ -39,6 +41,8 @@
 - Let's ensure we have full support for auth tokens, such that if the user wants to setup an auth token and disallow username/password auth, they can.  When auth token is enabled, the server should respond with a 401 or 403 to all requests that don't have the auth token included, even the home page. Does this request make sense?
 
 # Already Run
+
+- Let's write a skill called "server-mobile-drive" that is a copy of "server-drive" but with instructions to test the web app on mobile sizes instead of desktop sizes.
 
 - We do want the dev server to bind 0.0.0.0 instead of localhost so that it's accessible from other machines on the network.  Let's make that change.
 
